@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useApp } from '@/context/AppContext';
 import { spinWheel, logAdWatch } from '@/lib/api';
+import { useRewardedAd } from '@/hooks/useAdsgram';
 
 const WHEEL_SEGMENTS = [
   { label: '100 pts', points: 100, stars: 0, color: 'hsl(220 30% 15%)', type: 'points' },
@@ -66,19 +67,21 @@ export default function SpinPage() {
     }, 4500);
   }
 
-  async function handleWatchAd(type: 'extra_spin' | 'double_reward') {
+  const onAdReward = useCallback(async () => {
+    if (!user) return;
+    setSpinsLeft(prev => prev + 1);
+    await logAdWatch(user.id, 'extra_spin', 0);
+    setResult('🎡 Extra spin granted!');
+    setTimeout(() => setResult(null), 2000);
+  }, [user]);
+
+  const { showAd } = useRewardedAd(onAdReward);
+
+  async function handleWatchAd() {
     if (!user) return;
     setAdLoading(true);
-    // Simulate ad (in production, integrate Adsgram SDK here)
-    await new Promise(r => setTimeout(r, 2000));
-    
-    if (type === 'extra_spin') {
-      setSpinsLeft(prev => prev + 1);
-      await logAdWatch(user.id, 'extra_spin', 0);
-      setResult('🎡 Extra spin granted!');
-    }
+    await showAd();
     setAdLoading(false);
-    setTimeout(() => setResult(null), 2000);
   }
 
   return (
@@ -210,7 +213,7 @@ export default function SpinPage() {
             border: '1px solid hsl(265 80% 65% / 0.3)',
             color: 'hsl(265 80% 75%)',
           }}
-          onClick={() => handleWatchAd('extra_spin')}
+          onClick={() => handleWatchAd()}
           disabled={adLoading}
         >
           {adLoading ? '⏳ Loading Ad...' : '📺 Watch Ad → +1 Extra Spin'}
