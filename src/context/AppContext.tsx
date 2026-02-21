@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AppUser, UserBalance, TelegramUser } from '@/types/telegram';
 import { initUser, getUserBalance, getSettings } from '@/lib/api';
+import { showInterstitialAd } from '@/hooks/useAdsgram';
 
 interface AppContextType {
   telegramUser: TelegramUser | null;
@@ -91,6 +92,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Load settings
       const s = await getSettings();
       setSettings(s);
+
+      // Show interstitial ad on app open
+      showInterstitialAd().catch(() => {});
     } catch (err) {
       console.error('App init error:', err);
     } finally {

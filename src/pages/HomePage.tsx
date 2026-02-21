@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '@/context/AppContext';
-import { claimDailyReward, getTransactions } from '@/lib/api';
+import { claimDailyReward, getTransactions, logAdWatch } from '@/lib/api';
+import { useRewardedAd } from '@/hooks/useAdsgram';
 
 export default function HomePage() {
   const { user, balance, settings, refreshBalance } = useApp();
@@ -8,6 +9,17 @@ export default function HomePage() {
   const [dailyMessage, setDailyMessage] = useState('');
   const [transactions, setTransactions] = useState<Array<{ id: string; type: string; points: number; description: string; created_at: string }>>([]);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
+
+  const onAdReward = useCallback(async () => {
+    if (!user) return;
+    await logAdWatch(user.id, 'bonus_reward', 50);
+    await refreshBalance();
+    setDailyMessage('+50 pts bonus from ad! 🎬');
+    setTimeout(() => setDailyMessage(''), 3000);
+  }, [user, refreshBalance]);
+
+  const { showAd } = useRewardedAd(onAdReward);
 
   useEffect(() => {
     if (user) {
@@ -132,7 +144,21 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Quick Actions */}
+      {/* Watch Ad Bonus */}
+      <button
+        className="w-full rounded-2xl p-4 mb-4 flex items-center justify-center gap-2 text-sm font-bold transition-all active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, hsl(265 80% 65% / 0.15), hsl(265 60% 45% / 0.1))',
+          border: '1px solid hsl(265 80% 65% / 0.3)',
+          color: 'hsl(265 80% 75%)',
+          opacity: adLoading ? 0.6 : 1,
+        }}
+        onClick={async () => { setAdLoading(true); await showAd(); setAdLoading(false); }}
+        disabled={adLoading}
+      >
+        {adLoading ? '⏳ Loading Ad...' : '📺 Watch Ad → +50 Bonus Points'}
+      </button>
+
       <div className="mb-4">
         <div className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Quick Actions</div>
         <div className="grid grid-cols-3 gap-2">
