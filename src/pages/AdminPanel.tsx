@@ -8,61 +8,132 @@ import {
   adminUpdateSetting,
   adminBanUser,
   adminToggleTask,
+  adminCreateTask,
+  adminDeleteTask,
   getTasks,
+  getSettings,
 } from '@/lib/api';
 import { Task } from '@/types/telegram';
 
 type AdminTab = 'dashboard' | 'users' | 'withdrawals' | 'tasks' | 'settings';
 
+const TASK_TYPES = [
+  { value: 'social', label: 'Telegram Channel Join' },
+  { value: 'video', label: 'Adsgram Ad Task' },
+  { value: 'special', label: 'Special Ad Task' },
+  { value: 'daily', label: 'Manual Reward Task' },
+  { value: 'referral', label: 'Referral Task' },
+];
+
 export default function AdminPanel() {
-  const { telegramUser, settings } = useApp();
+  const { telegramUser, refreshUser } = useApp();
+  const [settings, setSettingsState] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<AdminTab>('dashboard');
   const [stats, setStats] = useState({ totalUsers: 0, totalWithdrawals: 0, pendingWithdrawals: 0, totalTransactions: 0 });
   const [users, setUsers] = useState<Array<{ id: string; telegram_id: number; first_name: string; username: string; level: number; total_points: number; is_banned: boolean; created_at: string; balances: Array<{ points: number }> }>>([]);
   const [withdrawals, setWithdrawals] = useState<Array<{ id: string; method: string; points_spent: number; amount: number; status: string; created_at: string; admin_note: string | null; users: { first_name: string; username: string; telegram_id: number } | null }>>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [editSettings, setEditSettings] = useState<Record<string, string>>(settings);
+  const [editSettings, setEditSettings] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // New task form
+  const [showNewTask, setShowNewTask] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: '', description: '', task_type: 'social', reward_points: 100, reward_stars: 0,
+    icon: '✨', link: '', is_repeatable: false, display_order: 0,
+  });
 
   useEffect(() => { loadDashboard(); }, []);
-  useEffect(() => { setEditSettings(settings); }, [settings]);
 
   async function loadDashboard() {
-    const [s, u, w, t] = await Promise.all([
+    const [s, u, w, t, settingsData] = await Promise.all([
       adminGetStats(),
       adminGetUsers(),
       adminGetWithdrawals(),
       getTasks(),
+      getSettings(),
     ]);
     setStats(s);
     setUsers(u as unknown as typeof users);
     setWithdrawals(w as unknown as typeof withdrawals);
     setTasks(t);
+    setSettingsState(settingsData);
+    setEditSettings(settingsData);
+  }
+
+  function showMsg(text: string) {
+    setMessage(text);
+    setTimeout(() => setMessage(''), 3000);
   }
 
   async function handleApproveWithdrawal(id: string) {
     await adminUpdateWithdrawal(id, 'approved');
     setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, status: 'approved' } : w));
-    setMessage('Withdrawal approved');
-    setTimeout(() => setMessage(''), 2000);
+    showMsg('Withdrawal approved ✓');
   }
 
   async function handleRejectWithdrawal(id: string) {
     await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin');
     setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, status: 'rejected' } : w));
-    setMessage('Withdrawal rejected');
-    setTimeout(() => setMessage(''), 2000);
+    showMsg('Withdrawal rejected ✗');
   }
 
   async function handleBanUser(userId: string, banned: boolean) {
     await adminBanUser(userId, banned);
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_banned: banned } : u));
+    showMsg(banned ? 'User banned' : 'User unbanned');
   }
 
   async function handleSaveSetting(key: string) {
-    await adminUpdateSetting(key, editSettings[key]);
-    setMessage(`Setting "${key}" saved!`);
-    setTimeout(() => setMessage(''), 2000);
+    setSaving(key);
+    const result = await adminUpdateSetting(key, editSettings[key]);
+    if (result.success) {
+      setSettingsState(prev => ({ ...prev, [key]: editSettings[key] }));
+      showMsg(`Setting "${key}" saved to database ✓`);
+      // Refresh global app context so changes propagate
+      refreshUser();
+    } else {
+      showMsg(`Failed to save "${key}" — check logs`);
+    }
+    setSaving(null);
+  }
+
+  async function handleCreateTask() {
+    const result = await adminCreateTask({
+      title: newTask.title,
+      description: newTask.description || null,
+      task_type: newTask.task_type,
+      reward_points: newTask.reward_points,
+      reward_stars: newTask.reward_stars,
+      icon: newTask.icon || null,
+      link: newTask.link || null,
+      is_repeatable: newTask.is_repeatable,
+      is_active: true,
+      display_order: newTask.display_order,
+      repeat_hours: null,
+      max_completions: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Omit<Task, 'id'>);
+    if (result.success && result.data) {
+      setTasks(prev => [...prev, result.data as Task]);
+      setShowNewTask(false);
+      setNewTask({ title: '', description: '', task_type: 'social', reward_points: 100, reward_stars: 0, icon: '✨', link: '', is_repeatable: false, display_order: 0 });
+      showMsg('Task created ✓');
+    } else {
+      showMsg('Failed to create task');
+    }
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    const result = await adminDeleteTask(taskId);
+    if (result.success) {
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      showMsg('Task deleted ✓');
+    } else {
+      showMsg('Failed to delete task');
+    }
   }
 
   const tabItems: { id: AdminTab; label: string; icon: string }[] = [
@@ -199,22 +270,77 @@ export default function AdminPanel() {
       {/* Tasks */}
       {tab === 'tasks' && (
         <div className="space-y-2">
+          <button
+            onClick={() => setShowNewTask(!showNewTask)}
+            className="w-full py-2 rounded-xl text-sm font-bold mb-2"
+            style={{ background: 'hsl(45 100% 55% / 0.15)', color: 'hsl(45 100% 60%)', border: '1px solid hsl(45 100% 55% / 0.3)' }}
+          >
+            {showNewTask ? '✕ Cancel' : '＋ Create New Task'}
+          </button>
+
+          {showNewTask && (
+            <div className="p-4 rounded-xl space-y-3 mb-3" style={{ background: 'hsl(220 25% 8%)', border: '1px solid hsl(45 100% 55% / 0.3)' }}>
+              <input placeholder="Task title" value={newTask.title} onChange={e => setNewTask(p => ({ ...p, title: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+              <input placeholder="Description (optional)" value={newTask.description} onChange={e => setNewTask(p => ({ ...p, description: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+              <select value={newTask.task_type} onChange={e => setNewTask(p => ({ ...p, task_type: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }}>
+                {TASK_TYPES.map(tt => <option key={tt.value} value={tt.value}>{tt.label}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Reward Points</label>
+                  <input type="number" value={newTask.reward_points} onChange={e => setNewTask(p => ({ ...p, reward_points: +e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Reward Stars</label>
+                  <input type="number" value={newTask.reward_stars} onChange={e => setNewTask(p => ({ ...p, reward_stars: +e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+                </div>
+              </div>
+              <input placeholder="Icon emoji (e.g. 📢)" value={newTask.icon} onChange={e => setNewTask(p => ({ ...p, icon: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+              <input placeholder="Link (e.g. https://t.me/channel)" value={newTask.link} onChange={e => setNewTask(p => ({ ...p, link: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'hsl(220 25% 5%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }} />
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input type="checkbox" checked={newTask.is_repeatable} onChange={e => setNewTask(p => ({ ...p, is_repeatable: e.target.checked }))} />
+                Repeatable task
+              </label>
+              <button onClick={handleCreateTask} disabled={!newTask.title}
+                className="w-full py-2 rounded-xl text-sm font-bold"
+                style={{ background: 'hsl(140 70% 50%)', color: 'white', opacity: newTask.title ? 1 : 0.5 }}>
+                ✓ Save Task
+              </button>
+            </div>
+          )}
+
           {tasks.map(t => (
             <div key={t.id} className="p-3 rounded-xl flex items-center justify-between" style={{ background: 'hsl(220 25% 8%)', border: '1px solid hsl(220 20% 15%)' }}>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-foreground">{t.icon} {t.title}</div>
                 <div className="text-xs text-muted-foreground">+{t.reward_points} pts • {t.task_type}</div>
               </div>
-              <button
-                onClick={() => adminToggleTask(t.id, !t.is_active).then(() => setTasks(prev => prev.map(task => task.id === t.id ? { ...task, is_active: !t.is_active } : task)))}
-                className="px-2 py-1 rounded-lg text-xs font-bold"
-                style={{
-                  background: t.is_active ? 'hsl(140 70% 50% / 0.15)' : 'hsl(0 80% 55% / 0.15)',
-                  color: t.is_active ? 'hsl(140 70% 55%)' : 'hsl(0 80% 60%)',
-                }}
-              >
-                {t.is_active ? 'Active' : 'Disabled'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => adminToggleTask(t.id, !t.is_active).then(() => setTasks(prev => prev.map(task => task.id === t.id ? { ...task, is_active: !t.is_active } : task)))}
+                  className="px-2 py-1 rounded-lg text-xs font-bold"
+                  style={{
+                    background: t.is_active ? 'hsl(140 70% 50% / 0.15)' : 'hsl(0 80% 55% / 0.15)',
+                    color: t.is_active ? 'hsl(140 70% 55%)' : 'hsl(0 80% 60%)',
+                  }}
+                >
+                  {t.is_active ? 'On' : 'Off'}
+                </button>
+                <button
+                  onClick={() => handleDeleteTask(t.id)}
+                  className="px-2 py-1 rounded-lg text-xs font-bold"
+                  style={{ background: 'hsl(0 80% 55% / 0.15)', color: 'hsl(0 80% 60%)' }}
+                >
+                  🗑
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -223,6 +349,9 @@ export default function AdminPanel() {
       {/* Settings */}
       {tab === 'settings' && (
         <div className="space-y-3">
+          <div className="text-xs text-muted-foreground mb-2">
+            ⚠️ Changes save directly to the database. They persist across refreshes.
+          </div>
           {Object.entries(editSettings).map(([key, value]) => (
             <div key={key} className="p-3 rounded-xl" style={{ background: 'hsl(220 25% 8%)', border: '1px solid hsl(220 20% 15%)' }}>
               <div className="text-xs text-muted-foreground mb-1">{key.replace(/_/g, ' ')}</div>
@@ -236,12 +365,18 @@ export default function AdminPanel() {
                 />
                 <button
                   onClick={() => handleSaveSetting(key)}
+                  disabled={saving === key}
                   className="px-3 py-2 rounded-lg text-xs font-bold"
-                  style={{ background: 'hsl(45 100% 55% / 0.2)', color: 'hsl(45 100% 60%)' }}
+                  style={{ background: 'hsl(45 100% 55% / 0.2)', color: 'hsl(45 100% 60%)', opacity: saving === key ? 0.5 : 1 }}
                 >
-                  Save
+                  {saving === key ? '...' : 'Save'}
                 </button>
               </div>
+              {settings[key] !== editSettings[key] && (
+                <div className="text-xs mt-1" style={{ color: 'hsl(45 100% 60%)' }}>
+                  ⚠ Unsaved — current DB value: "{settings[key]}"
+                </div>
+              )}
             </div>
           ))}
         </div>

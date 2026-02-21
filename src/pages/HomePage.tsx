@@ -1,7 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '@/context/AppContext';
-import { claimDailyReward, getTransactions, logAdWatch } from '@/lib/api';
+import { claimDailyReward, getTransactions, logAdWatch, getDailyClaim } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
+
+function formatCountdown(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function HomePage() {
   const { user, balance, settings, refreshBalance } = useApp();
@@ -10,6 +17,7 @@ export default function HomePage() {
   const [transactions, setTransactions] = useState<Array<{ id: string; type: string; points: number; description: string; created_at: string }>>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
+  const [dailyCooldown, setDailyCooldown] = useState(0);
 
   const onAdReward = useCallback(async () => {
     if (!user) return;
@@ -24,21 +32,47 @@ export default function HomePage() {
   useEffect(() => {
     if (user) {
       getTransactions(user.id).then(txns => setTransactions(txns as Array<{ id: string; type: string; points: number; description: string; created_at: string }>));
+      checkDailyCooldown();
     }
   }, [user]);
 
-  async function handleDailyClaim() {
+  // Daily cooldown timer
+  useEffect(() => {
+    if (dailyCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setDailyCooldown(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [dailyCooldown]);
+
+  async function checkDailyCooldown() {
     if (!user) return;
+    const claim = await getDailyClaim(user.id);
+    if (claim) {
+      const claimedAt = new Date(claim.claimed_at).getTime();
+      const nextAvailable = claimedAt + 24 * 60 * 60 * 1000;
+      const remaining = Math.max(0, Math.floor((nextAvailable - Date.now()) / 1000));
+      setDailyCooldown(remaining);
+    }
+  }
+
+  async function handleDailyClaim() {
+    if (!user || dailyCooldown > 0) return;
     setDailyClaiming(true);
     setDailyMessage('');
     const result = await claimDailyReward(user.id);
     if (result.success) {
       setDailyMessage(`+${result.points} pts! Day ${result.streak} streak 🔥`);
       setShowConfetti(true);
+      setDailyCooldown(24 * 60 * 60); // 24h
       await refreshBalance();
       setTimeout(() => setShowConfetti(false), 2000);
     } else {
       setDailyMessage(result.message || 'Already claimed today!');
+      await checkDailyCooldown();
     }
     setDailyClaiming(false);
     setTimeout(() => setDailyMessage(''), 3000);
@@ -82,12 +116,9 @@ export default function HomePage() {
           boxShadow: '0 0 40px hsl(265 80% 65% / 0.1)',
         }}
       >
-        {/* Background decoration */}
         <div
           className="absolute inset-0 opacity-10"
-          style={{
-            background: 'radial-gradient(circle at 70% 50%, hsl(45 100% 55%) 0%, transparent 60%)',
-          }}
+          style={{ background: 'radial-gradient(circle at 70% 50%, hsl(45 100% 55%) 0%, transparent 60%)' }}
         />
         <div className="relative z-10">
           <div className="text-xs text-muted-foreground mb-1 font-medium tracking-widest uppercase">Total Earned</div>
@@ -97,8 +128,6 @@ export default function HomePage() {
           <div className="text-sm text-muted-foreground">points earned all time</div>
           <div className="mt-3 flex justify-center gap-4 text-xs">
             <span className="text-muted-foreground">Level <span className="text-foreground font-bold">{user?.level || 1}</span></span>
-            <span className="text-muted-foreground">|</span>
-            <span className="text-muted-foreground">Refs <span className="text-foreground font-bold">{0}</span></span>
             <span className="text-muted-foreground">|</span>
             <span className="text-muted-foreground">Withdrawn <span className="text-foreground font-bold">{(balance?.total_withdrawn || 0).toLocaleString()}</span></span>
           </div>
@@ -113,12 +142,29 @@ export default function HomePage() {
               <span className="text-lg">{stat.icon}</span>
               <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
             </div>
-            <div className="text-xl font-bold" style={{ color: stat.color }}>
-              {stat.value}
-            </div>
+            <div className="text-xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
           </div>
         ))}
       </div>
+
+      {/* WATCH & EARN - Big prominent button */}
+      <button
+        className="w-full rounded-2xl p-5 mb-4 flex flex-col items-center justify-center gap-2 font-bold transition-all active:scale-95 relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%), hsl(25 100% 50%))',
+          color: 'hsl(220 30% 5%)',
+          boxShadow: '0 0 30px hsl(45 100% 55% / 0.4), 0 4px 15px hsl(45 100% 55% / 0.3)',
+          opacity: adLoading ? 0.7 : 1,
+        }}
+        onClick={async () => { setAdLoading(true); await showAd(); setAdLoading(false); }}
+        disabled={adLoading}
+      >
+        <div className="text-3xl">🎬</div>
+        <div className="text-lg font-black tracking-wide">
+          {adLoading ? '⏳ Loading Ad...' : 'WATCH & EARN'}
+        </div>
+        <div className="text-xs font-semibold opacity-80">Tap to watch ad → Get +50 bonus points!</div>
+      </button>
 
       {/* Daily Reward */}
       <div
@@ -131,33 +177,18 @@ export default function HomePage() {
         <div>
           <div className="font-bold text-sm text-foreground">Daily Reward</div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            {dailyMessage || `+${settings.daily_bonus_base || 100} pts minimum`}
+            {dailyMessage || (dailyCooldown > 0 ? `⏳ Next in ${formatCountdown(dailyCooldown)}` : `+${settings.daily_bonus_base || 100} pts minimum`)}
           </div>
         </div>
         <button
           className="btn-gold px-4 py-2 rounded-xl text-sm font-bold"
           onClick={handleDailyClaim}
-          disabled={dailyClaiming}
-          style={{ opacity: dailyClaiming ? 0.7 : 1 }}
+          disabled={dailyClaiming || dailyCooldown > 0}
+          style={{ opacity: dailyClaiming || dailyCooldown > 0 ? 0.5 : 1 }}
         >
-          {dailyClaiming ? '...' : '🎁 Claim'}
+          {dailyClaiming ? '...' : dailyCooldown > 0 ? '⏳' : '🎁 Claim'}
         </button>
       </div>
-
-      {/* Watch Ad Bonus */}
-      <button
-        className="w-full rounded-2xl p-4 mb-4 flex items-center justify-center gap-2 text-sm font-bold transition-all active:scale-95"
-        style={{
-          background: 'linear-gradient(135deg, hsl(265 80% 65% / 0.15), hsl(265 60% 45% / 0.1))',
-          border: '1px solid hsl(265 80% 65% / 0.3)',
-          color: 'hsl(265 80% 75%)',
-          opacity: adLoading ? 0.6 : 1,
-        }}
-        onClick={async () => { setAdLoading(true); await showAd(); setAdLoading(false); }}
-        disabled={adLoading}
-      >
-        {adLoading ? '⏳ Loading Ad...' : '📺 Watch Ad → +50 Bonus Points'}
-      </button>
 
       <div className="mb-4">
         <div className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Quick Actions</div>
@@ -201,14 +232,9 @@ export default function HomePage() {
               >
                 <div>
                   <div className="text-sm font-medium text-foreground">{tx.description || tx.type}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(tx.created_at).toLocaleDateString()}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString()}</div>
                 </div>
-                <div
-                  className="text-sm font-bold"
-                  style={{ color: tx.points >= 0 ? 'hsl(140 70% 50%)' : 'hsl(0 80% 55%)' }}
-                >
+                <div className="text-sm font-bold" style={{ color: tx.points >= 0 ? 'hsl(140 70% 50%)' : 'hsl(0 80% 55%)' }}>
                   {tx.points >= 0 ? '+' : ''}{tx.points.toLocaleString()} pts
                 </div>
               </div>

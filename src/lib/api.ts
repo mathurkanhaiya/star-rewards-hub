@@ -233,6 +233,13 @@ export async function adminToggleTask(taskId: string, isActive: boolean) {
   return { success: !error };
 }
 
+export async function adminDeleteTask(taskId: string) {
+  // Delete user_tasks referencing this task first
+  await supabase.from('user_tasks').delete().eq('task_id', taskId);
+  const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+  return { success: !error };
+}
+
 export async function adminGetStats() {
   const [usersRes, withdrawalsRes, transactionsRes] = await Promise.all([
     supabase.from('users').select('id, total_points, created_at', { count: 'exact' }),
@@ -245,4 +252,25 @@ export async function adminGetStats() {
     pendingWithdrawals: (withdrawalsRes.data || []).filter((w: { status: string }) => w.status === 'pending').length,
     totalTransactions: transactionsRes.count || 0,
   };
+}
+
+export async function getDailyClaim(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('daily_claims')
+    .select('claimed_at')
+    .eq('user_id', userId)
+    .eq('claim_date', today)
+    .maybeSingle();
+  return data;
+}
+
+export async function getSpinCount(userId: string) {
+  const { data } = await supabase
+    .from('spin_results')
+    .select('spun_at')
+    .eq('user_id', userId)
+    .order('spun_at', { ascending: false })
+    .limit(10);
+  return data || [];
 }
