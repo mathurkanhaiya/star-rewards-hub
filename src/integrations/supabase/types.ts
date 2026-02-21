@@ -624,6 +624,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_points: {
+        Args: { p_points: number; p_user_id: string }
+        Returns: undefined
+      }
       is_telegram_admin: { Args: { _telegram_id: number }; Returns: boolean }
     }
     Enums: {
