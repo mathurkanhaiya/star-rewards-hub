@@ -128,6 +128,32 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
+export interface Contest {
+  id: string;
+  contest_type: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  is_active: boolean;
+  reward_1st: number;
+  reward_2nd: number;
+  reward_3rd: number;
+  reward_4th: number;
+  reward_5th: number;
+  rewards_distributed: boolean;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface AppSettings {
   points_per_referral: number;
   min_withdrawal_points: number;
