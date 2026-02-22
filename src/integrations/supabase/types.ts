@@ -143,6 +143,110 @@ export type Database = {
           },
         ]
       }
+      broadcasts: {
+        Row: {
+          id: string
+          message: string
+          sent_at: string
+          sent_by: number
+          target: string
+        }
+        Insert: {
+          id?: string
+          message: string
+          sent_at?: string
+          sent_by: number
+          target?: string
+        }
+        Update: {
+          id?: string
+          message?: string
+          sent_at?: string
+          sent_by?: number
+          target?: string
+        }
+        Relationships: []
+      }
+      contest_entries: {
+        Row: {
+          contest_id: string
+          id: string
+          score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contest_id: string
+          id?: string
+          score?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contest_id?: string
+          id?: string
+          score?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_entries_contest_id_fkey"
+            columns: ["contest_id"]
+            isOneToOne: false
+            referencedRelation: "contests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contests: {
+        Row: {
+          contest_type: string
+          created_at: string
+          ends_at: string
+          id: string
+          is_active: boolean
+          reward_1st: number
+          reward_2nd: number
+          reward_3rd: number
+          reward_4th: number
+          reward_5th: number
+          rewards_distributed: boolean
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          contest_type?: string
+          created_at?: string
+          ends_at: string
+          id?: string
+          is_active?: boolean
+          reward_1st?: number
+          reward_2nd?: number
+          reward_3rd?: number
+          reward_4th?: number
+          reward_5th?: number
+          rewards_distributed?: boolean
+          starts_at?: string
+          title: string
+        }
+        Update: {
+          contest_type?: string
+          created_at?: string
+          ends_at?: string
+          id?: string
+          is_active?: boolean
+          reward_1st?: number
+          reward_2nd?: number
+          reward_3rd?: number
+          reward_4th?: number
+          reward_5th?: number
+          rewards_distributed?: boolean
+          starts_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
       daily_claims: {
         Row: {
           claim_date: string
@@ -184,6 +288,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       referrals: {
         Row: {

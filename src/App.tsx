@@ -8,16 +8,16 @@ import BottomNav from "@/components/BottomNav";
 import Header from "@/components/Header";
 import HomePage from "@/pages/HomePage";
 import TasksPage from "@/pages/TasksPage";
-
 import SpinPage from "@/pages/SpinPage";
 import ReferralPage from "@/pages/ReferralPage";
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import WalletPage from "@/pages/WalletPage";
+import NotificationsPage from "@/pages/NotificationsPage";
 import AdminPanel from "@/pages/AdminPanel";
 
 const queryClient = new QueryClient();
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'admin';
+type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin';
 
 function AppContent() {
   const { isLoading, user, isAdmin } = useApp();
@@ -53,6 +53,7 @@ function AppContent() {
       case 'referral': return <ReferralPage />;
       case 'leaderboard': return <LeaderboardPage />;
       case 'wallet': return <WalletPage />;
+      case 'notifications': return <NotificationsPage />;
       case 'admin': return isAdmin ? <AdminPanel /> : <HomePage />;
       default: return <HomePage />;
     }
@@ -80,7 +81,6 @@ function AppContent() {
       <div className="relative z-10">
         <Header />
         
-        {/* Leaderboard tab in nav needs special handling */}
         {currentPage !== 'leaderboard' ? (
           <nav className="px-4 mb-2">
             <div className="flex gap-1">
