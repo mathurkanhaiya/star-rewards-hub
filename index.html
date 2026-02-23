@@ -44,13 +44,12 @@ border:2px solid transparent;
 to{transform:rotate(360deg)}
 }
 
-/* title glitch */
+/* glitch title */
 .title{
 font-size:28px;
 font-weight:700;
 letter-spacing:2px;
 color:white;
-position:relative;
 animation:glitch 1s infinite;
 }
 
@@ -60,10 +59,11 @@ animation:glitch 1s infinite;
 100%{text-shadow:2px 0 cyan,-2px 0 red}
 }
 
-.percent{
-margin-top:120px;
-font-size:20px;
+.loadingText{
+margin-top:130px;
 color:#0ff;
+font-size:18px;
+letter-spacing:1px;
 }
 
 /* hide animation */
@@ -75,7 +75,7 @@ animation:fade .8s forwards;
 to{opacity:0;visibility:hidden}
 }
 
-/* ===== DENIED SCREEN ===== */
+/* ===== DENIED ===== */
 
 .denied{
 height:100vh;
@@ -109,9 +109,8 @@ margin-bottom:15px;
 <div class="ring r1"></div>
 <div class="ring r2"></div>
 <div class="ring r3"></div>
-
 <div class="title">LOADING</div>
-<div class="percent" id="percent">0%</div>
+<div class="loadingText">Initializing system...</div>
 </div>
 
 <div id="root"></div>
@@ -119,24 +118,11 @@ margin-bottom:15px;
 <script type="module" src="/src/main.tsx"></script>
 
 <script>
-const loader=document.getElementById("loader");
-const percent=document.getElementById("percent");
+/* ===== TELEGRAM CHECK ===== */
 
-/* fake progress animation */
-let p=0;
-const interval=setInterval(()=>{
-p+=Math.random()*12;
-if(p>=100){
-p=100;
-clearInterval(interval);
-loader.classList.add("fadeOut");
-}
-percent.textContent=Math.floor(p)+"%";
-},200);
-
-/* Telegram check */
 window.addEventListener("DOMContentLoaded",()=>{
-const tg=window.Telegram?.WebApp;
+
+const tg = window.Telegram?.WebApp;
 
 if(!tg || !tg.initData){
 document.body.innerHTML=`
@@ -153,6 +139,17 @@ return;
 tg.expand();
 tg.ready();
 });
+
+
+/* ===== LOADER CONTROLLER ===== */
+
+window.hideLoader = function(){
+const loader=document.getElementById("loader");
+if(loader){
+loader.classList.add("fadeOut");
+setTimeout(()=>loader.remove(),800);
+}
+}
 </script>
 
 </body>
