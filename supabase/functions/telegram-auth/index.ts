@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version',
 };
 
+async function sendTelegramMessage(chatId: number, text: string) {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    });
+  } catch (e) { console.error('TG send error:', e); }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -31,7 +43,6 @@ serve(async (req) => {
       .single();
 
     if (existingUser) {
-      // Update last active
       await supabase
         .from('users')
         .update({ last_active_at: new Date().toISOString(), photo_url: telegramUser.photo_url })
@@ -45,7 +56,6 @@ serve(async (req) => {
     // Create new user
     const referralCodeGen = `${telegramUser.id}`;
 
-    // Find referrer
     let referrerId: string | null = null;
     if (referralCode && referralCode !== String(telegramUser.id)) {
       const { data: referrer } = await supabase
@@ -72,10 +82,8 @@ serve(async (req) => {
 
     if (userError) throw userError;
 
-    // Create balance record
     await supabase.from('balances').insert({ user_id: newUser.id, points: 200 });
 
-    // Get settings for bonus points
     const { data: settings } = await supabase.from('settings').select('key, value');
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => { settingsMap[s.key] = s.value; });
@@ -84,34 +92,29 @@ serve(async (req) => {
     const referralBonus = parseInt(settingsMap.points_per_referral || '500');
     const referredBonus = parseInt(settingsMap.referral_bonus_referred || '200');
 
-    // Log welcome transaction
     await supabase.from('transactions').insert({
-      user_id: newUser.id,
-      type: 'bonus',
-      points: welcomeBonus,
+      user_id: newUser.id, type: 'bonus', points: welcomeBonus,
       description: '🎉 Welcome bonus',
     });
 
+    // Send welcome message via bot
+    await sendTelegramMessage(telegramUser.id,
+      `🎉 <b>Welcome to the app!</b>\n\nYou received <b>${welcomeBonus} points</b> as a welcome bonus!\n\nComplete tasks, spin the wheel, and invite friends to earn more! 🚀`
+    );
+
     // Handle referral
     if (referrerId) {
-      // Create referral record
       await supabase.from('referrals').insert({
-        referrer_id: referrerId,
-        referred_id: newUser.id,
-        points_earned: referralBonus,
-        is_verified: true,
+        referrer_id: referrerId, referred_id: newUser.id,
+        points_earned: referralBonus, is_verified: true,
       });
 
-      // Award referrer
       await supabase.rpc('increment_points', { p_user_id: referrerId, p_points: referralBonus });
       await supabase.from('transactions').insert({
-        user_id: referrerId,
-        type: 'referral',
-        points: referralBonus,
+        user_id: referrerId, type: 'referral', points: referralBonus,
         description: `👥 Referral bonus from @${telegramUser.username || telegramUser.first_name}`,
       });
 
-      // Send notification to referrer
       await supabase.from('notifications').insert({
         user_id: referrerId,
         title: '👥 New Referral!',
@@ -119,12 +122,18 @@ serve(async (req) => {
         type: 'referral',
       });
 
+      // Send TG bot alert to referrer
+      const { data: referrerUser } = await supabase.from('users').select('telegram_id').eq('id', referrerId).single();
+      if (referrerUser) {
+        await sendTelegramMessage(referrerUser.telegram_id,
+          `👥 <b>New Referral!</b>\n\n@${telegramUser.username || telegramUser.first_name} joined using your link!\n+${referralBonus} points added to your balance! 🎉`
+        );
+      }
+
       // Award referred user
       await supabase.rpc('increment_points', { p_user_id: newUser.id, p_points: referredBonus });
       await supabase.from('transactions').insert({
-        user_id: newUser.id,
-        type: 'referral',
-        points: referredBonus,
+        user_id: newUser.id, type: 'referral', points: referredBonus,
         description: '🔗 Joined via referral bonus',
       });
 
@@ -149,14 +158,11 @@ serve(async (req) => {
 
           if (existing) {
             await supabase.from('contest_entries').update({
-              score: existing.score + 1,
-              updated_at: now,
+              score: existing.score + 1, updated_at: now,
             }).eq('id', existing.id);
           } else {
             await supabase.from('contest_entries').insert({
-              contest_id: contest.id,
-              user_id: referrerId,
-              score: 1,
+              contest_id: contest.id, user_id: referrerId, score: 1,
             });
           }
         }

@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function sendTelegramMessage(chatId: number, text: string) {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    });
+  } catch (e) { console.error('TG send error:', e); }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -20,7 +32,6 @@ serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Check if already claimed today
     const { data: existing } = await supabase
       .from('daily_claims')
       .select('id')
@@ -34,7 +45,6 @@ serve(async (req) => {
       });
     }
 
-    // Get streak
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     const { data: lastClaim } = await supabase
       .from('daily_claims')
@@ -48,15 +58,10 @@ serve(async (req) => {
     const streakBonus = Math.min(streak * 10, 500);
     const totalPoints = basePoints + streakBonus;
 
-    // Create claim record
     await supabase.from('daily_claims').insert({
-      user_id: userId,
-      claim_date: today,
-      day_streak: streak,
-      points_earned: totalPoints,
+      user_id: userId, claim_date: today, day_streak: streak, points_earned: totalPoints,
     });
 
-    // Update balance
     const { data: balance } = await supabase.from('balances').select('points, total_earned').eq('user_id', userId).single();
     if (balance) {
       await supabase.from('balances').update({
@@ -65,20 +70,20 @@ serve(async (req) => {
       }).eq('user_id', userId);
     }
 
-    // Log transaction
     await supabase.from('transactions').insert({
-      user_id: userId,
-      type: 'daily',
-      points: totalPoints,
+      user_id: userId, type: 'daily', points: totalPoints,
       description: `🎁 Daily reward (Day ${streak} streak)`,
     });
 
-    // Update user total_points
-    const { data: user } = await supabase.from('users').select('total_points').eq('id', userId).single();
+    const { data: user } = await supabase.from('users').select('total_points, telegram_id').eq('id', userId).single();
     if (user) {
       const newTotal = user.total_points + totalPoints;
-      const newLevel = Math.floor(newTotal / 10000) + 1;
-      await supabase.from('users').update({ total_points: newTotal, level: newLevel }).eq('id', userId);
+      await supabase.from('users').update({ total_points: newTotal, level: Math.floor(newTotal / 10000) + 1 }).eq('id', userId);
+
+      // Send TG alert
+      await sendTelegramMessage(user.telegram_id,
+        `🎁 <b>Daily Reward Claimed!</b>\n\n+${totalPoints} points\n🔥 Streak: Day ${streak}\n\nCome back tomorrow to keep your streak!`
+      );
     }
 
     return new Response(JSON.stringify({ success: true, points: totalPoints, streak }), {

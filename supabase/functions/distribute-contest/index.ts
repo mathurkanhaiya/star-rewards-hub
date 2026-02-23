@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function sendTelegramMessage(chatId: number, text: string) {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    });
+  } catch (e) { console.error('TG send error:', e); }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -18,7 +30,6 @@ serve(async (req) => {
     const { contestId } = await req.json();
     if (!contestId) throw new Error('Missing contestId');
 
-    // Get contest
     const { data: contest } = await supabase.from('contests').select('*').eq('id', contestId).single();
     if (!contest) throw new Error('Contest not found');
     if (contest.rewards_distributed) {
@@ -27,7 +38,6 @@ serve(async (req) => {
       });
     }
 
-    // Get top 5 entries
     const { data: entries } = await supabase
       .from('contest_entries')
       .select('user_id, score')
@@ -49,27 +59,29 @@ serve(async (req) => {
       const reward = rewards[i] || 0;
       if (reward <= 0) continue;
 
-      // Add points
       await supabase.rpc('increment_points', { p_user_id: entry.user_id, p_points: reward });
 
-      // Log transaction
       await supabase.from('transactions').insert({
-        user_id: entry.user_id,
-        type: 'contest_reward',
-        points: reward,
+        user_id: entry.user_id, type: 'contest_reward', points: reward,
         description: `🏆 ${medals[i]} Contest "${contest.title}" reward!`,
       });
 
-      // Send notification
       await supabase.from('notifications').insert({
         user_id: entry.user_id,
         title: '🏆 Contest Winner!',
         message: `You placed ${medals[i]} in "${contest.title}" and won ${reward.toLocaleString()} points!`,
         type: 'reward',
       });
+
+      // Send TG bot alert to winner
+      const { data: userData } = await supabase.from('users').select('telegram_id').eq('id', entry.user_id).single();
+      if (userData) {
+        await sendTelegramMessage(userData.telegram_id,
+          `🏆 <b>Contest Winner!</b>\n\nYou placed <b>${medals[i]}</b> in "${contest.title}"!\n+${reward.toLocaleString()} points added! 🎉`
+        );
+      }
     }
 
-    // Mark contest as distributed
     await supabase.from('contests').update({ rewards_distributed: true, is_active: false }).eq('id', contestId);
 
     return new Response(JSON.stringify({ success: true, message: `Rewards distributed to ${entries.length} winners!` }), {
