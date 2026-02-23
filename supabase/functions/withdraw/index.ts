@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function sendTelegramMessage(chatId: number, text: string) {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    });
+  } catch (e) { console.error('TG send error:', e); }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -30,7 +42,6 @@ serve(async (req) => {
       });
     }
 
-    // Get rate and calc amount
     const rateKey = `${method}_conversion_rate`;
     const rate = parseInt(settingsMap[rateKey] || '1000');
     const amount = points / rate;
@@ -43,7 +54,7 @@ serve(async (req) => {
       });
     }
 
-    // Anti-fraud: check for recent pending withdrawals
+    // Anti-fraud: check pending
     const { count: pendingCount } = await supabase
       .from('withdrawals')
       .select('id', { count: 'exact' })
@@ -57,38 +68,48 @@ serve(async (req) => {
       });
     }
 
-    // Create withdrawal request
+    // Create withdrawal
     await supabase.from('withdrawals').insert({
-      user_id: userId,
-      method,
-      points_spent: points,
-      amount,
-      wallet_address: walletAddress || null,
-      status: 'pending',
+      user_id: userId, method, points_spent: points, amount,
+      wallet_address: walletAddress || null, status: 'pending',
     });
 
-    // Deduct points immediately - fix: use correct field references
-    const currentWithdrawn = balance.total_withdrawn || 0;
+    // Deduct points
     await supabase.from('balances').update({
       points: balance.points - points,
-      total_withdrawn: currentWithdrawn + points,
+      total_withdrawn: (balance.total_withdrawn || 0) + points,
     }).eq('user_id', userId);
 
     // Log transaction
     await supabase.from('transactions').insert({
-      user_id: userId,
-      type: 'spend',
-      points: -points,
+      user_id: userId, type: 'spend', points: -points,
       description: `💸 Withdrawal request: ${amount.toFixed(2)} ${method.toUpperCase()}`,
     });
 
-    // Send notification to user
+    // In-app notification
     await supabase.from('notifications').insert({
       user_id: userId,
       title: '💸 Withdrawal Submitted',
       message: `Your withdrawal of ${points.toLocaleString()} pts (${amount.toFixed(2)} ${method.toUpperCase()}) is pending review.`,
       type: 'withdrawal',
     });
+
+    // Telegram bot alert to user
+    const { data: userData } = await supabase.from('users').select('telegram_id').eq('id', userId).single();
+    if (userData) {
+      await sendTelegramMessage(userData.telegram_id,
+        `💸 <b>Withdrawal Submitted</b>\n\nAmount: <b>${amount.toFixed(2)} ${method.toUpperCase()}</b>\nPoints spent: ${points.toLocaleString()}\n\nYour request is pending admin review.`
+      );
+    }
+
+    // Alert admin
+    const adminTgId = Deno.env.get('ADMIN_TELEGRAM_ID');
+    if (adminTgId) {
+      const username = userData ? (await supabase.from('users').select('username, first_name').eq('id', userId).single()).data : null;
+      await sendTelegramMessage(parseInt(adminTgId),
+        `🔔 <b>New Withdrawal Request</b>\n\nUser: ${username?.first_name || 'Unknown'} (@${username?.username || 'N/A'})\nAmount: <b>${amount.toFixed(2)} ${method.toUpperCase()}</b>\nPoints: ${points.toLocaleString()}\nWallet: ${walletAddress || 'N/A'}`
+      );
+    }
 
     return new Response(JSON.stringify({ success: true, message: 'Withdrawal request submitted!' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

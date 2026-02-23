@@ -254,59 +254,16 @@ export async function adminGetWithdrawals() {
 }
 
 export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string) {
-  // Get withdrawal details first
-  const { data: withdrawal } = await supabase
-    .from('withdrawals')
-    .select('user_id, points_spent, amount, method')
-    .eq('id', withdrawalId)
-    .single();
-
-  if (!withdrawal) return { success: false };
-
-  const { error } = await supabase
-    .from('withdrawals')
-    .update({ status, admin_note: adminNote, processed_at: new Date().toISOString() })
-    .eq('id', withdrawalId);
-  
-  if (error) return { success: false };
-
-  // If rejected, refund the points
-  if (status === 'rejected') {
-    const { data: balance } = await supabase
-      .from('balances')
-      .select('points, total_withdrawn')
-      .eq('user_id', withdrawal.user_id)
-      .single();
-    
-    if (balance) {
-      await supabase.from('balances').update({
-        points: balance.points + withdrawal.points_spent,
-        total_withdrawn: Math.max(0, (balance.total_withdrawn || 0) - withdrawal.points_spent),
-      }).eq('user_id', withdrawal.user_id);
-
-      await supabase.from('transactions').insert({
-        user_id: withdrawal.user_id,
-        type: 'refund',
-        points: withdrawal.points_spent,
-        description: `🔄 Withdrawal rejected — ${withdrawal.points_spent.toLocaleString()} pts refunded`,
-      });
-    }
+  try {
+    const response = await fetch(`${EDGE_FN}/admin-withdrawal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ withdrawalId, status, adminNote }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error updating withdrawal' };
   }
-
-  // Send notification to user
-  const notifTitle = status === 'approved' ? '✅ Withdrawal Approved!' : '❌ Withdrawal Rejected';
-  const notifMsg = status === 'approved'
-    ? `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} has been approved and is being processed.`
-    : `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} was rejected. ${withdrawal.points_spent.toLocaleString()} points have been refunded.${adminNote ? ` Reason: ${adminNote}` : ''}`;
-
-  await supabase.from('notifications').insert({
-    user_id: withdrawal.user_id,
-    title: notifTitle,
-    message: notifMsg,
-    type: 'withdrawal',
-  });
-
-  return { success: true };
 }
 
 export async function adminUpdateSetting(key: string, value: string) {
