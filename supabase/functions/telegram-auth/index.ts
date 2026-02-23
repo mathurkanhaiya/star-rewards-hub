@@ -111,6 +111,14 @@ serve(async (req) => {
         description: `👥 Referral bonus from @${telegramUser.username || telegramUser.first_name}`,
       });
 
+      // Send notification to referrer
+      await supabase.from('notifications').insert({
+        user_id: referrerId,
+        title: '👥 New Referral!',
+        message: `@${telegramUser.username || telegramUser.first_name} joined using your link! +${referralBonus} points!`,
+        type: 'referral',
+      });
+
       // Award referred user
       await supabase.rpc('increment_points', { p_user_id: newUser.id, p_points: referredBonus });
       await supabase.from('transactions').insert({
@@ -119,6 +127,40 @@ serve(async (req) => {
         points: referredBonus,
         description: '🔗 Joined via referral bonus',
       });
+
+      // Track active invite contests
+      const now = new Date().toISOString();
+      const { data: inviteContests } = await supabase
+        .from('contests')
+        .select('id')
+        .eq('contest_type', 'invite')
+        .eq('is_active', true)
+        .lte('starts_at', now)
+        .gte('ends_at', now);
+
+      if (inviteContests && inviteContests.length > 0) {
+        for (const contest of inviteContests) {
+          const { data: existing } = await supabase
+            .from('contest_entries')
+            .select('id, score')
+            .eq('contest_id', contest.id)
+            .eq('user_id', referrerId)
+            .single();
+
+          if (existing) {
+            await supabase.from('contest_entries').update({
+              score: existing.score + 1,
+              updated_at: now,
+            }).eq('id', existing.id);
+          } else {
+            await supabase.from('contest_entries').insert({
+              contest_id: contest.id,
+              user_id: referrerId,
+              score: 1,
+            });
+          }
+        }
+      }
     }
 
     return new Response(JSON.stringify({ user: newUser }), {

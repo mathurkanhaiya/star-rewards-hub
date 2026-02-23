@@ -6,6 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Verify Telegram channel/group membership
+async function verifyTelegramMembership(botToken: string, chatId: string, telegramId: number): Promise<boolean> {
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=${chatId}&user_id=${telegramId}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.ok) {
+      const status = data.result?.status;
+      return ['member', 'administrator', 'creator'].includes(status);
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Extract chat ID from Telegram link
+function extractChatId(link: string): string | null {
+  if (!link) return null;
+  // Handle t.me/username format
+  const match = link.match(/t\.me\/([a-zA-Z0-9_]+)/);
+  if (match) return `@${match[1]}`;
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -61,6 +86,34 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: false, message: 'Task cooldown not finished yet' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
+      }
+    }
+
+    // Verify Telegram channel/group tasks
+    if (task.task_type === 'social' && task.link && task.link.includes('t.me/')) {
+      const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+      if (botToken) {
+        // Get user's telegram_id
+        const { data: userData } = await supabase
+          .from('users')
+          .select('telegram_id')
+          .eq('id', userId)
+          .single();
+
+        if (userData) {
+          const chatId = extractChatId(task.link);
+          if (chatId) {
+            const isMember = await verifyTelegramMembership(botToken, chatId, userData.telegram_id);
+            if (!isMember) {
+              return new Response(JSON.stringify({ 
+                success: false, 
+                message: 'Please join the channel/group first, then try again!' 
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+          }
+        }
       }
     }
 

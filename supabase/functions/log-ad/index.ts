@@ -55,6 +55,41 @@ serve(async (req) => {
       }
     }
 
+    // Track active ads_watch contests
+    const now = new Date().toISOString();
+    const { data: activeContests } = await supabase
+      .from('contests')
+      .select('id')
+      .eq('contest_type', 'ads_watch')
+      .eq('is_active', true)
+      .lte('starts_at', now)
+      .gte('ends_at', now);
+
+    if (activeContests && activeContests.length > 0) {
+      for (const contest of activeContests) {
+        // Upsert contest entry - increment score
+        const { data: existing } = await supabase
+          .from('contest_entries')
+          .select('id, score')
+          .eq('contest_id', contest.id)
+          .eq('user_id', userId)
+          .single();
+
+        if (existing) {
+          await supabase.from('contest_entries').update({
+            score: existing.score + 1,
+            updated_at: now,
+          }).eq('id', existing.id);
+        } else {
+          await supabase.from('contest_entries').insert({
+            contest_id: contest.id,
+            user_id: userId,
+            score: 1,
+          });
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
