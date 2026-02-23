@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>ADS Rewards - Earn & Withdraw</title>
+
 <meta name="description" content="Complete tasks, invite friends, spin the wheel & earn crypto rewards!" />
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -14,39 +15,101 @@
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
 
+<style>
+body{
+  margin:0;
+  font-family:system-ui;
+}
+
+/* denied screen */
+.denied{
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(-45deg,#0f2027,#203a43,#2c5364,#1c92d2);
+  background-size:400% 400%;
+  animation:bg 12s ease infinite;
+  color:white;
+}
+
+@keyframes bg{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+.card{
+  backdrop-filter:blur(18px);
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.2);
+  padding:45px 55px;
+  border-radius:22px;
+  text-align:center;
+  box-shadow:0 0 40px rgba(0,0,0,.35);
+  animation:fade 1.2s ease;
+}
+
+@keyframes fade{
+  from{opacity:0; transform:translateY(25px)}
+  to{opacity:1; transform:translateY(0)}
+}
+
+.card img{
+  width:48px;
+  margin-bottom:15px;
+}
+
+.card h1{
+  margin:0 0 10px;
+  font-size:28px;
+}
+
+.card p{
+  opacity:.85;
+  margin:0;
+}
+</style>
+
 <script>
-  // Block access if not opened inside Telegram
-  window.addEventListener("DOMContentLoaded", function () {
-    if (!window.Telegram || !Telegram.WebApp || !Telegram.WebApp.initData) {
-      document.body.innerHTML = `
-        <div style="
-          height:100vh;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          font-family:system-ui;
-          background:#0f2027;
-          color:white;
-          text-align:center;
-          padding:20px;
-        ">
-          <div>
-            <h1>🚫 Access Denied</h1>
-            <p>This app can only be opened inside Telegram.</p>
-          </div>
+window.addEventListener("DOMContentLoaded", function(){
+
+  const isTelegram =
+    window.Telegram &&
+    Telegram.WebApp &&
+    Telegram.WebApp.initData &&
+    Telegram.WebApp.initData.length > 0;
+
+  if(!isTelegram){
+
+    document.body.innerHTML = `
+      <div class="denied">
+        <div class="card">
+
+          <img src="https://telegram.org/img/emoji/6084880262179588505.webp">
+
+          <h1>Access Denied</h1>
+          <p>This app can only be opened inside Telegram.</p>
+
         </div>
-      `;
-    } else {
-      Telegram.WebApp.expand(); // optional fullscreen
-      Telegram.WebApp.ready();
-    }
-  });
+      </div>
+    `;
+
+  } else {
+    Telegram.WebApp.expand();
+    Telegram.WebApp.ready();
+  }
+
+});
 </script>
 
 </head>
 
 <body>
+
 <div id="root"></div>
+
 <script type="module" src="/src/main.tsx"></script>
+
 </body>
 </html>
