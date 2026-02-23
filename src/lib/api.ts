@@ -254,27 +254,83 @@ export async function adminGetWithdrawals() {
 }
 
 export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string) {
+  // Get withdrawal details first
+  const { data: withdrawal } = await supabase
+    .from('withdrawals')
+    .select('user_id, points_spent, amount, method')
+    .eq('id', withdrawalId)
+    .single();
+
+  if (!withdrawal) return { success: false };
+
   const { error } = await supabase
     .from('withdrawals')
     .update({ status, admin_note: adminNote, processed_at: new Date().toISOString() })
     .eq('id', withdrawalId);
-  return { success: !error };
+  
+  if (error) return { success: false };
+
+  // If rejected, refund the points
+  if (status === 'rejected') {
+    const { data: balance } = await supabase
+      .from('balances')
+      .select('points, total_withdrawn')
+      .eq('user_id', withdrawal.user_id)
+      .single();
+    
+    if (balance) {
+      await supabase.from('balances').update({
+        points: balance.points + withdrawal.points_spent,
+        total_withdrawn: Math.max(0, (balance.total_withdrawn || 0) - withdrawal.points_spent),
+      }).eq('user_id', withdrawal.user_id);
+
+      await supabase.from('transactions').insert({
+        user_id: withdrawal.user_id,
+        type: 'refund',
+        points: withdrawal.points_spent,
+        description: `🔄 Withdrawal rejected — ${withdrawal.points_spent.toLocaleString()} pts refunded`,
+      });
+    }
+  }
+
+  // Send notification to user
+  const notifTitle = status === 'approved' ? '✅ Withdrawal Approved!' : '❌ Withdrawal Rejected';
+  const notifMsg = status === 'approved'
+    ? `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} has been approved and is being processed.`
+    : `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} was rejected. ${withdrawal.points_spent.toLocaleString()} points have been refunded.${adminNote ? ` Reason: ${adminNote}` : ''}`;
+
+  await supabase.from('notifications').insert({
+    user_id: withdrawal.user_id,
+    title: notifTitle,
+    message: notifMsg,
+    type: 'withdrawal',
+  });
+
+  return { success: true };
 }
 
 export async function adminUpdateSetting(key: string, value: string) {
-  // Use upsert to handle both insert and update
-  const { error } = await supabase
+  // Check if setting exists
+  const { data: existing } = await supabase
     .from('settings')
-    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-  if (error) {
-    // Fallback: try update
-    const { error: updateError } = await supabase
+    .select('id')
+    .eq('key', key)
+    .single();
+
+  if (existing) {
+    const { error } = await supabase
       .from('settings')
       .update({ value, updated_at: new Date().toISOString() })
       .eq('key', key);
-    return { success: !updateError };
+    console.log(`Setting "${key}" updated to "${value}"`, error ? `ERROR: ${error.message}` : '✓');
+    return { success: !error };
+  } else {
+    const { error } = await supabase
+      .from('settings')
+      .insert({ key, value, updated_at: new Date().toISOString() });
+    console.log(`Setting "${key}" inserted as "${value}"`, error ? `ERROR: ${error.message}` : '✓');
+    return { success: !error };
   }
-  return { success: true };
 }
 
 export async function adminBanUser(userId: string, banned: boolean) {

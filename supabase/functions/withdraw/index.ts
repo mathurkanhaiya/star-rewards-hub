@@ -36,7 +36,7 @@ serve(async (req) => {
     const amount = points / rate;
 
     // Check balance
-    const { data: balance } = await supabase.from('balances').select('points').eq('user_id', userId).single();
+    const { data: balance } = await supabase.from('balances').select('points, total_withdrawn').eq('user_id', userId).single();
     if (!balance || balance.points < points) {
       return new Response(JSON.stringify({ success: false, message: 'Insufficient balance' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -50,7 +50,8 @@ serve(async (req) => {
       .eq('user_id', userId)
       .eq('status', 'pending');
 
-    if ((pendingCount || 0) >= 2) {
+    const maxPending = parseInt(settingsMap.max_pending_withdrawals || '2');
+    if ((pendingCount || 0) >= maxPending) {
       return new Response(JSON.stringify({ success: false, message: 'You have too many pending withdrawals' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -66,10 +67,11 @@ serve(async (req) => {
       status: 'pending',
     });
 
-    // Deduct points immediately
+    // Deduct points immediately - fix: use correct field references
+    const currentWithdrawn = balance.total_withdrawn || 0;
     await supabase.from('balances').update({
       points: balance.points - points,
-      total_withdrawn: (balance as { total_withdrawn?: number }).total_withdrawn + points,
+      total_withdrawn: currentWithdrawn + points,
     }).eq('user_id', userId);
 
     // Log transaction
@@ -78,6 +80,14 @@ serve(async (req) => {
       type: 'spend',
       points: -points,
       description: `💸 Withdrawal request: ${amount.toFixed(2)} ${method.toUpperCase()}`,
+    });
+
+    // Send notification to user
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '💸 Withdrawal Submitted',
+      message: `Your withdrawal of ${points.toLocaleString()} pts (${amount.toFixed(2)} ${method.toUpperCase()}) is pending review.`,
+      type: 'withdrawal',
     });
 
     return new Response(JSON.stringify({ success: true, message: 'Withdrawal request submitted!' }), {
