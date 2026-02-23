@@ -1,20 +1,68 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>ADS Rewards - Earn & Withdraw</title>
-    <meta name="description" content="Complete tasks, invite friends, spin the wheel & earn crypto rewards!" />
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-    <meta property="og:title" content="ADS Rewards Mini App" />
-    <meta property="og:description" content="Earn crypto by completing tasks and inviting friends!" />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
+<head>
+<meta charset="UTF-8">
+<title>Maintenance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<style>
+body{
+  margin:0;
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:system-ui,sans-serif;
+  background:linear-gradient(-45deg,#0f2027,#203a43,#2c5364,#1c92d2);
+  background-size:400% 400%;
+  animation:bg 12s ease infinite;
+  color:white;
+}
+
+@keyframes bg{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+.card{
+  backdrop-filter:blur(18px);
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.2);
+  padding:50px 60px;
+  border-radius:20px;
+  text-align:center;
+}
+
+.loader span{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  margin:5px;
+  border-radius:50%;
+  background:white;
+  animation:bounce 1.4s infinite ease-in-out both;
+}
+
+.loader span:nth-child(1){animation-delay:-.32s}
+.loader span:nth-child(2){animation-delay:-.16s}
+
+@keyframes bounce{
+  0%,80%,100%{transform:scale(0)}
+  40%{transform:scale(1)}
+}
+</style>
+</head>
+
+<body>
+<div class="card">
+<h1>🚧 Site Under Maintenance</h1>
+<p>We’ll be back soon.</p>
+
+<div class="loader">
+<span></span><span></span><span></span>
+</div>
+
+</div>
+</body>
 </html>
