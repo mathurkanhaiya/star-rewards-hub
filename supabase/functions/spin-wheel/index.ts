@@ -7,13 +7,13 @@ const corsHeaders = {
 };
 
 const SPIN_PRIZES = [
-  { type: 'points', points: 100, stars: 0, probability: 0.30 },
-  { type: 'points', points: 250, stars: 0, probability: 0.25 },
-  { type: 'points', points: 500, stars: 0, probability: 0.15 },
-  { type: 'points', points: 750, stars: 0, probability: 0.08 },
-  { type: 'points', points: 1000, stars: 0, probability: 0.05 },
-  { type: 'stars', points: 0, stars: 1, probability: 0.07 },
-  { type: 'stars', points: 0, stars: 2, probability: 0.03 },
+  { type: 'points', points: 10, stars: 0, probability: 0.30 },
+  { type: 'points', points: 15, stars: 0, probability: 0.25 },
+  { type: 'points', points: 20, stars: 0, probability: 0.15 },
+  { type: 'points', points: 30, stars: 0, probability: 0.08 },
+  { type: 'points', points: 25, stars: 0, probability: 0.05 },
+  { type: 'stars', points: 17, stars: 0, probability: 0.07 },
+  { type: 'stars', points: 35, stars: 0, probability: 0.03 },
   { type: 'empty', points: 0, stars: 0, probability: 0.07 },
 ];
 
