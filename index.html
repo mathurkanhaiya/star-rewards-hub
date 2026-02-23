@@ -1,156 +1,117 @@
+Can you make crazy loading screen 
+
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>ADS Rewards</title>
+<title>ADS Rewards - Earn & Withdraw</title>
+
+<meta name="description" content="Complete tasks, invite friends, spin the wheel & earn crypto rewards!" />
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
+<meta property="og:title" content="ADS Rewards Mini App" />
+<meta property="og:description" content="Earn crypto by completing tasks and inviting friends!" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+
 <style>
 body{
-margin:0;
-font-family:system-ui;
-overflow:hidden;
-background:black;
+  margin:0;
+  font-family:system-ui;
 }
 
-/* ===== LOADER ===== */
-
-#loader{
-position:fixed;
-inset:0;
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-background:radial-gradient(circle at center,#0ff2,#000);
-z-index:9999;
-}
-
-/* spinning rings */
-.ring{
-position:absolute;
-border-radius:50%;
-border:2px solid transparent;
-}
-
-.r1{width:200px;height:200px;border-top:2px solid cyan;animation:spin 3s linear infinite;}
-.r2{width:260px;height:260px;border-right:2px solid magenta;animation:spin 5s linear infinite reverse;}
-.r3{width:320px;height:320px;border-bottom:2px solid lime;animation:spin 7s linear infinite;}
-
-@keyframes spin{
-to{transform:rotate(360deg)}
-}
-
-/* glitch title */
-.title{
-font-size:28px;
-font-weight:700;
-letter-spacing:2px;
-color:white;
-animation:glitch 1s infinite;
-}
-
-@keyframes glitch{
-0%{text-shadow:2px 0 cyan,-2px 0 red}
-50%{text-shadow:-2px 0 cyan,2px 0 red}
-100%{text-shadow:2px 0 cyan,-2px 0 red}
-}
-
-.loadingText{
-margin-top:130px;
-color:#0ff;
-font-size:18px;
-letter-spacing:1px;
-}
-
-/* hide animation */
-.fadeOut{
-animation:fade .8s forwards;
-}
-
-@keyframes fade{
-to{opacity:0;visibility:hidden}
-}
-
-/* ===== DENIED ===== */
-
+/* denied screen */
 .denied{
-height:100vh;
-display:flex;
-align-items:center;
-justify-content:center;
-background:#000;
-color:white;
-text-align:center;
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(-45deg,#0f2027,#203a43,#2c5364,#1c92d2);
+  background-size:400% 400%;
+  animation:bg 12s ease infinite;
+  color:white;
+}
+
+@keyframes bg{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
 }
 
 .card{
-backdrop-filter:blur(15px);
-background:#ffffff10;
-border:1px solid #ffffff22;
-padding:40px 50px;
-border-radius:20px;
+  backdrop-filter:blur(18px);
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.2);
+  padding:45px 55px;
+  border-radius:22px;
+  text-align:center;
+  box-shadow:0 0 40px rgba(0,0,0,.35);
+  animation:fade 1.2s ease;
+}
+
+@keyframes fade{
+  from{opacity:0; transform:translateY(25px)}
+  to{opacity:1; transform:translateY(0)}
 }
 
 .card img{
-width:48px;
-margin-bottom:15px;
+  width:48px;
+  margin-bottom:15px;
+}
+
+.card h1{
+  margin:0 0 10px;
+  font-size:28px;
+}
+
+.card p{
+  opacity:.85;
+  margin:0;
 }
 </style>
+
+<script>
+window.addEventListener("DOMContentLoaded", function(){
+
+  const isTelegram =
+    window.Telegram &&
+    Telegram.WebApp &&
+    Telegram.WebApp.initData &&
+    Telegram.WebApp.initData.length > 0;
+
+  if(!isTelegram){
+
+    document.body.innerHTML = `
+      <div class="denied">
+        <div class="card">
+
+          <img src="https://telegram.org/img/emoji/6084880262179588505.webp">
+
+          <h1>Access Denied</h1>
+          <p>This app can only be opened inside Telegram.</p>
+
+        </div>
+      </div>
+    `;
+
+  } else {
+    Telegram.WebApp.expand();
+    Telegram.WebApp.ready();
+  }
+
+});
+</script>
+
 </head>
 
 <body>
 
-<!-- LOADER -->
-<div id="loader">
-<div class="ring r1"></div>
-<div class="ring r2"></div>
-<div class="ring r3"></div>
-<div class="title">LOADING</div>
-<div class="loadingText">Initializing system...</div>
-</div>
-
 <div id="root"></div>
 
 <script type="module" src="/src/main.tsx"></script>
-
-<script>
-/* ===== TELEGRAM CHECK ===== */
-
-window.addEventListener("DOMContentLoaded",()=>{
-
-const tg = window.Telegram?.WebApp;
-
-if(!tg || !tg.initData){
-document.body.innerHTML=`
-<div class="denied">
-<div class="card">
-<img src="https://telegram.org/img/emoji/6084880262179588505.webp">
-<h1>Access Denied</h1>
-<p>Open inside Telegram</p>
-</div>
-</div>`;
-return;
-}
-
-tg.expand();
-tg.ready();
-});
-
-
-/* ===== LOADER CONTROLLER ===== */
-
-window.hideLoader = function(){
-const loader=document.getElementById("loader");
-if(loader){
-loader.classList.add("fadeOut");
-setTimeout(()=>loader.remove(),800);
-}
-}
-</script>
 
 </body>
 </html>
