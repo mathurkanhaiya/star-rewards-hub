@@ -23,7 +23,7 @@ function triggerHaptic(type: 'success' | 'error' | 'impact') {
 const WHEEL_SEGMENTS = [
   { points: 50, stars: 0, color: '#1f2937', type: 'points' },
   { points: 100, stars: 0, color: '#78350f', type: 'points' },
-  { points: 40, stars: 0, color: '#0e7490', type: 'points ' },
+  { points: 40, stars: 0, color: '#0e7490', type: 'points' },
   { points: 200, stars: 0, color: '#4c1d95', type: 'points' },
   { points: 500, stars: 0, color: '#92400e', type: 'points' },
   { points: 0, stars: 0, color: '#7f1d1d', type: 'empty' },
