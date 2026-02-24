@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   adminGetStats,
@@ -25,24 +25,84 @@ import AdminTasksTab from '@/components/admin/AdminTasksTab';
 import AdminSettingsTab from '@/components/admin/AdminSettingsTab';
 import AdminContestsTab from '@/components/admin/AdminContestsTab';
 
-type AdminTab = 'dashboard' | 'users' | 'withdrawals' | 'tasks' | 'contests' | 'broadcast' | 'settings';
+type AdminTab =
+  | 'dashboard'
+  | 'users'
+  | 'withdrawals'
+  | 'tasks'
+  | 'contests'
+  | 'broadcast'
+  | 'settings';
+
+/* ===============================
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: 'impact' | 'success' | 'error' = 'impact') {
+  if (typeof window !== 'undefined' && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+    if (type === 'success') tg?.HapticFeedback?.notificationOccurred('success');
+    else if (type === 'error') tg?.HapticFeedback?.notificationOccurred('error');
+    else tg?.HapticFeedback?.impactOccurred('medium');
+  }
+}
+
+/* ===============================
+   ANIMATED NUMBER
+================================ */
+function AnimatedNumber({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const previous = useRef(value);
+
+  useEffect(() => {
+    let start = previous.current;
+    const diff = value - start;
+    const steps = 30;
+    const increment = diff / steps;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      start += increment;
+      if (step >= steps) {
+        setDisplay(value);
+        clearInterval(timer);
+      } else {
+        setDisplay(Math.floor(start));
+      }
+    }, 20);
+
+    previous.current = value;
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <>{display.toLocaleString()}</>;
+}
 
 export default function AdminPanel() {
   const { telegramUser, refreshUser } = useApp();
-  const [settings, setSettingsState] = useState<Record<string, string>>({});
+
   const [tab, setTab] = useState<AdminTab>('dashboard');
-  const [stats, setStats] = useState({ totalUsers: 0, totalWithdrawals: 0, pendingWithdrawals: 0, totalTransactions: 0, totalAdViews: 0 });
-  const [users, setUsers] = useState<Array<{ id: string; telegram_id: number; first_name: string; username: string; level: number; total_points: number; is_banned: boolean; created_at: string; balances: Array<{ points: number }> }>>([]);
-  const [withdrawals, setWithdrawals] = useState<Array<{ id: string; method: string; points_spent: number; amount: number; status: string; wallet_address: string | null; created_at: string; admin_note: string | null; users: { first_name: string; username: string; telegram_id: number; photo_url: string | null } | null }>>([]);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalWithdrawals: 0,
+    pendingWithdrawals: 0,
+    totalTransactions: 0,
+    totalAdViews: 0,
+  });
+
+  const [users, setUsers] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [contests, setContests] = useState<Contest[]>([]);
+  const [settings, setSettingsState] = useState<Record<string, string>>({});
   const [editSettings, setEditSettings] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState<string | null>(null);
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
 
-  useEffect(() => { loadDashboard(); }, []);
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
   async function loadDashboard() {
     const [s, u, w, t, settingsData, c] = await Promise.all([
@@ -53,77 +113,26 @@ export default function AdminPanel() {
       getSettings(),
       adminGetContests(),
     ]);
+
     setStats(s);
-    setUsers(u as unknown as typeof users);
-    setWithdrawals(w as unknown as typeof withdrawals);
+    setUsers(u);
+    setWithdrawals(w);
     setTasks(t);
     setSettingsState(settingsData);
     setEditSettings(settingsData);
-    setContests(c as Contest[]);
+    setContests(c);
   }
 
-  function showMsg(text: string) {
+  function showMsg(text: string, type: 'success' | 'error' = 'success') {
     setMessage(text);
+    triggerHaptic(type === 'success' ? 'success' : 'error');
     setTimeout(() => setMessage(''), 3000);
   }
 
-  async function handleSaveSetting(key: string) {
-    setSaving(key);
-    const result = await adminUpdateSetting(key, editSettings[key]);
-    if (result.success) {
-      setSettingsState(prev => ({ ...prev, [key]: editSettings[key] }));
-      showMsg(`Setting "${key}" saved ✓`);
-      refreshUser();
-    } else {
-      showMsg(`Failed to save "${key}"`);
-    }
-    setSaving(null);
-  }
-
-  async function handleCreateTask(task: Omit<Task, 'id'>) {
-    const result = await adminCreateTask(task);
-    if (result.success && result.data) {
-      setTasks(prev => [...prev, result.data as Task]);
-      showMsg('Task created ✓');
-    } else {
-      showMsg('Failed to create task');
-    }
-  }
-
-  async function handleCreateContest(contest: Parameters<typeof adminCreateContest>[0]) {
-    const result = await adminCreateContest(contest);
-    if (result.success && result.data) {
-      setContests(prev => [result.data as Contest, ...prev]);
-      showMsg('Contest launched! 🏆');
-    } else {
-      showMsg('Failed to create contest');
-    }
-  }
-
-  async function handleEndContest(id: string) {
-    const result = await adminEndContest(id);
-    if (result.success) {
-      setContests(prev => prev.map(c => c.id === id ? { ...c, rewards_distributed: true, is_active: false } : c));
-      showMsg(result.message || 'Rewards distributed! 🎁');
-    } else {
-      showMsg(result.message || 'Failed to distribute');
-    }
-  }
-
-  async function handleBroadcast() {
-    if (!broadcastText.trim() || !telegramUser) return;
-    setBroadcasting(true);
-    const result = await adminSendBroadcast(broadcastText.trim(), telegramUser.id);
-    if (result.success) {
-      showMsg('Broadcast sent to all users! 📢');
-      setBroadcastText('');
-    } else {
-      showMsg('Failed to send broadcast');
-    }
-    setBroadcasting(false);
-  }
-
-  const tabItems: { id: AdminTab; label: string; icon: string }[] = [
+  /* ===============================
+     TABS
+  ================================ */
+  const tabItems = [
     { id: 'dashboard', label: 'Stats', icon: '📊' },
     { id: 'users', label: 'Users', icon: '👤' },
     { id: 'withdrawals', label: 'Withdraw', icon: '💰' },
@@ -134,37 +143,67 @@ export default function AdminPanel() {
   ];
 
   return (
-    <div className="px-4 pb-28">
+    <div className="px-4 pb-28 text-white relative">
+
+      {/* Subtle animated background glow */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-20 animate-pulse"
+        style={{
+          background:
+            'radial-gradient(circle at 20% 30%, rgba(239,68,68,0.3), transparent 60%)',
+        }}
+      />
+
       {/* Header */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-          style={{ background: 'linear-gradient(135deg, hsl(0 80% 55% / 0.2), hsl(0 80% 55% / 0.05))', border: '1px solid hsl(0 80% 55% / 0.3)' }}>
+      <div className="mb-6 flex items-center gap-4 relative z-10">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
+          style={{
+            background:
+              'linear-gradient(135deg,#ef4444,#dc2626)',
+            boxShadow: '0 0 25px rgba(239,68,68,0.5)',
+          }}
+        >
           🛡️
         </div>
         <div>
-          <h2 className="text-lg font-display font-bold" style={{ color: 'hsl(0 80% 60%)' }}>Admin Panel</h2>
-          <p className="text-xs text-muted-foreground">Production Dashboard</p>
+          <h2 className="text-xl font-bold text-red-500">
+            Admin Panel
+          </h2>
+          <p className="text-xs text-gray-400">
+            Production Control Center
+          </p>
         </div>
       </div>
 
       {message && (
-        <div className="mb-3 p-2.5 rounded-xl text-xs text-center font-medium animate-pulse"
-          style={{ background: 'hsl(140 70% 50% / 0.1)', color: 'hsl(140 70% 50%)', border: '1px solid hsl(140 70% 50% / 0.3)' }}>
+        <div className="mb-4 p-3 rounded-xl text-sm text-center font-semibold bg-green-500/10 text-green-400 border border-green-500/30 animate-pulse">
           {message}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 mb-4 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 relative z-10">
         {tabItems.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1"
+          <button
+            key={t.id}
+            onClick={() => {
+              triggerHaptic();
+              setTab(t.id as AdminTab);
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95"
             style={{
-              background: tab === t.id ? 'linear-gradient(135deg, hsl(0 80% 55%), hsl(0 70% 45%))' : 'hsl(220 25% 10%)',
-              color: tab === t.id ? 'white' : 'hsl(220 15% 60%)',
-              border: `1px solid ${tab === t.id ? 'transparent' : 'hsl(220 20% 15%)'}`,
-              boxShadow: tab === t.id ? '0 0 15px hsl(0 80% 55% / 0.3)' : 'none',
-            }}>
+              background:
+                tab === t.id
+                  ? 'linear-gradient(135deg,#ef4444,#dc2626)'
+                  : '#111827',
+              color: tab === t.id ? 'white' : '#9ca3af',
+              boxShadow:
+                tab === t.id
+                  ? '0 10px 25px rgba(239,68,68,0.4)'
+                  : 'none',
+            }}
+          >
             {t.icon} {t.label}
           </button>
         ))}
@@ -172,58 +211,56 @@ export default function AdminPanel() {
 
       {/* Dashboard */}
       {tab === 'dashboard' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Total Users', value: stats.totalUsers, icon: '👥', color: 'hsl(190 100% 55%)' },
-              { label: 'Withdrawals', value: stats.totalWithdrawals, icon: '💸', color: 'hsl(45 100% 55%)' },
-              { label: 'Pending', value: stats.pendingWithdrawals, icon: '⏳', color: 'hsl(0 80% 55%)' },
-              { label: 'Transactions', value: stats.totalTransactions, icon: '📊', color: 'hsl(140 70% 50%)' },
-              { label: 'Ad Views', value: stats.totalAdViews, icon: '🎬', color: 'hsl(265 80% 65%)' },
-              { label: 'Active Tasks', value: tasks.filter(t => t.is_active).length, icon: '📋', color: 'hsl(210 100% 60%)' },
-            ].map(s => (
-              <div key={s.label} className="stat-card p-4 rounded-xl relative overflow-hidden">
-                <div className="absolute top-2 right-2 text-2xl opacity-20">{s.icon}</div>
-                <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value.toLocaleString()}</div>
-                <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
+        <div className="grid grid-cols-2 gap-4 animate-fadeIn">
+          {[
+            { label: 'Users', value: stats.totalUsers, icon: '👥', color: '#22d3ee' },
+            { label: 'Withdrawals', value: stats.totalWithdrawals, icon: '💸', color: '#facc15' },
+            { label: 'Pending', value: stats.pendingWithdrawals, icon: '⏳', color: '#ef4444' },
+            { label: 'Transactions', value: stats.totalTransactions, icon: '📊', color: '#22c55e' },
+            { label: 'Ad Views', value: stats.totalAdViews, icon: '🎬', color: '#a855f7' },
+            { label: 'Active Tasks', value: tasks.filter(t => t.is_active).length, icon: '📋', color: '#3b82f6' },
+          ].map(s => (
+            <div
+              key={s.label}
+              className="rounded-3xl p-5 relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(145deg,#0f172a,#1e293b)',
+                border: `1px solid ${s.color}40`,
+                boxShadow: `0 20px 40px rgba(0,0,0,0.6)`,
+              }}
+            >
+              <div className="absolute top-3 right-3 text-3xl opacity-20">
+                {s.icon}
               </div>
-            ))}
-          </div>
 
-          {/* Quick actions */}
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: 'Users', tab: 'users' as AdminTab, icon: '👤', color: 'hsl(190 100% 55%)' },
-              { label: 'Withdraw', tab: 'withdrawals' as AdminTab, icon: '💰', color: 'hsl(45 100% 55%)' },
-              { label: 'Contests', tab: 'contests' as AdminTab, icon: '🏆', color: 'hsl(265 80% 65%)' },
-            ].map(a => (
-              <button key={a.label} onClick={() => setTab(a.tab)}
-                className="p-3 rounded-xl text-center transition-all active:scale-95"
-                style={{ background: `${a.color}10`, border: `1px solid ${a.color}25` }}>
-                <div className="text-xl mb-1">{a.icon}</div>
-                <div className="text-xs font-bold" style={{ color: a.color }}>{a.label}</div>
-              </button>
-            ))}
-          </div>
+              <div
+                className="text-3xl font-bold"
+                style={{ color: s.color }}
+              >
+                <AnimatedNumber value={s.value} />
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                {s.label}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {tab === 'users' && (
         <AdminUsersTab
           users={users}
-          onBan={async (userId, banned) => {
-            await adminBanUser(userId, banned);
-            setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_banned: banned } : u));
+          onBan={async (id, banned) => {
+            await adminBanUser(id, banned);
             showMsg(banned ? 'User banned' : 'User unbanned');
+            loadDashboard();
           }}
-          onAdjustBalance={async (userId, points, reason) => {
-            const result = await adminAdjustBalance(userId, points, reason);
-            if (result.success) {
-              showMsg(`Balance adjusted: ${points >= 0 ? '+' : ''}${points} pts`);
-              loadDashboard();
-            } else {
-              showMsg('Failed to adjust balance');
-            }
+          onAdjustBalance={async (id, pts, reason) => {
+            const result = await adminAdjustBalance(id, pts, reason);
+            result.success
+              ? showMsg('Balance adjusted ✓')
+              : showMsg('Failed', 'error');
+            loadDashboard();
           }}
           message={message}
         />
@@ -232,15 +269,15 @@ export default function AdminPanel() {
       {tab === 'withdrawals' && (
         <AdminWithdrawalsTab
           withdrawals={withdrawals}
-          onApprove={async (id) => {
+          onApprove={async id => {
             await adminUpdateWithdrawal(id, 'approved');
-            setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, status: 'approved' } : w));
             showMsg('Withdrawal approved ✓');
+            loadDashboard();
           }}
-          onReject={async (id) => {
+          onReject={async id => {
             await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin');
-            setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, status: 'rejected' } : w));
-            showMsg('Withdrawal rejected ✗');
+            showMsg('Withdrawal rejected ✗', 'error');
+            loadDashboard();
           }}
         />
       )}
@@ -250,48 +287,71 @@ export default function AdminPanel() {
           tasks={tasks}
           onToggle={async (id, active) => {
             await adminToggleTask(id, active);
-            setTasks(prev => prev.map(t => t.id === id ? { ...t, is_active: active } : t));
+            showMsg(active ? 'Task enabled' : 'Task disabled');
+            loadDashboard();
           }}
-          onDelete={async (id) => {
+          onDelete={async id => {
             await adminDeleteTask(id);
-            setTasks(prev => prev.filter(t => t.id !== id));
-            showMsg('Task deleted ✓');
+            showMsg('Task deleted');
+            loadDashboard();
           }}
-          onCreate={handleCreateTask}
+          onCreate={async task => {
+            const result = await adminCreateTask(task);
+            result.success
+              ? showMsg('Task created ✓')
+              : showMsg('Failed', 'error');
+            loadDashboard();
+          }}
         />
       )}
 
       {tab === 'contests' && (
         <AdminContestsTab
           contests={contests}
-          onCreateContest={handleCreateContest}
-          onEndContest={handleEndContest}
+          onCreateContest={async contest => {
+            const result = await adminCreateContest(contest);
+            result.success
+              ? showMsg('Contest launched 🏆')
+              : showMsg('Failed', 'error');
+            loadDashboard();
+          }}
+          onEndContest={async id => {
+            const result = await adminEndContest(id);
+            result.success
+              ? showMsg('Rewards distributed 🎁')
+              : showMsg('Failed', 'error');
+            loadDashboard();
+          }}
         />
       )}
 
       {tab === 'broadcast' && (
-        <div className="space-y-3">
-          <div className="p-3 rounded-xl text-xs" style={{ background: 'hsl(265 80% 65% / 0.08)', border: '1px solid hsl(265 80% 65% / 0.2)', color: 'hsl(265 80% 70%)' }}>
-            📢 Send a notification to all users. This will appear in their notifications.
-          </div>
+        <div className="space-y-4">
           <textarea
             value={broadcastText}
             onChange={e => setBroadcastText(e.target.value)}
-            placeholder="Type your broadcast message..."
+            placeholder="Type broadcast message..."
             rows={4}
-            className="w-full px-3 py-3 rounded-xl text-sm outline-none resize-none"
-            style={{ background: 'hsl(220 25% 8%)', border: '1px solid hsl(220 20% 20%)', color: 'hsl(210 40% 95%)' }}
+            className="w-full p-4 rounded-2xl bg-[#111827] border border-purple-500/30 text-sm"
           />
           <button
-            onClick={handleBroadcast}
-            disabled={broadcasting || !broadcastText.trim()}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-95"
-            style={{
-              background: broadcastText.trim() ? 'linear-gradient(135deg, hsl(265 80% 65%), hsl(265 70% 55%))' : 'hsl(220 25% 12%)',
-              color: broadcastText.trim() ? 'white' : 'hsl(220 15% 50%)',
-              opacity: broadcasting ? 0.5 : 1,
-            }}>
-            {broadcasting ? '⏳ Sending...' : '📢 Send Broadcast'}
+            onClick={async () => {
+              if (!broadcastText.trim() || !telegramUser) return;
+              setBroadcasting(true);
+              const result = await adminSendBroadcast(
+                broadcastText,
+                telegramUser.id
+              );
+              result.success
+                ? showMsg('Broadcast sent 📢')
+                : showMsg('Failed', 'error');
+              setBroadcastText('');
+              setBroadcasting(false);
+            }}
+            disabled={broadcasting}
+            className="w-full py-4 rounded-2xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 active:scale-95 transition-all"
+          >
+            {broadcasting ? 'Sending...' : 'Send Broadcast'}
           </button>
         </div>
       )}
@@ -301,8 +361,18 @@ export default function AdminPanel() {
           settings={settings}
           editSettings={editSettings}
           setEditSettings={setEditSettings}
-          onSave={handleSaveSetting}
-          saving={saving}
+          onSave={async key => {
+            const result = await adminUpdateSetting(
+              key,
+              editSettings[key]
+            );
+            result.success
+              ? showMsg('Setting saved ✓')
+              : showMsg('Failed', 'error');
+            refreshUser();
+            loadDashboard();
+          }}
+          saving={null}
         />
       )}
     </div>
