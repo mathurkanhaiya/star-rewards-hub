@@ -3,6 +3,20 @@ import { useApp } from '@/context/AppContext';
 import { claimDailyReward, getTransactions, logAdWatch, getDailyClaim } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
+/* ===============================
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: 'success' | 'error' | 'impact') {
+  if (typeof window !== 'undefined' && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+    if (tg?.HapticFeedback) {
+      if (type === 'impact') tg.HapticFeedback.impactOccurred('medium');
+      if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+      if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+    }
+  }
+}
+
 function formatCountdown(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -12,45 +26,57 @@ function formatCountdown(seconds: number) {
 
 export default function HomePage() {
   const { user, balance, settings, refreshBalance } = useApp();
+
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [dailyMessage, setDailyMessage] = useState('');
-  const [transactions, setTransactions] = useState<Array<{ id: string; type: string; points: number; description: string; created_at: string }>>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [dailyCooldown, setDailyCooldown] = useState(0);
 
+  /* ===============================
+     AD REWARD
+  =================================*/
   const onAdReward = useCallback(async () => {
     if (!user) return;
+
+    triggerHaptic('success');
     await logAdWatch(user.id, 'bonus_reward', 50);
     await refreshBalance();
+
     setDailyMessage('+50 pts bonus from ad! 🎬');
     setTimeout(() => setDailyMessage(''), 3000);
   }, [user, refreshBalance]);
 
   const { showAd } = useRewardedAd(onAdReward);
 
+  /* ===============================
+     LOAD DATA
+  =================================*/
   useEffect(() => {
-    if (user) {
-      getTransactions(user.id).then(txns => setTransactions(txns as Array<{ id: string; type: string; points: number; description: string; created_at: string }>));
-      checkDailyCooldown();
-    }
+    if (!user) return;
+
+    getTransactions(user.id).then(setTransactions);
+    checkDailyCooldown();
   }, [user]);
 
-  // Daily cooldown timer
+  /* ===============================
+     DAILY COOLDOWN TIMER
+  =================================*/
   useEffect(() => {
     if (dailyCooldown <= 0) return;
+
     const interval = setInterval(() => {
-      setDailyCooldown(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
+      setDailyCooldown(prev => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
+
     return () => clearInterval(interval);
   }, [dailyCooldown]);
 
   async function checkDailyCooldown() {
     if (!user) return;
     const claim = await getDailyClaim(user.id);
+
     if (claim) {
       const claimedAt = new Date(claim.claimed_at).getTime();
       const nextAvailable = claimedAt + 24 * 60 * 60 * 1000;
@@ -59,189 +85,162 @@ export default function HomePage() {
     }
   }
 
+  /* ===============================
+     DAILY CLAIM
+  =================================*/
   async function handleDailyClaim() {
     if (!user || dailyCooldown > 0) return;
+
+    triggerHaptic('impact');
     setDailyClaiming(true);
     setDailyMessage('');
+
     const result = await claimDailyReward(user.id);
+
     if (result.success) {
-      setDailyMessage(`+${result.points} pts! Day ${result.streak} streak 🔥`);
+      triggerHaptic('success');
+      setDailyMessage(`+${result.points} pts! Day ${result.streak} 🔥`);
       setShowConfetti(true);
-      setDailyCooldown(24 * 60 * 60); // 24h
+      setDailyCooldown(24 * 60 * 60);
       await refreshBalance();
       setTimeout(() => setShowConfetti(false), 2000);
     } else {
-      setDailyMessage(result.message || 'Already claimed today!');
+      triggerHaptic('error');
+      setDailyMessage(result.message || 'Already claimed!');
       await checkDailyCooldown();
     }
+
     setDailyClaiming(false);
     setTimeout(() => setDailyMessage(''), 3000);
   }
 
-  const stats = [
-    { label: 'Points', value: (balance?.points || 0).toLocaleString(), icon: '⚡', color: 'hsl(45 100% 55%)' },
-    { label: 'Stars', value: Number(balance?.stars_balance || 0).toFixed(2), icon: '⭐', color: 'hsl(190 100% 55%)' },
-    { label: 'USDT', value: '$' + Number(balance?.usdt_balance || 0).toFixed(2), icon: '💵', color: 'hsl(140 70% 50%)' },
-    { label: 'TON', value: Number(balance?.ton_balance || 0).toFixed(3), icon: '💎', color: 'hsl(210 100% 60%)' },
-  ];
-
+  /* ===============================
+     UI
+  =================================*/
   return (
-    <div className="px-4 pb-28">
-      {/* Confetti */}
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="star-particle"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 40}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-                width: `${Math.random() * 6 + 2}px`,
-                height: `${Math.random() * 6 + 2}px`,
-                background: ['hsl(45 100% 55%)', 'hsl(265 80% 65%)', 'hsl(190 100% 55%)'][Math.floor(Math.random() * 3)],
-              }}
-            />
-          ))}
-        </div>
-      )}
+    <div className="px-4 pb-28 text-white">
 
-      {/* Hero Balance Card */}
+      {/* HERO BALANCE */}
       <div
-        className="rounded-2xl p-5 mb-4 text-center relative overflow-hidden"
+        className="rounded-3xl p-6 mb-5 text-center relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, hsl(220 30% 10%), hsl(265 30% 12%))',
-          border: '1px solid hsl(265 50% 25% / 0.6)',
-          boxShadow: '0 0 40px hsl(265 80% 65% / 0.1)',
+          background: 'linear-gradient(135deg,#0f172a,#1e293b)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
         }}
       >
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{ background: 'radial-gradient(circle at 70% 50%, hsl(45 100% 55%) 0%, transparent 60%)' }}
-        />
-        <div className="relative z-10">
-          <div className="text-xs text-muted-foreground mb-1 font-medium tracking-widest uppercase">Total Earned</div>
-          <div className="text-4xl font-display font-black text-gold-gradient mb-1">
-            {(balance?.total_earned || 0).toLocaleString()}
-          </div>
-          <div className="text-sm text-muted-foreground">points earned all time</div>
-          <div className="mt-3 flex justify-center gap-4 text-xs">
-            <span className="text-muted-foreground">Level <span className="text-foreground font-bold">{user?.level || 1}</span></span>
-            <span className="text-muted-foreground">|</span>
-            <span className="text-muted-foreground">Withdrawn <span className="text-foreground font-bold">{(balance?.total_withdrawn || 0).toLocaleString()}</span></span>
-          </div>
+        <div className="text-xs uppercase tracking-widest text-gray-400 mb-1">
+          Total Earned
+        </div>
+        <div className="text-4xl font-black text-yellow-400">
+          {(balance?.total_earned || 0).toLocaleString()}
+        </div>
+        <div className="text-sm text-gray-400 mt-1">
+          All-time points
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {stats.map(stat => (
-          <div key={stat.label} className="stat-card p-3 rounded-xl">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">{stat.icon}</span>
-              <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
-            </div>
-            <div className="text-xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* WATCH & EARN - Big prominent button */}
+      {/* WATCH & EARN */}
       <button
-        className="w-full rounded-2xl p-5 mb-4 flex flex-col items-center justify-center gap-2 font-bold transition-all active:scale-95 relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%), hsl(25 100% 50%))',
-          color: 'hsl(220 30% 5%)',
-          boxShadow: '0 0 30px hsl(45 100% 55% / 0.4), 0 4px 15px hsl(45 100% 55% / 0.3)',
-          opacity: adLoading ? 0.7 : 1,
+        onClick={async () => {
+          triggerHaptic('impact');
+          setAdLoading(true);
+          await showAd();
+          setAdLoading(false);
         }}
-        onClick={async () => { setAdLoading(true); await showAd(); setAdLoading(false); }}
         disabled={adLoading}
+        className="w-full rounded-3xl p-6 mb-5 font-bold text-lg relative overflow-hidden transition active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg,#facc15,#f97316)',
+          color: '#111',
+          boxShadow: '0 10px 30px rgba(250,204,21,0.4)',
+          opacity: adLoading ? 0.7 : 1
+        }}
       >
-        <div className="text-3xl">🎬</div>
-        <div className="text-lg font-black tracking-wide">
-          {adLoading ? '⏳ Loading Ad...' : 'WATCH & EARN'}
-        </div>
-        <div className="text-xs font-semibold opacity-80">Tap to watch ad → Get +50 bonus points!</div>
+        <div className="text-3xl mb-2">🎬</div>
+        {adLoading ? 'Loading Ad...' : 'WATCH & EARN +50'}
       </button>
 
-      {/* Daily Reward */}
+      {/* DAILY REWARD */}
       <div
-        className="rounded-2xl p-4 mb-4 flex items-center justify-between"
+        className="rounded-2xl p-4 mb-5 flex items-center justify-between"
         style={{
-          background: 'linear-gradient(135deg, hsl(45 100% 55% / 0.1), hsl(35 100% 45% / 0.05))',
-          border: '1px solid hsl(45 100% 55% / 0.25)',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(10px)'
         }}
       >
         <div>
-          <div className="font-bold text-sm text-foreground">Daily Reward</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {dailyMessage || (dailyCooldown > 0 ? `⏳ Next in ${formatCountdown(dailyCooldown)}` : `+${settings.daily_bonus_base || 100} pts minimum`)}
+          <div className="font-bold">Daily Reward</div>
+          <div className="text-xs text-gray-400 mt-1">
+            {dailyMessage ||
+              (dailyCooldown > 0
+                ? `⏳ ${formatCountdown(dailyCooldown)}`
+                : `+${settings.daily_bonus_base || 100} pts`)}
           </div>
         </div>
+
         <button
-          className="btn-gold px-4 py-2 rounded-xl text-sm font-bold"
           onClick={handleDailyClaim}
           disabled={dailyClaiming || dailyCooldown > 0}
-          style={{ opacity: dailyClaiming || dailyCooldown > 0 ? 0.5 : 1 }}
+          className="px-4 py-2 rounded-xl font-bold transition active:scale-95"
+          style={{
+            background:
+              dailyCooldown > 0
+                ? '#374151'
+                : 'linear-gradient(135deg,#22c55e,#16a34a)',
+            color: 'white',
+            opacity: dailyClaiming ? 0.6 : 1
+          }}
         >
-          {dailyClaiming ? '...' : dailyCooldown > 0 ? '⏳' : '🎁 Claim'}
+          {dailyCooldown > 0 ? 'Locked' : 'Claim'}
         </button>
       </div>
 
-      <div className="mb-4">
-        <div className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Quick Actions</div>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { icon: '🎡', label: 'Spin', desc: 'Win prizes', color: 'hsl(265 80% 65%)' },
-            { icon: '📋', label: 'Tasks', desc: 'Earn more', color: 'hsl(190 100% 55%)' },
-            { icon: '👥', label: 'Invite', desc: '+500 pts', color: 'hsl(140 70% 50%)' },
-          ].map(action => (
-            <div
-              key={action.label}
-              className="rounded-xl p-3 text-center cursor-pointer transition-all duration-200 active:scale-95"
-              style={{
-                background: `${action.color}10`,
-                border: `1px solid ${action.color}30`,
-              }}
-            >
-              <div className="text-2xl mb-1">{action.icon}</div>
-              <div className="text-xs font-bold text-foreground">{action.label}</div>
-              <div className="text-xs text-muted-foreground">{action.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
+      {/* RECENT TRANSACTIONS */}
       <div>
-        <div className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Recent Activity</div>
+        <div className="text-xs uppercase tracking-wider text-gray-400 mb-3">
+          Recent Activity
+        </div>
+
         {transactions.length === 0 ? (
-          <div className="text-center text-muted-foreground text-sm py-6">No activity yet. Start earning! 🚀</div>
+          <div className="text-center text-gray-500 py-6">
+            No activity yet 🚀
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {transactions.slice(0, 5).map(tx => (
               <div
                 key={tx.id}
-                className="flex items-center justify-between p-3 rounded-xl"
+                className="flex justify-between items-center p-4 rounded-xl transition active:scale-[0.98]"
                 style={{
-                  background: 'hsl(220 25% 8% / 0.6)',
-                  border: '1px solid hsl(220 20% 15% / 0.5)',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                 }}
+                onClick={() => triggerHaptic('impact')}
               >
                 <div>
-                  <div className="text-sm font-medium text-foreground">{tx.description || tx.type}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString()}</div>
+                  <div className="font-medium">{tx.description || tx.type}</div>
+                  <div className="text-xs text-gray-400">
+                    {new Date(tx.created_at).toLocaleDateString()}
+                  </div>
                 </div>
-                <div className="text-sm font-bold" style={{ color: tx.points >= 0 ? 'hsl(140 70% 50%)' : 'hsl(0 80% 55%)' }}>
-                  {tx.points >= 0 ? '+' : ''}{tx.points.toLocaleString()} pts
+
+                <div
+                  className="font-bold"
+                  style={{
+                    color: tx.points >= 0 ? '#22c55e' : '#ef4444'
+                  }}
+                >
+                  {tx.points >= 0 ? '+' : ''}
+                  {tx.points.toLocaleString()} pts
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
     </div>
   );
 }
