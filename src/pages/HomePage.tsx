@@ -130,7 +130,7 @@ export default function HomePage() {
         }}
       >
         <div className="text-xs uppercase tracking-widest text-gray-400 mb-1">
-          Total Earned
+          Total Balance 
         </div>
         <div className="text-4xl font-black text-yellow-400">
           {(balance?.points || 0).toLocaleString()}
