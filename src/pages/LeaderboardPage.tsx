@@ -13,7 +13,7 @@ type LeaderboardTab = 'points' | 'ads' | 'referrals';
 /* ===============================
    TELEGRAM HAPTIC
 ================================ */
-function triggerHaptic(type: 'impact' | 'success') {
+function triggerHaptic() {
   if (typeof window !== 'undefined' && (window as any).Telegram) {
     const tg = (window as any).Telegram.WebApp;
     tg?.HapticFeedback?.impactOccurred('medium');
@@ -45,7 +45,6 @@ export default function LeaderboardPage() {
 
   async function loadData() {
     setLoading(true);
-
     try {
       if (tab === 'points') {
         const data = await getLeaderboard();
@@ -76,7 +75,6 @@ export default function LeaderboardPage() {
     } catch (err) {
       console.error('Leaderboard error:', err);
     }
-
     setLoading(false);
   }
 
@@ -115,7 +113,7 @@ export default function LeaderboardPage() {
           <button
             key={t.id}
             onClick={() => {
-              triggerHaptic('impact');
+              triggerHaptic();
               setTab(t.id as LeaderboardTab);
             }}
             className="flex-1 py-2 rounded-lg text-xs font-bold transition-all active:scale-95"
@@ -164,17 +162,58 @@ export default function LeaderboardPage() {
               user &&
               leader.telegram_id === user.telegram_id;
 
+            const availablePoints =
+              leader.points ??
+              (leader as any).available_points ??
+              0;
+
+            const openChat = () => {
+              triggerHaptic();
+
+              if (leader.username) {
+                window.open(`https://t.me/${leader.username}`, '_blank');
+              } else if (leader.telegram_id) {
+                window.open(`tg://user?id=${leader.telegram_id}`);
+              }
+            };
+
             return (
               <div
                 key={leader.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-[#111827] border border-white/5 transition active:scale-[0.98]"
+                onClick={openChat}
+                className="flex items-center justify-between p-4 rounded-xl cursor-pointer transition active:scale-[0.97]"
+                style={{
+                  background: isMe
+                    ? 'rgba(250,204,21,0.12)'
+                    : 'rgba(17,24,39,0.85)',
+                  border: isMe
+                    ? '1px solid rgba(250,204,21,0.5)'
+                    : '1px solid rgba(255,255,255,0.05)',
+                }}
               >
                 <div className="flex items-center gap-3">
+
+                  {/* Rank */}
                   <div className="font-bold text-yellow-400 w-8">
                     #{leader.rank}
                   </div>
+
+                  {/* PFP */}
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold">
+                    {leader.photo_url ? (
+                      <img
+                        src={leader.photo_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      leader.first_name?.[0] || '?'
+                    )}
+                  </div>
+
+                  {/* User Info */}
                   <div>
-                    <div className="font-medium">
+                    <div className="font-medium text-sm">
                       {leader.first_name ||
                         leader.username ||
                         'User'}
@@ -184,14 +223,21 @@ export default function LeaderboardPage() {
                         </span>
                       )}
                     </div>
+
                     <div className="text-xs text-gray-500">
-                      Level {leader.level}
+                      UID: {leader.telegram_id}
                     </div>
                   </div>
                 </div>
 
-                <div className="font-bold text-yellow-400">
-                  {(leader.total_points || 0).toLocaleString()} pts
+                {/* Available Balance */}
+                <div className="text-right">
+                  <div className="font-bold text-yellow-400">
+                    {availablePoints.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    pts available
+                  </div>
                 </div>
               </div>
             );
