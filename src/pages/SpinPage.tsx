@@ -4,23 +4,6 @@ import { spinWheel, logAdWatch, getSpinCount } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
 /* =====================================================
-   TELEGRAM EMOJI COMPONENT
-===================================================== */
-function TgEmoji({ id, size = 18 }: { id: string; size?: number }) {
-  return (
-    <tg-emoji
-      emoji-id={id}
-      style={{
-        width: size,
-        height: size,
-        display: 'inline-block',
-        verticalAlign: 'middle',
-      }}
-    />
-  );
-}
-
-/* =====================================================
    TELEGRAM HAPTIC SAFE CALL
 ===================================================== */
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
@@ -70,9 +53,7 @@ export default function SpinPage() {
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
 
   const wheelRef = useRef<HTMLDivElement>(null);
-
-  const SEGMENTS = WHEEL_SEGMENTS.length;
-  const segmentAngle = 360 / SEGMENTS;
+  const segmentAngle = 360 / WHEEL_SEGMENTS.length;
 
   /* =====================================================
      LOAD SPINS
@@ -128,7 +109,6 @@ export default function SpinPage() {
     triggerHaptic('impact');
 
     const res = await spinWheel(user.id);
-
     let targetIndex = 5;
 
     if (res.success) {
@@ -158,13 +138,15 @@ export default function SpinPage() {
         if (res.result === 'points') {
           setResult(
             <>
-              <TgEmoji id="5375296873982604963" size={20} /> +{res.points} Points!
+              <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
+              &nbsp;+{res.points} Points!
             </>
           );
         } else {
           setResult(
             <>
-              <TgEmoji id="5458799228719472718" size={20} /> +{res.stars} Stars!
+              <tg-emoji emoji-id="5458799228719472718">🌟</tg-emoji>
+              &nbsp;+{res.stars} Stars!
             </>
           );
         }
@@ -174,7 +156,8 @@ export default function SpinPage() {
         triggerHaptic('error');
         setResult(
           <>
-            <TgEmoji id="5310278924616356636" size={20} /> Better luck next time!
+            <tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji>
+            &nbsp;Better luck next time!
           </>
         );
       }
@@ -188,11 +171,6 @@ export default function SpinPage() {
     if (!user) return;
     setSpinsLeft(prev => prev + 1);
     await logAdWatch(user.id, 'extra_spin', 0);
-    setResult(
-      <>
-        <TgEmoji id="5375296873982604963" size={20} /> Extra spin granted!
-      </>
-    );
   }, [user]);
 
   const { showAd } = useRewardedAd(onAdReward);
@@ -210,107 +188,79 @@ export default function SpinPage() {
   return (
     <div className="px-4 pb-28">
 
-      {/* WHEEL */}
-      <div className="flex flex-col items-center mb-6">
-        <div className="relative">
-          
-          {/* Pointer */}
-          <div
-            className="absolute top-0 left-1/2 z-20"
-            style={{
-              transform: 'translate(-50%, -12px)',
-              width: 0,
-              height: 0,
-              borderLeft: '10px solid transparent',
-              borderRight: '10px solid transparent',
-              borderTop: '20px solid gold',
-              filter: 'drop-shadow(0 0 10px gold)'
-            }}
-          />
-
-          <div
-            ref={wheelRef}
-            style={{
-              width: 260,
-              height: 260,
-              transition: spinning ? 'transform 4.5s cubic-bezier(0.17,0.67,0.12,0.99)' : 'none',
-              transform: `rotate(${rotation}deg)`
-            }}
-          >
-            <svg viewBox="0 0 260 260" width="260" height="260">
-              {WHEEL_SEGMENTS.map((seg, i) => {
-                const angle = (i * segmentAngle * Math.PI) / 180;
-                const nextAngle = ((i + 1) * segmentAngle * Math.PI) / 180;
-                const r = 120;
-                const cx = 130;
-                const cy = 130;
-
-                const x1 = cx + r * Math.sin(angle);
-                const y1 = cy - r * Math.cos(angle);
-                const x2 = cx + r * Math.sin(nextAngle);
-                const y2 = cy - r * Math.cos(nextAngle);
-
-                const midAngle = ((i + 0.5) * segmentAngle * Math.PI) / 180;
-                const tx = cx + 75 * Math.sin(midAngle);
-                const ty = cy - 75 * Math.cos(midAngle);
-
-                return (
-                  <g key={i}>
-                    <path
-                      d={`M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 0,1 ${x2},${y2} Z`}
-                      fill={seg.color}
-                      stroke="hsl(220 30% 5%)"
-                      strokeWidth="2"
-                      style={{
-                        filter:
-                          winningIndex === i
-                            ? 'drop-shadow(0 0 15px gold)'
-                            : 'none'
-                      }}
-                    />
-                    <foreignObject x={tx - 30} y={ty - 15} width="60" height="30">
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
-                        {seg.type === 'points' && <TgEmoji id="5375296873982604963" size={14} />}
-                        {seg.type === 'stars' && <TgEmoji id="5458799228719472718" size={14} />}
-                        {seg.type === 'empty' && <TgEmoji id="5310278924616356636" size={14} />}
-                        <span style={{ color: 'white', fontSize: 10, fontWeight: 700 }}>
-                          {seg.points || seg.stars || ''}
-                        </span>
-                      </div>
-                    </foreignObject>
-                  </g>
-                );
-              })}
-              <circle cx="130" cy="130" r="25" fill="hsl(220 30% 8%)" stroke="gold" strokeWidth="3" />
-              <foreignObject x="115" y="115" width="30" height="30">
-                <TgEmoji id="5458799228719472718" size={20} />
-              </foreignObject>
-            </svg>
-          </div>
-        </div>
-      </div>
-
+      {/* RESULT */}
       {result && (
         <div className="text-center py-3 font-bold text-yellow-400">
           {result}
         </div>
       )}
 
+      {/* SPIN BUTTON */}
       <button
-        className="btn-gold w-full py-4 rounded-2xl font-bold"
         onClick={handleSpin}
         disabled={spinning || spinsLeft <= 0}
+        style={{
+          width: '100%',
+          padding: '16px',
+          borderRadius: 20,
+          border: 'none',
+          fontWeight: 800,
+          fontSize: 16,
+          cursor: spinning || spinsLeft <= 0 ? 'not-allowed' : 'pointer',
+          background:
+            spinsLeft > 0
+              ? 'linear-gradient(135deg,#facc15,#f97316)'
+              : 'linear-gradient(135deg,#374151,#1f2937)',
+          color: spinsLeft > 0 ? '#111827' : '#9ca3af',
+          boxShadow:
+            spinsLeft > 0
+              ? '0 10px 25px rgba(250,204,21,0.4)'
+              : 'none',
+          transition: '0.2s'
+        }}
       >
-        {spinning ? 'Spinning...' : 'SPIN NOW'}
+        {spinning ? (
+          'Spinning...'
+        ) : spinsLeft > 0 ? (
+          <>
+            <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
+            &nbsp;SPIN NOW
+            <div style={{ fontSize: 12 }}>
+              {spinsLeft} spin{spinsLeft !== 1 ? 's' : ''} remaining
+            </div>
+          </>
+        ) : (
+          <>
+            <tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji>
+            &nbsp;No Spins Left
+            {cooldown > 0 && (
+              <div style={{ fontSize: 12 }}>
+                Reset in {formatCountdown(cooldown)}
+              </div>
+            )}
+          </>
+        )}
       </button>
 
+      {/* WATCH AD BUTTON */}
       <button
-        className="w-full rounded-2xl p-4 mt-4 font-bold"
         onClick={handleWatchAd}
         disabled={adLoading}
+        style={{
+          width: '100%',
+          marginTop: 12,
+          padding: '14px',
+          borderRadius: 18,
+          border: '1px solid rgba(250,204,21,0.4)',
+          fontWeight: 700,
+          background: 'rgba(250,204,21,0.08)',
+          color: '#facc15'
+        }}
       >
-        <TgEmoji id="5375296873982604963" size={18} /> WATCH & EARN
+        <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
+        &nbsp;Watch Ad +1 Spin
       </button>
+
     </div>
   );
 }
