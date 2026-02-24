@@ -1,15 +1,29 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { getTasks, getUserTasks, completeTask } from '@/lib/api';
 import { Task } from '@/types/telegram';
 
+/* ===============================
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: 'impact' | 'success' | 'error' = 'impact') {
+  if (typeof window !== 'undefined' && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+    if (type === 'success') tg?.HapticFeedback?.notificationOccurred('success');
+    else if (type === 'error') tg?.HapticFeedback?.notificationOccurred('error');
+    else tg?.HapticFeedback?.impactOccurred('medium');
+  }
+}
+
+/* ===============================
+   COLORS
+================================ */
 const TASK_COLORS: Record<string, string> = {
-  social: 'hsl(190 100% 55%)',
-  daily: 'hsl(45 100% 55%)',
-  referral: 'hsl(140 70% 50%)',
-  video: 'hsl(265 80% 65%)',
-  special: 'hsl(0 80% 60%)',
+  social: '#22d3ee',
+  daily: '#facc15',
+  referral: '#22c55e',
+  video: '#a855f7',
+  special: '#ef4444',
 };
 
 export default function TasksPage() {
@@ -19,15 +33,6 @@ export default function TasksPage() {
   const [completing, setCompleting] = useState<string | null>(null);
   const [message, setMessage] = useState<{ id: string; text: string; success: boolean } | null>(null);
   const [filter, setFilter] = useState<string>('all');
-
-  // HAPTIC
-  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-      if (type === 'success') window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-      else if (type === 'error') window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
-      else window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
-    }
-  };
 
   useEffect(() => {
     loadData();
@@ -46,7 +51,7 @@ export default function TasksPage() {
   async function handleComplete(task: Task) {
     if (!user) return;
 
-    triggerHaptic('medium');
+    triggerHaptic();
     setCompleting(task.id);
 
     if (task.link) {
@@ -61,7 +66,7 @@ export default function TasksPage() {
 
     if (result.success) {
       triggerHaptic('success');
-      setMessage({ id: task.id, text: `+${result.points} pts earned! 🚀`, success: true });
+      setMessage({ id: task.id, text: `+${result.points} pts earned! 🎉`, success: true });
       setCompletedTaskIds(prev => new Set([...prev, task.id]));
       await refreshBalance();
     } else {
@@ -77,164 +82,155 @@ export default function TasksPage() {
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.task_type === filter);
 
   return (
-    <div className="px-4 pb-28 relative">
+    <div className="px-4 pb-28 text-white">
+
       {/* HEADER */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6"
-      >
-        <h2 className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-          Missions
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Complete missions. Earn rewards. Level up.
-        </p>
-      </motion.div>
+      <div className="mb-6">
+        <h2 className="text-xl font-bold">Tasks</h2>
+        <p className="text-xs text-gray-400">Complete tasks & earn rewards</p>
+      </div>
 
       {/* FILTERS */}
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar">
         {filters.map(f => (
-          <motion.button
+          <button
             key={f}
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
             onClick={() => {
-              triggerHaptic('light');
+              triggerHaptic();
               setFilter(f);
             }}
-            className="px-4 py-2 rounded-xl text-xs font-semibold capitalize relative"
+            className="px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-all active:scale-95"
             style={{
-              background:
-                filter === f
-                  ? 'linear-gradient(135deg, #facc15, #fb923c)'
-                  : 'rgba(255,255,255,0.05)',
-              color: filter === f ? '#111' : '#aaa',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: filter === f
+                ? 'linear-gradient(135deg,#facc15,#f97316)'
+                : '#111827',
+              color: filter === f ? '#111' : '#9ca3af',
+              boxShadow: filter === f
+                ? '0 10px 20px rgba(250,204,21,0.3)'
+                : 'none',
             }}
           >
             {f}
-          </motion.button>
+          </button>
         ))}
       </div>
 
-      {/* TASKS */}
-      <div className="space-y-5" style={{ perspective: 1200 }}>
-        <AnimatePresence>
-          {filtered.map(task => {
-            const isCompleted = completedTaskIds.has(task.id) && !task.is_repeatable;
-            const isCompleting = completing === task.id;
-            const color = TASK_COLORS[task.task_type] || 'hsl(45 100% 55%)';
+      {/* TASK LIST */}
+      <div className="space-y-4">
+        {filtered.map(task => {
+          const isCompleted = completedTaskIds.has(task.id) && !task.is_repeatable;
+          const isCompleting = completing === task.id;
+          const color = TASK_COLORS[task.task_type] || '#facc15';
 
-            return (
-              <motion.div
-                key={task.id}
-                layout
-                initial={{ opacity: 0, y: 30, rotateX: -10 }}
-                animate={{ opacity: 1, y: 0, rotateX: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                whileHover={{ rotateX: 5, rotateY: -5 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                className="relative p-5 rounded-2xl overflow-hidden"
-                style={{
-                  background: 'rgba(20,20,25,0.6)',
-                  backdropFilter: 'blur(20px)',
-                  border: `1px solid ${color}30`,
-                  boxShadow: `0 10px 30px ${color}20`,
-                  transformStyle: 'preserve-3d',
-                }}
-              >
-                {/* Glow */}
+          return (
+            <div
+              key={task.id}
+              className="rounded-3xl p-5 relative overflow-hidden transition-all active:scale-[0.98]"
+              style={{
+                background: 'linear-gradient(145deg,#0f172a,#1e293b)',
+                border: `1px solid ${color}40`,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+              }}
+            >
+              {/* Glow top highlight */}
+              <div
+                className="absolute top-0 left-0 w-full h-1"
+                style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
+              />
+
+              <div className="flex items-center gap-4">
+
+                {/* Icon */}
                 <div
-                  className="absolute inset-0 opacity-20 blur-2xl"
-                  style={{ background: color }}
-                />
-
-                <div className="relative flex items-center gap-4 z-10">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
-                    style={{
-                      background: `${color}20`,
-                      border: `1px solid ${color}40`,
-                    }}
-                  >
-                    {task.icon || '✨'}
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="font-semibold text-sm">{task.title}</div>
-                    {task.description && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {task.description}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-2 text-xs font-bold">
-                      <span style={{ color }}>
-                        +{task.reward_points.toLocaleString()} pts
-                      </span>
-                      {task.reward_stars > 0 && (
-                        <span className="text-cyan-400">
-                          +{task.reward_stars} ⭐
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    disabled={isCompleted || isCompleting}
-                    onClick={() => !isCompleted && handleComplete(task)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold"
-                    style={{
-                      background: isCompleted
-                        ? 'rgba(255,255,255,0.08)'
-                        : `linear-gradient(135deg, ${color}, ${color}cc)`,
-                      color: isCompleted ? '#777' : '#111',
-                      opacity: isCompleting ? 0.6 : 1,
-                    }}
-                  >
-                    {isCompleted ? '✓ Done' : isCompleting ? '...' : 'Go'}
-                  </motion.button>
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
+                  style={{
+                    background: `${color}20`,
+                    border: `1px solid ${color}50`,
+                    boxShadow: `0 0 20px ${color}30`,
+                  }}
+                >
+                  {task.icon || '✨'}
                 </div>
 
-                {/* Animated feedback */}
-                <AnimatePresence>
-                  {message?.id === task.id && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="mt-3 text-xs font-medium text-center py-2 rounded-xl"
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm truncate">
+                    {task.title}
+                  </div>
+
+                  {task.description && (
+                    <div className="text-xs text-gray-400 mt-1 truncate">
+                      {task.description}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 mt-2 text-xs">
+                    <span className="font-bold text-yellow-400">
+                      +{task.reward_points.toLocaleString()} pts
+                    </span>
+
+                    {task.reward_stars > 0 && (
+                      <span className="font-bold text-cyan-400">
+                        +{task.reward_stars} ⭐
+                      </span>
+                    )}
+
+                    <span
+                      className="px-2 py-0.5 rounded-lg capitalize"
                       style={{
-                        background: message.success
-                          ? 'rgba(34,197,94,0.15)'
-                          : 'rgba(239,68,68,0.15)',
-                        color: message.success
-                          ? 'rgb(34,197,94)'
-                          : 'rgb(239,68,68)',
+                        background: `${color}20`,
+                        color,
                       }}
                     >
-                      {message.text}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                      {task.task_type}
+                    </span>
+                  </div>
+                </div>
+
+                {/* BUTTON */}
+                <button
+                  disabled={isCompleted || isCompleting}
+                  onClick={() => !isCompleted && handleComplete(task)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
+                  style={{
+                    background: isCompleted
+                      ? '#1f2937'
+                      : `linear-gradient(135deg, ${color}, ${color}cc)`,
+                    color: isCompleted ? '#6b7280' : '#111',
+                    boxShadow: isCompleted ? 'none' : `0 10px 20px ${color}40`,
+                    opacity: isCompleting ? 0.7 : 1,
+                  }}
+                >
+                  {isCompleted ? '✓ Done' : isCompleting ? '...' : 'Start'}
+                </button>
+              </div>
+
+              {/* MESSAGE */}
+              {message?.id === task.id && (
+                <div
+                  className="mt-4 text-xs font-semibold text-center py-2 rounded-xl animate-pulse"
+                  style={{
+                    background: message.success
+                      ? 'rgba(34,197,94,0.15)'
+                      : 'rgba(239,68,68,0.15)',
+                    color: message.success
+                      ? '#22c55e'
+                      : '#ef4444',
+                  }}
+                >
+                  {message.text}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {filtered.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center text-muted-foreground py-16"
-        >
-          <div className="text-4xl mb-3">📭</div>
-          <div className="text-sm">No missions available</div>
-        </motion.div>
+        <div className="text-center text-gray-500 py-12">
+          <div className="text-4xl mb-3">📋</div>
+          No tasks here
+        </div>
       )}
     </div>
   );
