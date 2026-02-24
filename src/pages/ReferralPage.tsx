@@ -113,7 +113,7 @@ export default function ReferralPage() {
 
       {/* HERO CARD */}
       <div
-        className="rounded-2xl p-5 mb-6"
+        className="rounded-2xl p-5 mb-6 relative overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, #111827, #1f2937)',
           border: '1px solid rgba(250,204,21,0.2)',
@@ -129,8 +129,31 @@ export default function ReferralPage() {
         </div>
       </div>
 
+      {/* STATS */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'Invited', value: referrals.length, color: '#22d3ee' },
+          { label: 'Verified', value: verified, color: '#22c55e' },
+          { label: 'Earned', value: totalEarned, color: '#facc15' },
+        ].map(stat => (
+          <div
+            key={stat.label}
+            className="rounded-xl p-3 text-center"
+            style={{
+              background: `${stat.color}10`,
+              border: `1px solid ${stat.color}30`,
+            }}
+          >
+            <div className="text-lg font-bold" style={{ color: stat.color }}>
+              <AnimatedNumber value={stat.value} />
+            </div>
+            <div className="text-xs text-gray-400">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* LINK BOX */}
-      <div className="rounded-2xl p-4 mb-6 bg-[#111827] border border-yellow-500/20">
+      <div className="rounded-2xl p-4 mb-5 bg-[#111827] border border-yellow-500/20">
         <div className="text-xs text-gray-400 mb-2">Your Referral Link</div>
 
         <div className="text-xs break-all bg-black/40 p-2 rounded-lg mb-3">
@@ -172,80 +195,41 @@ export default function ReferralPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {referrals.map(ref => {
-
-              const openChat = () => {
-                if (!ref.referred_id) return;
-
-                triggerHaptic();
-
-                if (ref.username) {
-                  window.open(`https://t.me/${ref.username}`, '_blank');
-                } else {
-                  window.open(`tg://user?id=${ref.referred_id}`);
-                }
-              };
-
-              return (
-                <div
-                  key={ref.id}
-                  onClick={openChat}
-                  className="flex items-center justify-between p-3 rounded-xl cursor-pointer transition active:scale-[0.97]"
-                  style={{
-                    background: 'rgba(17,24,39,0.85)',
-                    border: ref.is_verified
-                      ? '1px solid rgba(34,197,94,0.3)'
-                      : '1px solid rgba(250,204,21,0.3)',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-
-                    {/* PROFILE PHOTO */}
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold">
-                      {ref.photo_url ? (
-                        <img
-                          src={ref.photo_url}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        ref.referred_id?.toString().slice(0, 1) || '?'
-                      )}
-                    </div>
-
-                    {/* USER INFO */}
-                    <div>
-                      <div className="text-sm font-medium">
-                        {ref.username || 'Friend'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        UID: {ref.referred_id}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {timeAgo(ref.created_at)}
-                      </div>
-                    </div>
+            {referrals.map(ref => (
+              <div
+                key={ref.id}
+                className="flex items-center justify-between p-3 rounded-xl bg-[#111827] border border-white/5"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{
+                      background: ref.is_verified
+                        ? '#22c55e20'
+                        : '#facc1520',
+                      color: ref.is_verified
+                        ? '#22c55e'
+                        : '#facc15',
+                    }}
+                  >
+                    {ref.is_verified ? '✓' : '⏳'}
                   </div>
 
-                  <div className="text-right">
-                    <div className="text-yellow-400 font-bold">
-                      +{ref.points_earned}
+                  <div>
+                    <div className="text-sm font-medium">
+                      Friend #{ref.referred_id?.slice(0, 6) || '?'}
                     </div>
-
-                    <div
-                      className="text-xs"
-                      style={{
-                        color: ref.is_verified
-                          ? '#22c55e'
-                          : '#facc15',
-                      }}
-                    >
-                      {ref.is_verified ? '✓ verified' : '⏳ pending'}
+                    <div className="text-xs text-gray-500">
+                      {timeAgo(ref.created_at)}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="text-yellow-400 font-bold">
+                  +{ref.points_earned}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
