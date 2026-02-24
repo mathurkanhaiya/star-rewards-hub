@@ -4,7 +4,7 @@ import { spinWheel, logAdWatch, getSpinCount } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
 /* =====================================================
-   TELEGRAM HAPTIC SAFE CALL
+   TELEGRAM HAPTIC
 ===================================================== */
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram) {
@@ -18,7 +18,7 @@ function triggerHaptic(type: 'success' | 'error' | 'impact') {
 }
 
 /* =====================================================
-   SEGMENTS
+   WHEEL SEGMENTS
 ===================================================== */
 const WHEEL_SEGMENTS = [
   { points: 100, stars: 0, color: 'hsl(220 30% 15%)', type: 'points' },
@@ -38,7 +38,9 @@ function formatCountdown(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${h.toString().padStart(2, '0')}:${m
+    .toString()
+    .padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function SpinPage() {
@@ -68,23 +70,28 @@ export default function SpinPage() {
     if (!data?.length) return;
 
     const cutoff = Date.now() - SPIN_COOLDOWN_HOURS * 3600000;
-    const recent = data.filter((s: any) => new Date(s.spun_at).getTime() > cutoff);
+    const recent = data.filter(
+      (s: any) => new Date(s.spun_at).getTime() > cutoff
+    );
 
     const remaining = Math.max(0, MAX_SPINS - recent.length);
     setSpinsLeft(remaining);
 
     if (remaining === 0 && recent.length) {
-      const oldest = Math.min(...recent.map((s: any) => new Date(s.spun_at).getTime()));
+      const oldest = Math.min(
+        ...recent.map((s: any) => new Date(s.spun_at).getTime())
+      );
       const reset = oldest + SPIN_COOLDOWN_HOURS * 3600000;
       setCooldown(Math.max(0, Math.floor((reset - Date.now()) / 1000)));
     }
   }
 
   /* =====================================================
-     COOLDOWN
+     COOLDOWN TIMER
   ===================================================== */
   useEffect(() => {
     if (cooldown <= 0) return;
+
     const interval = setInterval(() => {
       setCooldown(prev => {
         if (prev <= 1) {
@@ -94,11 +101,12 @@ export default function SpinPage() {
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
   }, [cooldown]);
 
   /* =====================================================
-     SPIN
+     SPIN LOGIC
   ===================================================== */
   async function handleSpin() {
     if (!user || spinning || spinsLeft <= 0) return;
@@ -124,7 +132,9 @@ export default function SpinPage() {
       }
     }
 
-    const targetAngle = 360 * 8 + (360 - targetIndex * segmentAngle - segmentAngle / 2);
+    const targetAngle =
+      360 * 8 + (360 - targetIndex * segmentAngle - segmentAngle / 2);
+
     setRotation(prev => prev + targetAngle);
 
     setTimeout(() => {
@@ -201,22 +211,18 @@ export default function SpinPage() {
         disabled={spinning || spinsLeft <= 0}
         style={{
           width: '100%',
-          padding: '16px',
+          padding: 16,
           borderRadius: 20,
           border: 'none',
           fontWeight: 800,
           fontSize: 16,
-          cursor: spinning || spinsLeft <= 0 ? 'not-allowed' : 'pointer',
           background:
             spinsLeft > 0
               ? 'linear-gradient(135deg,#facc15,#f97316)'
               : 'linear-gradient(135deg,#374151,#1f2937)',
           color: spinsLeft > 0 ? '#111827' : '#9ca3af',
-          boxShadow:
-            spinsLeft > 0
-              ? '0 10px 25px rgba(250,204,21,0.4)'
-              : 'none',
-          transition: '0.2s'
+          cursor: spinning || spinsLeft <= 0 ? 'not-allowed' : 'pointer',
+          transition: '0.2s',
         }}
       >
         {spinning ? (
@@ -242,19 +248,19 @@ export default function SpinPage() {
         )}
       </button>
 
-      {/* WATCH AD BUTTON */}
+      {/* WATCH AD */}
       <button
         onClick={handleWatchAd}
         disabled={adLoading}
         style={{
           width: '100%',
           marginTop: 12,
-          padding: '14px',
+          padding: 14,
           borderRadius: 18,
           border: '1px solid rgba(250,204,21,0.4)',
-          fontWeight: 700,
           background: 'rgba(250,204,21,0.08)',
-          color: '#facc15'
+          color: '#facc15',
+          fontWeight: 700,
         }}
       >
         <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
