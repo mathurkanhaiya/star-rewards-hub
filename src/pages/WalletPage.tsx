@@ -1,23 +1,67 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { submitWithdrawal, getWithdrawals } from '@/lib/api';
 import { Withdrawal } from '@/types/telegram';
 
-const METHODS = [
-  { id: 'stars', label: 'Telegram Stars', icon: '⭐', color: 'hsl(190 100% 55%)', rateKey: 'stars_conversion_rate' },
-  { id: 'usdt', label: 'USDT', icon: '💵', color: 'hsl(140 70% 50%)', rateKey: 'usdt_conversion_rate' },
-  { id: 'ton', label: 'TON', icon: '💎', color: 'hsl(210 100% 60%)', rateKey: 'ton_conversion_rate' },
-];
+/* ===============================
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: 'impact' | 'success' | 'error' = 'impact') {
+  if (typeof window !== 'undefined' && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+    if (type === 'success') {
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } else if (type === 'error') {
+      tg?.HapticFeedback?.notificationOccurred('error');
+    } else {
+      tg?.HapticFeedback?.impactOccurred('medium');
+    }
+  }
+}
+
+/* ===============================
+   ANIMATED NUMBER
+================================ */
+function AnimatedNumber({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const previous = useRef(value);
+
+  useEffect(() => {
+    let start = previous.current;
+    const diff = value - start;
+    const duration = 600;
+    const steps = 30;
+    const increment = diff / steps;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      start += increment;
+      if (step >= steps) {
+        setDisplay(value);
+        clearInterval(timer);
+      } else {
+        setDisplay(Math.floor(start));
+      }
+    }, duration / steps);
+
+    previous.current = value;
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <>{display.toLocaleString()}</>;
+}
 
 export default function WalletPage() {
   const { user, balance, settings, refreshBalance } = useApp();
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [points, setPoints] = useState('');
-  const [wallet, setWallet] = useState('');
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [tab, setTab] = useState<'withdraw' | 'history'>('withdraw');
+
+  const availablePoints = balance?.points || 0;
+  const minPoints = parseInt(settings.min_withdrawal_points || '10000');
 
   useEffect(() => {
     if (user) {
@@ -25,93 +69,97 @@ export default function WalletPage() {
     }
   }, [user]);
 
-  const minPoints = parseInt(settings.min_withdrawal_points || '10000');
-
-  function getConvertedAmount(pts: number, method: string) {
-    const m = METHODS.find(m => m.id === method);
-    if (!m) return 0;
-    const rate = parseInt(settings[m.rateKey] || '1000');
-    return (pts / rate).toFixed(method === 'ton' ? 3 : 2);
-  }
-
   async function handleWithdraw() {
-    if (!user || !selectedMethod) return;
+    if (!user) return;
+
     const pts = parseInt(points);
+
     if (isNaN(pts) || pts < minPoints) {
-      setMessage(`Minimum withdrawal: ${minPoints.toLocaleString()} points`);
+      triggerHaptic('error');
+      setMessage(`Minimum withdrawal: ${minPoints.toLocaleString()} pts`);
       return;
     }
-    if (pts > (balance?.points || 0)) {
+
+    if (pts > availablePoints) {
+      triggerHaptic('error');
       setMessage('Insufficient balance');
       return;
     }
-    if (selectedMethod !== 'stars' && !wallet.trim()) {
-      setMessage('Please enter your wallet address');
-      return;
-    }
 
+    triggerHaptic();
     setSubmitting(true);
-    const result = await submitWithdrawal(user.id, selectedMethod, pts, wallet || undefined);
+
+    const result = await submitWithdrawal(user.id, 'points', pts);
+
     if (result.success) {
-      setMessage('✅ Withdrawal request submitted! Processing in 24-48h.');
+      triggerHaptic('success');
+      setMessage('✅ Withdrawal request submitted!');
       setPoints('');
-      setWallet('');
-      setSelectedMethod(null);
       await refreshBalance();
       getWithdrawals(user.id).then(w => setWithdrawals(w));
     } else {
+      triggerHaptic('error');
       setMessage(result.message || 'Withdrawal failed');
     }
+
     setSubmitting(false);
-    setTimeout(() => setMessage(''), 5000);
+    setTimeout(() => setMessage(''), 4000);
   }
 
   const statusColor: Record<string, string> = {
-    pending: 'hsl(45 100% 55%)',
-    approved: 'hsl(140 70% 50%)',
-    rejected: 'hsl(0 80% 55%)',
-    processing: 'hsl(190 100% 55%)',
+    pending: '#facc15',
+    approved: '#22c55e',
+    rejected: '#ef4444',
+    processing: '#38bdf8',
   };
 
   return (
-    <div className="px-4 pb-28">
-      <div className="mb-4">
-        <h2 className="text-lg font-display font-bold text-gold-gradient mb-1">Wallet</h2>
-        <p className="text-xs text-muted-foreground">Withdraw your earnings</p>
+    <div className="px-4 pb-28 text-white">
+
+      {/* HEADER */}
+      <div className="mb-6">
+        <h2 className="text-xl font-bold">Wallet</h2>
+        <p className="text-xs text-gray-400">Withdraw your points</p>
       </div>
 
-      {/* Balance overview */}
+      {/* 3D BALANCE CARD */}
       <div
-        className="rounded-2xl p-4 mb-4"
+        className="rounded-3xl p-6 mb-6 relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, hsl(220 30% 10%), hsl(220 25% 8%))',
-          border: '1px solid hsl(45 100% 55% / 0.2)',
+          background: 'linear-gradient(145deg, #111827, #1f2937)',
+          border: '1px solid rgba(250,204,21,0.25)',
+          boxShadow:
+            '0 20px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
         }}
       >
-        <div className="text-xs text-muted-foreground mb-2">Available Balance</div>
-        <div className="text-3xl font-bold text-gold-gradient mb-3">
-          {(balance?.points || 0).toLocaleString()} <span className="text-base">pts</span>
+        <div className="text-xs text-gray-400 mb-2">Available Balance</div>
+
+        <div className="text-4xl font-bold text-yellow-400 drop-shadow-lg">
+          <AnimatedNumber value={availablePoints} /> pts
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          {METHODS.map(m => (
-            <div key={m.id} style={{ color: m.color }}>
-              <div className="font-bold">{getConvertedAmount(balance?.points || 0, m.id)}</div>
-              <div className="text-muted-foreground">{m.label.split(' ')[0]}</div>
-            </div>
-          ))}
+
+        <div className="text-xs text-gray-500 mt-2">
+          Minimum withdrawal: {minPoints.toLocaleString()} pts
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'hsl(220 25% 8%)' }}>
+      {/* TABS */}
+      <div className="flex bg-[#111827] rounded-xl p-1 mb-5">
         {(['withdraw', 'history'] as const).map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
-            className="flex-1 py-2 rounded-lg text-xs font-bold transition-all capitalize"
+            onClick={() => {
+              triggerHaptic();
+              setTab(t);
+            }}
+            className="flex-1 py-2 rounded-lg text-xs font-bold transition-all capitalize active:scale-95"
             style={{
-              background: tab === t ? 'hsl(45 100% 55%)' : 'transparent',
-              color: tab === t ? 'hsl(220 30% 5%)' : 'hsl(220 15% 55%)',
+              background:
+                tab === t
+                  ? 'linear-gradient(135deg,#facc15,#f97316)'
+                  : 'transparent',
+              color:
+                tab === t ? '#111' : '#9ca3af',
             }}
           >
             {t}
@@ -121,163 +169,98 @@ export default function WalletPage() {
 
       {tab === 'withdraw' ? (
         <>
-          {/* Min requirement */}
-          <div
-            className="rounded-xl p-3 mb-4 text-xs text-center"
-            style={{
-              background: 'hsl(45 100% 55% / 0.05)',
-              border: '1px solid hsl(45 100% 55% / 0.15)',
-              color: 'hsl(220 15% 60%)',
-            }}
-          >
-            Minimum withdrawal: <span className="font-bold text-gold">{minPoints.toLocaleString()} points</span>
-          </div>
-
-          {/* Select method */}
+          {/* INPUT */}
           <div className="mb-4">
-            <div className="text-xs font-semibold text-muted-foreground mb-2 tracking-wider uppercase">Select Method</div>
-            <div className="space-y-2">
-              {METHODS.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedMethod(m.id)}
-                  className="w-full flex items-center justify-between p-3 rounded-xl transition-all"
-                  style={{
-                    background: selectedMethod === m.id ? `${m.color}15` : 'hsl(220 25% 8%)',
-                    border: `1px solid ${selectedMethod === m.id ? `${m.color}50` : 'hsl(220 20% 15%)'}`,
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{m.icon}</span>
-                    <div className="text-left">
-                      <div className="text-sm font-semibold" style={{ color: selectedMethod === m.id ? m.color : 'hsl(210 40% 90%)' }}>
-                        {m.label}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Rate: {parseInt(settings[m.rateKey] || '1000').toLocaleString()} pts = 1 {m.id.toUpperCase()}
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
-                    style={{ borderColor: selectedMethod === m.id ? m.color : 'hsl(220 20% 30%)' }}
-                  >
-                    {selectedMethod === m.id && (
-                      <div className="w-2 h-2 rounded-full" style={{ background: m.color }} />
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
+            <label className="text-xs text-gray-400 mb-1 block">
+              Points to withdraw
+            </label>
+
+            <input
+              type="number"
+              value={points}
+              onChange={e => setPoints(e.target.value)}
+              placeholder={`Min ${minPoints}`}
+              className="w-full px-4 py-4 rounded-2xl text-sm font-medium outline-none transition"
+              style={{
+                background: '#111827',
+                border: '1px solid #374151',
+              }}
+            />
           </div>
 
-          {/* Amount input */}
-          {selectedMethod && (
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1.5 block">Points to withdraw</label>
-                <input
-                  type="number"
-                  value={points}
-                  onChange={e => setPoints(e.target.value)}
-                  placeholder={`Min ${minPoints.toLocaleString()}`}
-                  className="w-full px-3 py-3 rounded-xl text-sm font-medium outline-none"
-                  style={{
-                    background: 'hsl(220 25% 8%)',
-                    border: '1px solid hsl(220 20% 20%)',
-                    color: 'hsl(210 40% 95%)',
-                  }}
-                />
-                {points && !isNaN(parseInt(points)) && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ≈ {getConvertedAmount(parseInt(points), selectedMethod)} {selectedMethod.toUpperCase()}
-                  </div>
-                )}
-              </div>
-
-              {selectedMethod !== 'stars' && (
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1.5 block">
-                    {selectedMethod === 'usdt' ? 'USDT Wallet Address' : 'TON Wallet Address'}
-                  </label>
-                  <input
-                    type="text"
-                    value={wallet}
-                    onChange={e => setWallet(e.target.value)}
-                    placeholder="Enter wallet address..."
-                    className="w-full px-3 py-3 rounded-xl text-sm font-medium outline-none"
-                    style={{
-                      background: 'hsl(220 25% 8%)',
-                      border: '1px solid hsl(220 20% 20%)',
-                      color: 'hsl(210 40% 95%)',
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* MESSAGE */}
           {message && (
             <div
-              className="rounded-xl p-3 mb-4 text-sm text-center font-medium"
+              className="rounded-xl p-3 mb-4 text-sm text-center font-medium animate-pulse"
               style={{
-                background: message.startsWith('✅') ? 'hsl(140 70% 50% / 0.1)' : 'hsl(0 80% 55% / 0.1)',
-                border: `1px solid ${message.startsWith('✅') ? 'hsl(140 70% 50% / 0.3)' : 'hsl(0 80% 55% / 0.3)'}`,
-                color: message.startsWith('✅') ? 'hsl(140 70% 55%)' : 'hsl(0 80% 60%)',
+                background: message.startsWith('✅')
+                  ? 'rgba(34,197,94,0.1)'
+                  : 'rgba(239,68,68,0.1)',
+                border: `1px solid ${
+                  message.startsWith('✅')
+                    ? 'rgba(34,197,94,0.4)'
+                    : 'rgba(239,68,68,0.4)'
+                }`,
+                color: message.startsWith('✅')
+                  ? '#22c55e'
+                  : '#ef4444',
               }}
             >
               {message}
             </div>
           )}
 
+          {/* BUTTON */}
           <button
-            className="btn-gold w-full py-4 rounded-2xl text-sm font-bold"
             onClick={handleWithdraw}
-            disabled={submitting || !selectedMethod}
-            style={{ opacity: submitting || !selectedMethod ? 0.5 : 1 }}
+            disabled={submitting}
+            className="w-full py-4 rounded-2xl font-bold text-black transition-all active:scale-95"
+            style={{
+              background:
+                'linear-gradient(135deg,#facc15,#f97316)',
+              opacity: submitting ? 0.6 : 1,
+              boxShadow:
+                '0 10px 25px rgba(250,204,21,0.4)',
+            }}
           >
-            {submitting ? '⏳ Processing...' : '💰 Submit Withdrawal'}
+            {submitting ? '⏳ Processing...' : '💰 Withdraw Points'}
           </button>
         </>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {withdrawals.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-3xl mb-2">📭</div>
-              <div className="text-sm text-muted-foreground">No withdrawals yet</div>
+            <div className="text-center py-10 text-gray-500">
+              📭 No withdrawals yet
             </div>
           ) : (
             withdrawals.map(w => (
               <div
                 key={w.id}
-                className="p-3 rounded-xl"
+                className="p-4 rounded-2xl transition-all hover:scale-[1.02]"
                 style={{
-                  background: 'hsl(220 25% 8% / 0.6)',
-                  border: '1px solid hsl(220 20% 15% / 0.5)',
+                  background: '#111827',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  boxShadow: '0 10px 20px rgba(0,0,0,0.4)',
                 }}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span>{METHODS.find(m => m.id === w.method)?.icon || '💰'}</span>
-                    <span className="text-sm font-medium text-foreground capitalize">{w.method}</span>
+                <div className="flex justify-between mb-2">
+                  <div className="font-medium">
+                    {w.points_spent.toLocaleString()} pts
                   </div>
-                  <span
-                    className="text-xs font-bold px-2 py-0.5 rounded capitalize"
+                  <div
+                    className="text-xs font-bold px-2 py-1 rounded capitalize"
                     style={{
-                      background: `${statusColor[w.status] || 'hsl(220 15% 50%)'}20`,
-                      color: statusColor[w.status] || 'hsl(220 15% 50%)',
+                      background: `${statusColor[w.status] || '#999'}20`,
+                      color: statusColor[w.status] || '#999',
                     }}
                   >
                     {w.status}
-                  </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{w.points_spent.toLocaleString()} pts → {Number(w.amount).toFixed(w.method === 'ton' ? 3 : 2)} {w.method.toUpperCase()}</span>
-                  <span>{new Date(w.created_at).toLocaleDateString()}</span>
+
+                <div className="text-xs text-gray-500">
+                  {new Date(w.created_at).toLocaleDateString()}
                 </div>
-                {w.admin_note && (
-                  <div className="mt-1 text-xs" style={{ color: 'hsl(0 80% 60%)' }}>Note: {w.admin_note}</div>
-                )}
               </div>
             ))
           )}
