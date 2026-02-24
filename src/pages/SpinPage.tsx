@@ -3,9 +3,6 @@ import { useApp } from '@/context/AppContext';
 import { spinWheel, logAdWatch, getSpinCount } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
-/* =====================================================
-   WHEEL SEGMENTS
-===================================================== */
 const WHEEL_SEGMENTS = [
   { points: 100, stars: 0, color: 'hsl(220 30% 15%)', type: 'points' },
   { points: 500, stars: 0, color: 'hsl(45 80% 30%)', type: 'points' },
@@ -15,72 +12,85 @@ const WHEEL_SEGMENTS = [
   { points: 0, stars: 0, color: 'hsl(0 50% 20%)', type: 'empty' },
   { points: 750, stars: 0, color: 'hsl(140 40% 15%)', type: 'points' },
   { points: 0, stars: 2, color: 'hsl(190 80% 25%)', type: 'stars' },
-];
+] as const;
 
 const MAX_SPINS = 3;
 const SPIN_COOLDOWN_HOURS = 4;
 
-function formatCountdown(seconds: number) {
+type SpinRecord = {
+  spun_at: string;
+};
+
+type SpinResponse = {
+  success: boolean;
+  result: 'points' | 'stars' | 'empty';
+  points?: number;
+  stars?: number;
+};
+
+function formatCountdown(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
+
   return `${h.toString().padStart(2, '0')}:${m
     .toString()
     .padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function SpinPage() {
+export default function SpinPage(): JSX.Element {
   const { user, refreshBalance } = useApp();
 
-  const [spinning, setSpinning] = useState(false);
-  const [rotation, setRotation] = useState(0);
-  const [result, setResult] = useState<React.ReactNode | null>(null);
-  const [spinsLeft, setSpinsLeft] = useState(MAX_SPINS);
-  const [adLoading, setAdLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [spinning, setSpinning] = useState<boolean>(false);
+  const [rotation, setRotation] = useState<number>(0);
+  const [result, setResult] = useState<string | null>(null);
+  const [spinsLeft, setSpinsLeft] = useState<number>(MAX_SPINS);
+  const [adLoading, setAdLoading] = useState<boolean>(false);
+  const [cooldown, setCooldown] = useState<number>(0);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
 
-  const wheelRef = useRef<HTMLDivElement>(null);
+  const wheelRef = useRef<HTMLDivElement | null>(null);
   const segmentAngle = 360 / WHEEL_SEGMENTS.length;
 
-  /* =====================================================
-     LOAD SPINS
-  ===================================================== */
+  /* ================= LOAD SPIN STATE ================= */
   useEffect(() => {
-    if (user) loadSpinState();
+    if (user) void loadSpinState();
   }, [user]);
 
-  async function loadSpinState() {
+  async function loadSpinState(): Promise<void> {
     if (!user) return;
 
-    const data = await getSpinCount(user.id);
-    if (!data?.length) return;
+    try {
+      const data: SpinRecord[] = await getSpinCount(user.id);
+      if (!data?.length) return;
 
-    const cutoff = Date.now() - SPIN_COOLDOWN_HOURS * 3600000;
-    const recent = data.filter(
-      (s: any) => new Date(s.spun_at).getTime() > cutoff
-    );
+      const cutoff = Date.now() - SPIN_COOLDOWN_HOURS * 3600000;
 
-    const remaining = Math.max(0, MAX_SPINS - recent.length);
-    setSpinsLeft(remaining);
-
-    if (remaining === 0 && recent.length) {
-      const oldest = Math.min(
-        ...recent.map((s: any) => new Date(s.spun_at).getTime())
+      const recent = data.filter(
+        (s) => new Date(s.spun_at).getTime() > cutoff
       );
-      const reset = oldest + SPIN_COOLDOWN_HOURS * 3600000;
-      setCooldown(Math.max(0, Math.floor((reset - Date.now()) / 1000)));
+
+      const remaining = Math.max(0, MAX_SPINS - recent.length);
+      setSpinsLeft(remaining);
+
+      if (remaining === 0 && recent.length) {
+        const oldest = Math.min(
+          ...recent.map((s) => new Date(s.spun_at).getTime())
+        );
+        const reset = oldest + SPIN_COOLDOWN_HOURS * 3600000;
+        setCooldown(Math.max(0, Math.floor((reset - Date.now()) / 1000)));
+      }
+    } catch (error) {
+      console.error('Failed to load spin state', error);
     }
   }
 
-  /* =====================================================
-     COOLDOWN TIMER
-  ===================================================== */
+  /* ================= COOLDOWN TIMER ================= */
   useEffect(() => {
     if (cooldown <= 0) return;
 
     const interval = setInterval(() => {
-      setCooldown(prev => {
+      setCooldown((prev) => {
         if (prev <= 1) {
           setSpinsLeft(MAX_SPINS);
           return 0;
@@ -92,87 +102,87 @@ export default function SpinPage() {
     return () => clearInterval(interval);
   }, [cooldown]);
 
-  /* =====================================================
-     SPIN
-  ===================================================== */
-  async function handleSpin() {
+  /* ================= HANDLE SPIN ================= */
+  async function handleSpin(): Promise<void> {
     if (!user || spinning || spinsLeft <= 0) return;
 
     setSpinning(true);
     setResult(null);
     setWinningIndex(null);
 
-    const res = await spinWheel(user.id);
-    let targetIndex = 5;
+    try {
+      const res: SpinResponse = await spinWheel(user.id);
 
-    if (res.success) {
-      if (res.result === 'points') {
-        const p = res.points || 0;
-        if (p >= 1000) targetIndex = 4;
-        else if (p >= 750) targetIndex = 6;
-        else if (p >= 500) targetIndex = 1;
-        else if (p >= 250) targetIndex = 3;
-        else targetIndex = 0;
-      } else if (res.result === 'stars') {
-        targetIndex = res.stars >= 2 ? 7 : 2;
-      }
-    }
+      let targetIndex = 5;
 
-    const targetAngle =
-      360 * 8 + (360 - targetIndex * segmentAngle - segmentAngle / 2);
-
-    setRotation(prev => prev + targetAngle);
-
-    setTimeout(() => {
-      setSpinning(false);
-      setWinningIndex(targetIndex);
-      setSpinsLeft(prev => prev - 1);
-
-      if (res.success && res.result !== 'empty') {
+      if (res.success) {
         if (res.result === 'points') {
-          setResult(`💰 +${res.points} Points!`);
-        } else {
-          setResult(`⭐ +${res.stars} Stars!`);
+          const p = res.points ?? 0;
+          if (p >= 1000) targetIndex = 4;
+          else if (p >= 750) targetIndex = 6;
+          else if (p >= 500) targetIndex = 1;
+          else if (p >= 250) targetIndex = 3;
+          else targetIndex = 0;
+        } else if (res.result === 'stars') {
+          targetIndex = (res.stars ?? 0) >= 2 ? 7 : 2;
         }
-        refreshBalance();
-      } else {
-        setResult(`🎯 Better luck next time!`);
       }
-    }, 4500);
+
+      const targetAngle =
+        360 * 8 + (360 - targetIndex * segmentAngle - segmentAngle / 2);
+
+      setRotation((prev) => prev + targetAngle);
+
+      setTimeout(() => {
+        setSpinning(false);
+        setWinningIndex(targetIndex);
+        setSpinsLeft((prev) => prev - 1);
+
+        if (res.success && res.result !== 'empty') {
+          if (res.result === 'points') {
+            setResult(`💰 +${res.points ?? 0} Points!`);
+          } else {
+            setResult(`⭐ +${res.stars ?? 0} Stars!`);
+          }
+          refreshBalance();
+        } else {
+          setResult('🎯 Better luck next time!');
+        }
+      }, 4500);
+    } catch (error) {
+      console.error('Spin failed', error);
+      setSpinning(false);
+    }
   }
 
-  /* =====================================================
-     AD
-  ===================================================== */
-  const onAdReward = useCallback(async () => {
+  /* ================= HANDLE AD ================= */
+  const onAdReward = useCallback(async (): Promise<void> => {
     if (!user) return;
-    setSpinsLeft(prev => prev + 1);
+    setSpinsLeft((prev) => prev + 1);
     await logAdWatch(user.id, 'extra_spin', 0);
   }, [user]);
 
   const { showAd } = useRewardedAd(onAdReward);
 
-  async function handleWatchAd() {
+  async function handleWatchAd(): Promise<void> {
     if (!user) return;
     setAdLoading(true);
-    await showAd();
-    setAdLoading(false);
+    try {
+      await showAd();
+    } finally {
+      setAdLoading(false);
+    }
   }
 
-  /* =====================================================
-     RENDER
-  ===================================================== */
+  /* ================= RENDER ================= */
   return (
     <div className="px-4 pb-28">
-
-      {/* RESULT */}
       {result && (
         <div className="text-center py-3 font-bold text-yellow-400">
           {result}
         </div>
       )}
 
-      {/* SPIN BUTTON */}
       <button
         onClick={handleSpin}
         disabled={spinning || spinsLeft <= 0}
@@ -192,28 +202,15 @@ export default function SpinPage() {
           transition: '0.2s',
         }}
       >
-        {spinning ? (
-          '🌀 Spinning...'
-        ) : spinsLeft > 0 ? (
-          <>
-            💰 SPIN NOW
-            <div style={{ fontSize: 12 }}>
-              {spinsLeft} spin{spinsLeft !== 1 ? 's' : ''} remaining
-            </div>
-          </>
-        ) : (
-          <>
-            🎯 No Spins Left
-            {cooldown > 0 && (
-              <div style={{ fontSize: 12 }}>
-                Reset in {formatCountdown(cooldown)}
-              </div>
-            )}
-          </>
-        )}
+        {spinning
+          ? '🌀 Spinning...'
+          : spinsLeft > 0
+          ? `💰 SPIN NOW (${spinsLeft} left)`
+          : `🎯 No Spins Left ${
+              cooldown > 0 ? `Reset in ${formatCountdown(cooldown)}` : ''
+            }`}
       </button>
 
-      {/* WATCH AD */}
       <button
         onClick={handleWatchAd}
         disabled={adLoading}
@@ -228,9 +225,8 @@ export default function SpinPage() {
           fontWeight: 700,
         }}
       >
-        🎬 Watch Ad +1 Spin
+        {adLoading ? 'Loading Ad...' : '🎬 Watch Ad +1 Spin'}
       </button>
-
     </div>
   );
 }
