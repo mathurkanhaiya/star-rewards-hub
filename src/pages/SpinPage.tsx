@@ -16,239 +16,311 @@ const WHEEL_SEGMENTS = [
 
 const MAX_SPINS = 3;
 const SPIN_COOLDOWN_HOURS = 4;
+const SPIN_DURATION = 4500;
 
 function formatCountdown(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${h.toString().padStart(2, '0')}:${m
+    .toString()
+    .padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function SpinPage() {
   const { user, refreshBalance } = useApp();
+
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<string | null>(null);
   const [spinsLeft, setSpinsLeft] = useState(MAX_SPINS);
   const [adLoading, setAdLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const wheelRef = useRef<HTMLDivElement>(null);
 
   const SEGMENTS = WHEEL_SEGMENTS.length;
   const segmentAngle = 360 / SEGMENTS;
 
-  // Load spin count from DB
+  // ===============================
+  // LOAD SPIN STATE
+  // ===============================
   useEffect(() => {
-    if (user) loadSpinState();
+    if (!user) return;
+    loadSpinState();
   }, [user]);
 
-  // Cooldown timer
+  async function loadSpinState() {
+    if (!user) return;
+
+    try {
+      const data = await getSpinCount(user.id);
+      if (!data?.length) return;
+
+      const cutoff = Date.now() - SPIN_COOLDOWN_HOURS * 60 * 60 * 1000;
+
+      const recentSpins = data.filter(
+        (s: { spun_at: string }) =>
+          new Date(s.spun_at).getTime() > cutoff
+      );
+
+      const used = recentSpins.length;
+      const remaining = Math.max(0, MAX_SPINS - used);
+      setSpinsLeft(remaining);
+
+      if (remaining === 0 && recentSpins.length) {
+        const oldest = Math.min(
+          ...recentSpins.map((s: any) =>
+            new Date(s.spun_at).getTime()
+          )
+        );
+
+        const resetTime =
+          oldest + SPIN_COOLDOWN_HOURS * 60 * 60 * 1000;
+
+        const secondsLeft = Math.max(
+          0,
+          Math.floor((resetTime - Date.now()) / 1000)
+        );
+
+        setCooldown(secondsLeft);
+      }
+    } catch (err) {
+      console.error('Failed to load spin state', err);
+    }
+  }
+
+  // ===============================
+  // COOLDOWN TIMER
+  // ===============================
   useEffect(() => {
     if (cooldown <= 0) return;
+
     const interval = setInterval(() => {
-      setCooldown(prev => {
+      setCooldown((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
           setSpinsLeft(MAX_SPINS);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
   }, [cooldown]);
 
-  async function loadSpinState() {
-    if (!user) return;
-    const data = await getSpinCount(user.id);
-    if (data && data.length > 0) {
-      // Count spins in last SPIN_COOLDOWN_HOURS hours
-      const cutoff = Date.now() - SPIN_COOLDOWN_HOURS * 60 * 60 * 1000;
-      const recentSpins = data.filter((s: { spun_at: string }) => new Date(s.spun_at).getTime() > cutoff);
-      const used = recentSpins.length;
-      const remaining = Math.max(0, MAX_SPINS - used);
-      setSpinsLeft(remaining);
-
-      if (remaining === 0 && recentSpins.length > 0) {
-        // Find oldest spin in the window to calculate when cooldown ends
-        const oldest = recentSpins.reduce((min: string, s: { spun_at: string }) => s.spun_at < min ? s.spun_at : min, recentSpins[0].spun_at);
-        const resetTime = new Date(oldest).getTime() + SPIN_COOLDOWN_HOURS * 60 * 60 * 1000;
-        const remaining_s = Math.max(0, Math.floor((resetTime - Date.now()) / 1000));
-        setCooldown(remaining_s);
-      }
-    }
-  }
-
+  // ===============================
+  // SPIN LOGIC
+  // ===============================
   async function handleSpin() {
-    if (spinning || !user || spinsLeft <= 0) return;
+    if (!user || spinning || spinsLeft <= 0) return;
+
     setSpinning(true);
     setResult(null);
 
-    const res = await spinWheel(user.id);
+    try {
+      const res = await spinWheel(user.id);
 
-    let targetIndex = 0;
-    if (res.success) {
-      if (res.result === 'points') {
-        if (res.points && res.points >= 1000) targetIndex = 4;
-        else if (res.points && res.points >= 750) targetIndex = 6;
-        else if (res.points && res.points >= 500) targetIndex = 1;
-        else if (res.points && res.points >= 250) targetIndex = 3;
-        else targetIndex = 0;
-      } else if (res.result === 'stars') {
-        targetIndex = res.stars && res.stars >= 2 ? 7 : 2;
-      } else {
-        targetIndex = 5;
+      let targetIndex = 5; // default: try again
+
+      if (res?.success) {
+        if (res.result === 'points') {
+          const p = res.points || 0;
+          if (p >= 1000) targetIndex = 4;
+          else if (p >= 750) targetIndex = 6;
+          else if (p >= 500) targetIndex = 1;
+          else if (p >= 250) targetIndex = 3;
+          else targetIndex = 0;
+        } else if (res.result === 'stars') {
+          targetIndex = res.stars >= 2 ? 7 : 2;
+        }
       }
-    }
 
-    const targetAngle = 360 * 8 + (360 - targetIndex * segmentAngle - segmentAngle / 2);
-    const newRotation = rotation + targetAngle;
-    setRotation(newRotation);
+      const extraSpins = 6;
+      const targetAngle =
+        360 * extraSpins +
+        (360 - targetIndex * segmentAngle - segmentAngle / 2);
 
-    setTimeout(() => {
+      setRotation((prev) => prev + targetAngle);
+
+      setTimeout(() => {
+        setSpinning(false);
+
+        setSpinsLeft((prev) => {
+          const updated = Math.max(0, prev - 1);
+          if (updated === 0) {
+            setCooldown(SPIN_COOLDOWN_HOURS * 3600);
+          }
+          return updated;
+        });
+
+        if (res?.success && res.result !== 'empty') {
+          const points = res.points || 0;
+          const stars = res.stars || 0;
+
+          if (points > 0) {
+            setResult(`+${points} points! 🎉`);
+          } else if (stars > 0) {
+            setResult(`+${stars} ⭐ Stars! 🎊`);
+          }
+          refreshBalance();
+        } else {
+          setResult('Better luck next time! 🎯');
+        }
+      }, SPIN_DURATION);
+    } catch (err) {
+      console.error('Spin failed', err);
       setSpinning(false);
-      const newSpinsLeft = spinsLeft - 1;
-      setSpinsLeft(newSpinsLeft);
-
-      if (newSpinsLeft <= 0) {
-        setCooldown(SPIN_COOLDOWN_HOURS * 60 * 60);
-      }
-
-      if (res.success && res.result !== 'empty') {
-        const points = res.points || 0;
-        const stars = res.stars || 0;
-        setResult(points > 0 ? `+${points} points! 🎉` : stars > 0 ? `+${stars} ⭐ Stars! 🎊` : 'Better luck next time!');
-        refreshBalance();
-      } else {
-        setResult('Better luck next time! 🎯');
-      }
-    }, 4500);
+      setResult('Something went wrong ❗');
+    }
   }
 
+  // ===============================
+  // AD REWARD
+  // ===============================
   const onAdReward = useCallback(async () => {
     if (!user) return;
-    setSpinsLeft(prev => prev + 1);
-    if (cooldown > 0) setCooldown(0);
+
+    setSpinsLeft((prev) => prev + 1);
+    setCooldown(0);
+
     await logAdWatch(user.id, 'extra_spin', 0);
+
     setResult('🎡 Extra spin granted!');
     setTimeout(() => setResult(null), 2000);
-  }, [user, cooldown]);
+  }, [user]);
 
   const { showAd } = useRewardedAd(onAdReward);
 
   async function handleWatchAd() {
-    if (!user) return;
+    if (!user || adLoading) return;
     setAdLoading(true);
-    await showAd();
-    setAdLoading(false);
+    try {
+      await showAd();
+    } finally {
+      setAdLoading(false);
+    }
   }
 
+  // ===============================
+  // UI
+  // ===============================
   return (
     <div className="px-4 pb-28">
-      <div className="mb-4">
-        <h2 className="text-lg font-display font-bold text-gold-gradient mb-1">Spin Wheel</h2>
-        <p className="text-xs text-muted-foreground">Spin to win amazing prizes!</p>
+      <h2 className="text-lg font-bold mb-1">Spin Wheel</h2>
+      <p className="text-xs mb-4">Spin to win amazing prizes!</p>
+
+      {/* Spins Counter */}
+      <div className="flex items-center justify-center gap-2 mb-4">
+        {Array.from({ length: MAX_SPINS }).map((_, i) => (
+          <div
+            key={i}
+            className="w-3 h-3 rounded-full"
+            style={{
+              background:
+                i < spinsLeft
+                  ? 'hsl(45 100% 55%)'
+                  : 'hsl(220 20% 20%)',
+              transition: '0.3s',
+            }}
+          />
+        ))}
+        <span className="text-xs ml-2">
+          {spinsLeft} spin{spinsLeft !== 1 ? 's' : ''} left
+        </span>
       </div>
 
-      {/* Spins counter */}
-      <div className="flex items-center justify-center gap-2 mb-2">
-        {Array.from({ length: Math.max(spinsLeft, 0) }).map((_, i) => (
-          <div key={i} className="w-3 h-3 rounded-full animate-pulse-gold" style={{ background: 'hsl(45 100% 55%)' }} />
-        ))}
-        {Array.from({ length: Math.max(MAX_SPINS - spinsLeft, 0) }).map((_, i) => (
-          <div key={i} className="w-3 h-3 rounded-full" style={{ background: 'hsl(220 20% 20%)' }} />
-        ))}
-        <span className="text-xs text-muted-foreground ml-2">{spinsLeft} spin{spinsLeft !== 1 ? 's' : ''} left</span>
-      </div>
-
-      {/* Cooldown timer */}
-      {cooldown > 0 && spinsLeft <= 0 && (
-        <div className="text-center mb-4 py-2 px-4 rounded-xl" style={{ background: 'hsl(0 80% 55% / 0.1)', border: '1px solid hsl(0 80% 55% / 0.3)' }}>
-          <div className="text-xs text-muted-foreground">Spins reset in</div>
-          <div className="text-lg font-bold font-mono" style={{ color: 'hsl(45 100% 60%)' }}>{formatCountdown(cooldown)}</div>
+      {/* Cooldown */}
+      {cooldown > 0 && spinsLeft === 0 && (
+        <div className="text-center mb-4">
+          <div className="text-xs">Spins reset in</div>
+          <div className="font-mono text-lg">
+            {formatCountdown(cooldown)}
+          </div>
         </div>
       )}
 
       {/* Wheel */}
-      <div className="flex flex-col items-center mb-6">
-        <div className="relative spin-wheel-container">
-          <div
-            className="absolute top-0 left-1/2 z-20"
-            style={{
-              transform: 'translate(-50%, -12px)',
-              width: 0, height: 0,
-              borderLeft: '10px solid transparent',
-              borderRight: '10px solid transparent',
-              borderTop: '20px solid hsl(45 100% 55%)',
-              filter: 'drop-shadow(0 0 8px hsl(45 100% 55% / 0.8))',
-            }}
-          />
-          <div
-            ref={wheelRef}
-            style={{
-              width: 260, height: 260,
-              transition: spinning ? 'transform 4.5s cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'none',
-              transform: `rotate(${rotation}deg)`,
-            }}
-          >
-            <svg viewBox="0 0 260 260" width="260" height="260">
-              {WHEEL_SEGMENTS.map((seg, i) => {
-                const angle = (i * segmentAngle * Math.PI) / 180;
-                const nextAngle = ((i + 1) * segmentAngle * Math.PI) / 180;
-                const r = 120;
-                const cx = 130, cy = 130;
-                const x1 = cx + r * Math.sin(angle);
-                const y1 = cy - r * Math.cos(angle);
-                const x2 = cx + r * Math.sin(nextAngle);
-                const y2 = cy - r * Math.cos(nextAngle);
-                const midAngle = ((i + 0.5) * segmentAngle * Math.PI) / 180;
-                const textR = 75;
-                const tx = cx + textR * Math.sin(midAngle);
-                const ty = cy - textR * Math.cos(midAngle);
-                const textRotation = (i + 0.5) * segmentAngle;
-                return (
-                  <g key={i}>
-                    <path d={`M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 0,1 ${x2},${y2} Z`} fill={seg.color} stroke="hsl(220 30% 5%)" strokeWidth="2" />
-                    <text x={tx} y={ty} textAnchor="middle" dominantBaseline="middle" fill="hsl(210 40% 95%)" fontSize="9" fontFamily="Space Grotesk, sans-serif" fontWeight="700" transform={`rotate(${textRotation}, ${tx}, ${ty})`}>{seg.label}</text>
-                  </g>
-                );
-              })}
-              <circle cx="130" cy="130" r="25" fill="hsl(220 30% 8%)" stroke="hsl(45 100% 55%)" strokeWidth="3" />
-              <text x="130" y="130" textAnchor="middle" dominantBaseline="middle" fill="hsl(45 100% 55%)" fontSize="14">🎡</text>
-            </svg>
-          </div>
+      <div className="flex justify-center mb-6">
+        <div
+          style={{
+            width: 260,
+            height: 260,
+            transition: spinning
+              ? 'transform 4.5s cubic-bezier(0.17, 0.67, 0.12, 0.99)'
+              : 'none',
+            transform: `rotate(${rotation}deg)`,
+          }}
+        >
+          <svg viewBox="0 0 260 260" width="260" height="260">
+            {WHEEL_SEGMENTS.map((seg, i) => {
+              const angle = (i * segmentAngle * Math.PI) / 180;
+              const nextAngle =
+                ((i + 1) * segmentAngle * Math.PI) / 180;
+
+              const r = 120;
+              const cx = 130;
+              const cy = 130;
+
+              const x1 = cx + r * Math.sin(angle);
+              const y1 = cy - r * Math.cos(angle);
+              const x2 = cx + r * Math.sin(nextAngle);
+              const y2 = cy - r * Math.cos(nextAngle);
+
+              const midAngle =
+                ((i + 0.5) * segmentAngle * Math.PI) / 180;
+
+              const tx = cx + 75 * Math.sin(midAngle);
+              const ty = cy - 75 * Math.cos(midAngle);
+
+              return (
+                <g key={i}>
+                  <path
+                    d={`M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 0,1 ${x2},${y2} Z`}
+                    fill={seg.color}
+                  />
+                  <text
+                    x={tx}
+                    y={ty}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize="9"
+                    fontWeight="700"
+                  >
+                    {seg.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
       </div>
 
       {result && (
-        <div className="text-center py-3 px-4 rounded-xl mb-4 font-bold text-sm" style={{ background: 'hsl(45 100% 55% / 0.15)', border: '1px solid hsl(45 100% 55% / 0.4)', color: 'hsl(45 100% 60%)' }}>
+        <div className="text-center font-bold mb-4">
           {result}
         </div>
       )}
 
       <button
-        className="btn-gold w-full py-4 rounded-2xl text-base font-bold mb-4"
+        className="w-full py-4 mb-4 rounded bg-yellow-500 font-bold"
         onClick={handleSpin}
         disabled={spinning || spinsLeft <= 0}
-        style={{ opacity: spinning || spinsLeft <= 0 ? 0.5 : 1 }}
       >
-        {spinning ? '🌀 Spinning...' : spinsLeft > 0 ? '🎡 SPIN NOW' : '🚫 No Spins Left'}
+        {spinning
+          ? '🌀 Spinning...'
+          : spinsLeft > 0
+          ? '🎡 SPIN NOW'
+          : '🚫 No Spins Left'}
       </button>
 
-      {/* WATCH & EARN for extra spin */}
       <button
-        className="w-full rounded-2xl p-4 mb-4 flex flex-col items-center justify-center gap-1 font-bold transition-all active:scale-95"
-        style={{
-          background: 'linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%))',
-          color: 'hsl(220 30% 5%)',
-          boxShadow: '0 0 20px hsl(45 100% 55% / 0.3)',
-          opacity: adLoading ? 0.7 : 1,
-        }}
+        className="w-full py-4 rounded bg-orange-400 font-bold"
         onClick={handleWatchAd}
         disabled={adLoading}
       >
-        <div className="text-xl">🎬</div>
-        <div className="text-sm font-black">{adLoading ? '⏳ Loading...' : 'WATCH & EARN → +1 Extra Spin'}</div>
+        {adLoading
+          ? '⏳ Loading...'
+          : '🎬 WATCH & EARN → +1 Extra Spin'}
       </button>
     </div>
   );
