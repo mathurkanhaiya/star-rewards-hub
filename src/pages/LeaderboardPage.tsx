@@ -2,13 +2,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   getLeaderboard,
   getActiveContests,
-  getContestLeaderboard,
-  getReferralLeaderboard
+  getContestLeaderboard
 } from '@/lib/api';
 import { LeaderboardEntry, Contest } from '@/types/telegram';
 import { useApp } from '@/context/AppContext';
 
-type LeaderboardTab = 'points' | 'ads' | 'referrals';
+type LeaderboardTab = 'points' | 'ads';
 
 /* ===============================
    TELEGRAM HAPTIC
@@ -72,14 +71,11 @@ export default function LeaderboardPage() {
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
   const [previousRanks, setPreviousRanks] = useState<Record<number, number>>({});
   const [contestLeaders, setContestLeaders] = useState<any[]>([]);
-  const [referralLeaders, setReferralLeaders] = useState<any[]>([]);
   const [contests, setContests] = useState<Contest[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<LeaderboardTab>('points');
 
-  /* ===============================
-     AUTO REFRESH
-  ================================= */
+  /* AUTO REFRESH */
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 15000);
@@ -102,25 +98,17 @@ export default function LeaderboardPage() {
       setLeaders(newLeaders);
     }
 
-    if (tab === 'ads' || tab === 'referrals') {
+    if (tab === 'ads') {
       const activeContests = await getActiveContests();
       setContests(activeContests as Contest[]);
 
-      const contestType =
-        tab === 'ads' ? 'ads_watch' : 'referral';
-
-      const activeContest = activeContests.find(
-        (c: Contest) => c.contest_type === contestType
+      const adContest = activeContests.find(
+        (c: Contest) => c.contest_type === 'ads_watch'
       );
 
-      if (activeContest) {
-        const entries = await getContestLeaderboard(activeContest.id);
+      if (adContest) {
+        const entries = await getContestLeaderboard(adContest.id);
         setContestLeaders(entries || []);
-        setReferralLeaders([]);
-      } else if (tab === 'referrals') {
-        const data = await getReferralLeaderboard();
-        setReferralLeaders(data || []);
-        setContestLeaders([]);
       }
     }
 
@@ -132,17 +120,9 @@ export default function LeaderboardPage() {
       ? leaders.find(l => l.telegram_id === user.telegram_id)?.rank
       : null;
 
-  const tabs = [
-    { id: 'points', label: 'Points', icon: '⚡' },
-    { id: 'ads', label: 'Ads Watch', icon: '🎬' },
-    { id: 'referrals', label: 'Inviters', icon: '👥' }
-  ] as const;
-
   const activeContest =
     tab === 'ads'
       ? contests.find(c => c.contest_type === 'ads_watch')
-      : tab === 'referrals'
-      ? contests.find(c => c.contest_type === 'referral')
       : null;
 
   return (
@@ -157,12 +137,15 @@ export default function LeaderboardPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 p-1 rounded-xl bg-[#111827]">
-        {tabs.map(t => (
+        {[
+          { id: 'points', label: 'Points', icon: '⚡' },
+          { id: 'ads', label: 'Ads Watch', icon: '🎬' }
+        ].map(t => (
           <button
             key={t.id}
             onClick={() => {
               triggerHaptic();
-              setTab(t.id);
+              setTab(t.id as LeaderboardTab);
             }}
             className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
             style={{
@@ -191,29 +174,18 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* My Rank */}
-      {tab === 'points' && myRank && (
-        <div className="rounded-xl p-3 mb-4 bg-yellow-500/10 border border-yellow-500/30 text-center font-bold">
-          Your Rank: #{myRank}
-        </div>
-      )}
-
       {loading ? (
         <div className="text-center py-8 text-gray-400">
           Loading...
         </div>
       ) : tab === 'points' ? (
         <div className="space-y-3">
-
           {leaders.map(leader => {
             const isMe =
-              user &&
-              leader.telegram_id === user.telegram_id;
+              user && leader.telegram_id === user.telegram_id;
 
             const totalPoints =
-              leader.total_points ??
-              leader.points ??
-              0;
+              leader.total_points ?? leader.points ?? 0;
 
             const previousRank =
               previousRanks[leader.telegram_id];
@@ -322,31 +294,71 @@ export default function LeaderboardPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {(contestLeaders.length > 0
-            ? contestLeaders
-            : referralLeaders
-          ).map((entry: any, i: number) => (
-            <div
-              key={entry.user_id || i}
-              className="flex justify-between items-center p-4 rounded-xl bg-[#111827] border border-white/5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-yellow-400 font-bold">
-                  #{i + 1}
+          {contestLeaders.map((entry: any, i: number) => {
+
+            const openChat = () => {
+              triggerHaptic();
+              if (entry.users?.username) {
+                window.open(`https://t.me/${entry.users.username}`, '_blank');
+              } else {
+                window.open(`tg://user?id=${entry.users?.telegram_id}`);
+              }
+            };
+
+            return (
+              <div
+                key={entry.user_id}
+                onClick={openChat}
+                className="flex items-center justify-between p-4 rounded-xl cursor-pointer bg-[#111827] border border-white/5 transition active:scale-[0.97]"
+              >
+                <div className="flex items-center gap-3">
+
+                  <div className="relative font-bold text-yellow-400 w-8">
+                    #{i + 1}
+                    {i === 0 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -12,
+                          left: 2,
+                          animation: 'float 2s ease-in-out infinite'
+                        }}
+                      >
+                        👑
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
+                    {entry.users?.photo_url ? (
+                      <img
+                        src={entry.users.photo_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      entry.users?.first_name?.[0] || '?'
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-medium">
+                      {entry.users?.first_name ||
+                        entry.users?.username ||
+                        'User'}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      UID: {entry.users?.telegram_id}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  {entry.users?.first_name ||
-                    entry.user?.first_name ||
-                    'User'}
+
+                <div className="font-bold text-yellow-400">
+                  {entry.score} ads
                 </div>
               </div>
-              <div className="font-bold text-yellow-400">
-                {entry.score ||
-                  entry.count}{' '}
-                {tab === 'ads' ? 'ads' : 'invites'}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
