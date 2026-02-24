@@ -3,15 +3,32 @@ import { useApp } from '@/context/AppContext';
 import { spinWheel, logAdWatch, getSpinCount } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
+/* ===============================
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: 'success' | 'error' | 'impact') {
+  if (typeof window !== 'undefined' && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+    if (tg?.HapticFeedback) {
+      if (type === 'impact') tg.HapticFeedback.impactOccurred('medium');
+      if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+      if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+    }
+  }
+}
+
+/* ===============================
+   UPDATED REWARD BALANCE
+================================ */
 const WHEEL_SEGMENTS = [
-  { points: 100, stars: 0, color: 'hsl(220 30% 15%)', type: 'points' },
-  { points: 500, stars: 0, color: 'hsl(45 80% 30%)', type: 'points' },
-  { points: 0, stars: 1, color: 'hsl(190 50% 20%)', type: 'stars' },
-  { points: 250, stars: 0, color: 'hsl(265 40% 20%)', type: 'points' },
-  { points: 1000, stars: 0, color: 'hsl(45 100% 20%)', type: 'points' },
-  { points: 0, stars: 0, color: 'hsl(0 50% 20%)', type: 'empty' },
-  { points: 750, stars: 0, color: 'hsl(140 40% 15%)', type: 'points' },
-  { points: 0, stars: 2, color: 'hsl(190 80% 25%)', type: 'stars' },
+  { points: 50, stars: 0, color: '#1f2937', type: 'points' },
+  { points: 100, stars: 0, color: '#78350f', type: 'points' },
+  { points: 0, stars: 5, color: '#0e7490', type: 'stars' },
+  { points: 200, stars: 0, color: '#4c1d95', type: 'points' },
+  { points: 500, stars: 0, color: '#92400e', type: 'points' },
+  { points: 0, stars: 0, color: '#7f1d1d', type: 'empty' },
+  { points: 300, stars: 0, color: '#14532d', type: 'points' },
+  { points: 0, stars: 10, color: '#0f766e', type: 'stars' },
 ];
 
 const MAX_SPINS = 3;
@@ -31,11 +48,11 @@ export default function SpinPage() {
 
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [result, setResult] = useState<React.ReactNode | null>(null);
+  const [result, setResult] = useState<string | null>(null);
   const [spinsLeft, setSpinsLeft] = useState(MAX_SPINS);
-  const [adLoading, setAdLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
+  const [adLoading, setAdLoading] = useState(false);
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const segmentAngle = 360 / WHEEL_SEGMENTS.length;
@@ -68,7 +85,7 @@ export default function SpinPage() {
     }
   }
 
-  /* COOLDOWN TIMER */
+  /* COOLDOWN */
   useEffect(() => {
     if (cooldown <= 0) return;
 
@@ -89,6 +106,7 @@ export default function SpinPage() {
   async function handleSpin() {
     if (!user || spinning || spinsLeft <= 0) return;
 
+    triggerHaptic('impact');
     setSpinning(true);
     setResult(null);
     setWinningIndex(null);
@@ -99,13 +117,9 @@ export default function SpinPage() {
     if (res.success) {
       if (res.result === 'points') {
         const p = res.points || 0;
-        if (p >= 1000) targetIndex = 4;
-        else if (p >= 750) targetIndex = 6;
-        else if (p >= 500) targetIndex = 1;
-        else if (p >= 250) targetIndex = 3;
-        else targetIndex = 0;
+        targetIndex = WHEEL_SEGMENTS.findIndex(s => s.points === p);
       } else if (res.result === 'stars') {
-        targetIndex = res.stars >= 2 ? 7 : 2;
+        targetIndex = WHEEL_SEGMENTS.findIndex(s => s.stars === res.stars);
       }
     }
 
@@ -120,6 +134,8 @@ export default function SpinPage() {
       setSpinsLeft(prev => prev - 1);
 
       if (res.success && res.result !== 'empty') {
+        triggerHaptic('success');
+
         if (res.result === 'points') {
           setResult(`💰 +${res.points} Points!`);
         } else {
@@ -127,12 +143,12 @@ export default function SpinPage() {
         }
         refreshBalance();
       } else {
-        setResult(`🎯 Better luck next time!`);
+        triggerHaptic('error');
+        setResult('🎯 Better luck next time!');
       }
     }, 4500);
   }
 
-  /* AD */
   const onAdReward = useCallback(async () => {
     if (!user) return;
     setSpinsLeft(prev => prev + 1);
@@ -142,17 +158,32 @@ export default function SpinPage() {
   const { showAd } = useRewardedAd(onAdReward);
 
   async function handleWatchAd() {
-    if (!user) return;
     setAdLoading(true);
     await showAd();
     setAdLoading(false);
   }
 
   return (
-    <div className="px-4 pb-28">
+    <div className="px-4 pb-28 text-white">
 
-      {/* WHEEL — ALWAYS VISIBLE */}
-      <div className="flex justify-center mb-6">
+      {/* WHEEL */}
+      <div className="flex justify-center mb-6 relative">
+
+        {/* ARROW */}
+        <div
+          style={{
+            position: 'absolute',
+            top: -8,
+            width: 0,
+            height: 0,
+            borderLeft: '12px solid transparent',
+            borderRight: '12px solid transparent',
+            borderTop: '24px solid gold',
+            filter: 'drop-shadow(0 0 12px gold)',
+            zIndex: 5
+          }}
+        />
+
         <div
           ref={wheelRef}
           style={{
@@ -164,14 +195,12 @@ export default function SpinPage() {
               ? 'transform 4.5s cubic-bezier(0.17,0.67,0.12,0.99)'
               : 'none',
             opacity: spinsLeft <= 0 ? 0.6 : 1,
-            filter: spinsLeft <= 0 ? 'grayscale(40%)' : 'none',
           }}
         >
-          <svg viewBox="0 0 260 260" width="260" height="260">
+          <svg viewBox="0 0 260 260">
             {WHEEL_SEGMENTS.map((seg, i) => {
               const angle = (i * segmentAngle * Math.PI) / 180;
-              const nextAngle =
-                ((i + 1) * segmentAngle * Math.PI) / 180;
+              const nextAngle = ((i + 1) * segmentAngle * Math.PI) / 180;
 
               const r = 120;
               const cx = 130;
@@ -192,13 +221,13 @@ export default function SpinPage() {
                   <path
                     d={`M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 0,1 ${x2},${y2} Z`}
                     fill={seg.color}
-                    stroke="rgba(0,0,0,0.6)"
+                    stroke="#000"
                     strokeWidth="2"
                     style={{
                       filter:
                         winningIndex === i
                           ? 'drop-shadow(0 0 20px gold)'
-                          : 'none',
+                          : 'none'
                     }}
                   />
                   <text
@@ -222,10 +251,20 @@ export default function SpinPage() {
         </div>
       </div>
 
-      {/* RESULT */}
+      {/* REWARD RESULT BELOW */}
       {result && (
         <div className="text-center py-3 font-bold text-yellow-400">
           {result}
+        </div>
+      )}
+
+      {/* COOLDOWN CARD */}
+      {spinsLeft <= 0 && cooldown > 0 && (
+        <div className="text-center mb-4 p-4 rounded-xl bg-gray-700">
+          🎯 No Spins Left
+          <div className="mt-1 font-mono text-yellow-400">
+            Reset in {formatCountdown(cooldown)}
+          </div>
         </div>
       )}
 
@@ -233,41 +272,31 @@ export default function SpinPage() {
       <button
         onClick={handleSpin}
         disabled={spinning || spinsLeft <= 0}
+        className="w-full py-4 rounded-2xl font-bold text-lg mb-3"
         style={{
-          width: '100%',
-          padding: 16,
-          borderRadius: 20,
-          border: 'none',
-          fontWeight: 800,
-          fontSize: 16,
           background:
             spinsLeft > 0
               ? 'linear-gradient(135deg,#facc15,#f97316)'
-              : 'linear-gradient(135deg,#374151,#1f2937)',
-          color: spinsLeft > 0 ? '#111827' : '#9ca3af',
-          cursor: spinning || spinsLeft <= 0 ? 'not-allowed' : 'pointer',
+              : '#374151',
+          color: spinsLeft > 0 ? '#000' : '#9ca3af'
         }}
       >
         {spinning
           ? '🌀 Spinning...'
           : spinsLeft > 0
           ? `💰 SPIN NOW (${spinsLeft} left)`
-          : `🎯 No Spins Left`}
+          : '🚫 No Spins'}
       </button>
 
       {/* WATCH AD */}
       <button
         onClick={handleWatchAd}
         disabled={adLoading}
+        className="w-full py-4 rounded-2xl font-bold"
         style={{
-          width: '100%',
-          marginTop: 12,
-          padding: 14,
-          borderRadius: 18,
-          border: '1px solid rgba(250,204,21,0.4)',
-          background: 'rgba(250,204,21,0.08)',
-          color: '#facc15',
-          fontWeight: 700,
+          background: 'rgba(250,204,21,0.1)',
+          border: '1px solid gold',
+          color: 'gold'
         }}
       >
         🎬 Watch Ad +1 Spin
