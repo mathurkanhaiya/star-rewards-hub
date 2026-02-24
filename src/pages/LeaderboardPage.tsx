@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   getLeaderboard,
   getActiveContests,
@@ -13,11 +13,48 @@ type LeaderboardTab = 'points' | 'ads' | 'referrals';
 /* ===============================
    TELEGRAM HAPTIC
 ================================ */
-function triggerHaptic() {
+function triggerHaptic(type: 'impact' | 'success' = 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram) {
     const tg = (window as any).Telegram.WebApp;
-    tg?.HapticFeedback?.impactOccurred('medium');
+    if (type === 'success') {
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } else {
+      tg?.HapticFeedback?.impactOccurred('medium');
+    }
   }
+}
+
+/* ===============================
+   COUNT UP COMPONENT
+================================ */
+function AnimatedPoints({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const previous = useRef(value);
+
+  useEffect(() => {
+    let start = previous.current;
+    const diff = value - start;
+    const duration = 600;
+    const steps = 30;
+    const increment = diff / steps;
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      currentStep++;
+      start += increment;
+      if (currentStep >= steps) {
+        setDisplay(value);
+        clearInterval(timer);
+      } else {
+        setDisplay(Math.floor(start));
+      }
+    }, duration / steps);
+
+    previous.current = value;
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <>{display.toLocaleString()}</>;
 }
 
 function formatCountdown(endsAt?: string) {
@@ -33,6 +70,7 @@ export default function LeaderboardPage() {
   const { user } = useApp();
 
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
+  const [previousRanks, setPreviousRanks] = useState<Record<number, number>>({});
   const [contestLeaders, setContestLeaders] = useState<any[]>([]);
   const [referralLeaders, setReferralLeaders] = useState<any[]>([]);
   const [contests, setContests] = useState<Contest[]>([]);
@@ -48,7 +86,15 @@ export default function LeaderboardPage() {
     try {
       if (tab === 'points') {
         const data = await getLeaderboard();
-        setLeaders(data || []);
+        const newLeaders = data || [];
+
+        const prev: Record<number, number> = {};
+        leaders.forEach(l => {
+          prev[l.telegram_id] = l.rank;
+        });
+
+        setPreviousRanks(prev);
+        setLeaders(newLeaders);
       }
 
       if (tab === 'ads' || tab === 'referrals') {
@@ -83,23 +129,9 @@ export default function LeaderboardPage() {
       ? leaders.find(l => l.telegram_id === user.telegram_id)?.rank
       : null;
 
-  const tabs = [
-    { id: 'points', label: 'Points', icon: '⚡' },
-    { id: 'ads', label: 'Ads', icon: '🎬' },
-    { id: 'referrals', label: 'Invites', icon: '👥' },
-  ] as const;
-
-  const activeContest =
-    tab === 'ads'
-      ? contests.find(c => c.contest_type === 'ads_watch')
-      : tab === 'referrals'
-      ? contests.find(c => c.contest_type === 'referral')
-      : null;
-
   return (
     <div className="px-4 pb-28 text-white">
 
-      {/* HEADER */}
       <div className="mb-5">
         <h2 className="text-xl font-bold">Leaderboard</h2>
         <p className="text-xs text-gray-400">
@@ -107,57 +139,19 @@ export default function LeaderboardPage() {
         </p>
       </div>
 
-      {/* TABS */}
-      <div className="flex bg-[#111827] rounded-xl p-1 mb-5">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => {
-              triggerHaptic();
-              setTab(t.id as LeaderboardTab);
-            }}
-            className="flex-1 py-2 rounded-lg text-xs font-bold transition-all active:scale-95"
-            style={{
-              background:
-                tab === t.id
-                  ? 'linear-gradient(135deg,#facc15,#f97316)'
-                  : 'transparent',
-              color:
-                tab === t.id ? '#111' : '#9ca3af',
-            }}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ACTIVE CONTEST */}
-      {activeContest && (
-        <div className="rounded-xl p-4 mb-5 bg-[#1f2937] border border-yellow-500/30">
-          <div className="font-bold mb-1">
-            🏆 {activeContest.title}
-          </div>
-          <div className="text-xs text-gray-400">
-            Ends in {formatCountdown(activeContest.ends_at)}
-          </div>
-        </div>
-      )}
-
-      {/* MY RANK */}
       {tab === 'points' && myRank && (
         <div className="p-3 mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-center font-bold">
           Your Rank: #{myRank}
         </div>
       )}
 
-      {/* CONTENT */}
       {loading ? (
         <div className="text-center py-10 text-gray-500">
           Loading...
         </div>
-      ) : tab === 'points' ? (
+      ) : (
         <div className="space-y-3">
-          {leaders.map(leader => {
+          {leaders.map((leader, index) => {
             const isMe =
               user &&
               leader.telegram_id === user.telegram_id;
@@ -167,9 +161,22 @@ export default function LeaderboardPage() {
               (leader as any).available_points ??
               0;
 
+            const previousRank = previousRanks[leader.telegram_id];
+            let movement: 'up' | 'down' | 'new' | null = null;
+
+            if (previousRank) {
+              if (leader.rank < previousRank) {
+                movement = 'up';
+                triggerHaptic('success');
+              } else if (leader.rank > previousRank) {
+                movement = 'down';
+              }
+            } else {
+              movement = 'new';
+            }
+
             const openChat = () => {
               triggerHaptic();
-
               if (leader.username) {
                 window.open(`https://t.me/${leader.username}`, '_blank');
               } else if (leader.telegram_id) {
@@ -181,7 +188,7 @@ export default function LeaderboardPage() {
               <div
                 key={leader.id}
                 onClick={openChat}
-                className="flex items-center justify-between p-4 rounded-xl cursor-pointer transition active:scale-[0.97]"
+                className="flex items-center justify-between p-4 rounded-2xl cursor-pointer transition active:scale-[0.96]"
                 style={{
                   background: isMe
                     ? 'rgba(250,204,21,0.12)'
@@ -193,13 +200,26 @@ export default function LeaderboardPage() {
               >
                 <div className="flex items-center gap-3">
 
-                  {/* Rank */}
-                  <div className="font-bold text-yellow-400 w-8">
+                  {/* Rank + Crown */}
+                  <div className="relative w-8 text-yellow-400 font-bold">
                     #{leader.rank}
+                    {leader.rank === 1 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -12,
+                          left: 2,
+                          animation: 'float 2s ease-in-out infinite',
+                          filter: 'drop-shadow(0 0 8px gold)'
+                        }}
+                      >
+                        👑
+                      </span>
+                    )}
                   </div>
 
                   {/* PFP */}
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-sm font-bold">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
                     {leader.photo_url ? (
                       <img
                         src={leader.photo_url}
@@ -207,20 +227,31 @@ export default function LeaderboardPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      leader.first_name?.[0] || '?'
+                      <div className="flex items-center justify-center h-full">
+                        {leader.first_name?.[0] || '?'}
+                      </div>
                     )}
                   </div>
 
-                  {/* User Info */}
+                  {/* Name + Movement */}
                   <div>
-                    <div className="font-medium text-sm">
+                    <div className="flex items-center gap-2 text-sm font-medium">
                       {leader.first_name ||
                         leader.username ||
                         'User'}
+
+                      {movement === 'up' && (
+                        <span className="text-green-400 animate-pulse">↑</span>
+                      )}
+                      {movement === 'down' && (
+                        <span className="text-red-400 animate-pulse">↓</span>
+                      )}
+                      {movement === 'new' && (
+                        <span className="text-blue-400 text-xs">NEW</span>
+                      )}
+
                       {isMe && (
-                        <span className="text-yellow-400 text-xs ml-1">
-                          (you)
-                        </span>
+                        <span className="text-yellow-400 text-xs">(you)</span>
                       )}
                     </div>
 
@@ -230,10 +261,10 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
 
-                {/* Available Balance */}
+                {/* Animated Points */}
                 <div className="text-right">
-                  <div className="font-bold text-yellow-400">
-                    {availablePoints.toLocaleString()}
+                  <div className="font-bold text-yellow-400 text-lg">
+                    <AnimatedPoints value={availablePoints} />
                   </div>
                   <div className="text-xs text-gray-500">
                     pts available
@@ -243,44 +274,18 @@ export default function LeaderboardPage() {
             );
           })}
         </div>
-      ) : (
-        <div className="space-y-3">
-          {(contestLeaders.length > 0
-            ? contestLeaders
-            : referralLeaders
-          ).map((entry: any, i: number) => (
-            <div
-              key={entry.user_id || i}
-              className="flex justify-between items-center p-4 rounded-xl bg-[#111827] border border-white/5"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-yellow-400 font-bold">
-                  #{i + 1}
-                </div>
-                <div>
-                  <div className="font-medium">
-                    {entry.users?.first_name ||
-                      entry.user?.first_name ||
-                      'User'}
-                  </div>
-                </div>
-              </div>
-              <div className="font-bold text-yellow-400">
-                {entry.score ||
-                  entry.count}{' '}
-                {tab === 'ads' ? 'ads' : 'invites'}
-              </div>
-            </div>
-          ))}
-
-          {contestLeaders.length === 0 &&
-            referralLeaders.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No entries yet
-              </div>
-            )}
-        </div>
       )}
+
+      {/* Floating crown animation keyframe */}
+      <style>
+        {`
+          @keyframes float {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+            100% { transform: translateY(0); }
+          }
+        `}
+      </style>
     </div>
   );
 }
