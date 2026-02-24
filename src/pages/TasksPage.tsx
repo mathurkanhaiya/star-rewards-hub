@@ -4,7 +4,7 @@ import { getTasks, getUserTasks, completeTask } from '@/lib/api';
 import { Task } from '@/types/telegram';
 
 /* ===============================
-   TELEGRAM HAPTIC
+   HAPTIC
 ================================ */
 function triggerHaptic(type: 'impact' | 'success' | 'error' = 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram) {
@@ -66,7 +66,7 @@ export default function TasksPage() {
 
     if (result.success) {
       triggerHaptic('success');
-      setMessage({ id: task.id, text: `+${result.points} pts earned! 🎉`, success: true });
+      setMessage({ id: task.id, text: `+${result.points} pts earned!`, success: true });
       setCompletedTaskIds(prev => new Set([...prev, task.id]));
       await refreshBalance();
     } else {
@@ -82,16 +82,23 @@ export default function TasksPage() {
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.task_type === filter);
 
   return (
-    <div className="px-4 pb-28 text-white">
+    <div className="px-4 pb-28 text-white relative overflow-hidden">
 
-      {/* HEADER */}
-      <div className="mb-6">
+      {/* Animated background glow */}
+      <div className="absolute inset-0 pointer-events-none opacity-20 animate-pulse"
+        style={{
+          background: 'radial-gradient(circle at 30% 30%, #facc15 0%, transparent 60%)'
+        }}
+      />
+
+      {/* Header */}
+      <div className="mb-6 relative z-10">
         <h2 className="text-xl font-bold">Tasks</h2>
-        <p className="text-xs text-gray-400">Complete tasks & earn rewards</p>
+        <p className="text-xs text-gray-400">Earn rewards daily</p>
       </div>
 
-      {/* FILTERS */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar">
+      {/* Filters */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar relative z-10">
         {filters.map(f => (
           <button
             key={f}
@@ -115,8 +122,8 @@ export default function TasksPage() {
         ))}
       </div>
 
-      {/* TASK LIST */}
-      <div className="space-y-4">
+      {/* Task list */}
+      <div className="space-y-4 relative z-10">
         {filtered.map(task => {
           const isCompleted = completedTaskIds.has(task.id) && !task.is_repeatable;
           const isCompleting = completing === task.id;
@@ -128,41 +135,33 @@ export default function TasksPage() {
               className="rounded-3xl p-5 relative overflow-hidden transition-all active:scale-[0.98]"
               style={{
                 background: 'linear-gradient(145deg,#0f172a,#1e293b)',
-                border: `1px solid ${color}40`,
-                boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+                border: `1px solid ${isCompleted ? '#22c55e40' : color + '40'}`,
+                boxShadow: isCompleted
+                  ? '0 0 25px rgba(34,197,94,0.4)'
+                  : '0 20px 40px rgba(0,0,0,0.6)',
               }}
             >
-              {/* Glow top highlight */}
-              <div
-                className="absolute top-0 left-0 w-full h-1"
-                style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
-              />
+              {/* Reward fly animation */}
+              {message?.id === task.id && message.success && (
+                <div className="absolute right-4 top-4 text-yellow-400 animate-bounce text-lg">
+                  💰
+                </div>
+              )}
 
               <div className="flex items-center gap-4">
-
-                {/* Icon */}
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
                   style={{
                     background: `${color}20`,
                     border: `1px solid ${color}50`,
-                    boxShadow: `0 0 20px ${color}30`,
+                    boxShadow: `0 0 20px ${color}40`,
                   }}
                 >
                   {task.icon || '✨'}
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate">
-                    {task.title}
-                  </div>
-
-                  {task.description && (
-                    <div className="text-xs text-gray-400 mt-1 truncate">
-                      {task.description}
-                    </div>
-                  )}
+                <div className="flex-1">
+                  <div className="font-semibold text-sm">{task.title}</div>
 
                   <div className="flex items-center gap-3 mt-2 text-xs">
                     <span className="font-bold text-yellow-400">
@@ -174,20 +173,9 @@ export default function TasksPage() {
                         +{task.reward_stars} ⭐
                       </span>
                     )}
-
-                    <span
-                      className="px-2 py-0.5 rounded-lg capitalize"
-                      style={{
-                        background: `${color}20`,
-                        color,
-                      }}
-                    >
-                      {task.task_type}
-                    </span>
                   </div>
                 </div>
 
-                {/* BUTTON */}
                 <button
                   disabled={isCompleted || isCompleting}
                   onClick={() => !isCompleted && handleComplete(task)}
@@ -205,7 +193,6 @@ export default function TasksPage() {
                 </button>
               </div>
 
-              {/* MESSAGE */}
               {message?.id === task.id && (
                 <div
                   className="mt-4 text-xs font-semibold text-center py-2 rounded-xl animate-pulse"
@@ -225,13 +212,6 @@ export default function TasksPage() {
           );
         })}
       </div>
-
-      {filtered.length === 0 && (
-        <div className="text-center text-gray-500 py-12">
-          <div className="text-4xl mb-3">📋</div>
-          No tasks here
-        </div>
-      )}
     </div>
   );
 }
