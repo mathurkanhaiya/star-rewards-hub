@@ -4,20 +4,6 @@ import { spinWheel, logAdWatch, getSpinCount } from '@/lib/api';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 
 /* =====================================================
-   TELEGRAM HAPTIC
-===================================================== */
-function triggerHaptic(type: 'success' | 'error' | 'impact') {
-  if (typeof window !== 'undefined' && (window as any).Telegram) {
-    const tg = (window as any).Telegram.WebApp;
-    if (tg?.HapticFeedback) {
-      if (type === 'impact') tg.HapticFeedback.impactOccurred('medium');
-      if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
-      if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
-    }
-  }
-}
-
-/* =====================================================
    WHEEL SEGMENTS
 ===================================================== */
 const WHEEL_SEGMENTS = [
@@ -66,6 +52,7 @@ export default function SpinPage() {
 
   async function loadSpinState() {
     if (!user) return;
+
     const data = await getSpinCount(user.id);
     if (!data?.length) return;
 
@@ -106,7 +93,7 @@ export default function SpinPage() {
   }, [cooldown]);
 
   /* =====================================================
-     SPIN LOGIC
+     SPIN
   ===================================================== */
   async function handleSpin() {
     if (!user || spinning || spinsLeft <= 0) return;
@@ -114,7 +101,6 @@ export default function SpinPage() {
     setSpinning(true);
     setResult(null);
     setWinningIndex(null);
-    triggerHaptic('impact');
 
     const res = await spinWheel(user.id);
     let targetIndex = 5;
@@ -143,33 +129,14 @@ export default function SpinPage() {
       setSpinsLeft(prev => prev - 1);
 
       if (res.success && res.result !== 'empty') {
-        triggerHaptic('success');
-
         if (res.result === 'points') {
-          setResult(
-            <>
-              <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
-              &nbsp;+{res.points} Points!
-            </>
-          );
+          setResult(`💰 +${res.points} Points!`);
         } else {
-          setResult(
-            <>
-              <tg-emoji emoji-id="5458799228719472718">🌟</tg-emoji>
-              &nbsp;+{res.stars} Stars!
-            </>
-          );
+          setResult(`⭐ +${res.stars} Stars!`);
         }
-
         refreshBalance();
       } else {
-        triggerHaptic('error');
-        setResult(
-          <>
-            <tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji>
-            &nbsp;Better luck next time!
-          </>
-        );
+        setResult(`🎯 Better luck next time!`);
       }
     }, 4500);
   }
@@ -226,19 +193,17 @@ export default function SpinPage() {
         }}
       >
         {spinning ? (
-          'Spinning...'
+          '🌀 Spinning...'
         ) : spinsLeft > 0 ? (
           <>
-            <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
-            &nbsp;SPIN NOW
+            💰 SPIN NOW
             <div style={{ fontSize: 12 }}>
               {spinsLeft} spin{spinsLeft !== 1 ? 's' : ''} remaining
             </div>
           </>
         ) : (
           <>
-            <tg-emoji emoji-id="5310278924616356636">🎯</tg-emoji>
-            &nbsp;No Spins Left
+            🎯 No Spins Left
             {cooldown > 0 && (
               <div style={{ fontSize: 12 }}>
                 Reset in {formatCountdown(cooldown)}
@@ -263,8 +228,7 @@ export default function SpinPage() {
           fontWeight: 700,
         }}
       >
-        <tg-emoji emoji-id="5375296873982604963">💰</tg-emoji>
-        &nbsp;Watch Ad +1 Spin
+        🎬 Watch Ad +1 Spin
       </button>
 
     </div>
