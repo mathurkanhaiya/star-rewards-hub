@@ -133,10 +133,10 @@ export default function HomePage() {
           Total Earned
         </div>
         <div className="text-4xl font-black text-yellow-400">
-          {(balance?.total_earned || 0).toLocaleString()}
+          {(balance?.points || 0).toLocaleString()}
         </div>
         <div className="text-sm text-gray-400 mt-1">
-          All-time points
+          Available Points 
         </div>
       </div>
 
