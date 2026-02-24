@@ -3,7 +3,7 @@ import {
   getLeaderboard,
   getActiveContests,
   getContestLeaderboard,
-  getReferralLeaderboard,
+  getReferralLeaderboard
 } from '@/lib/api';
 import { LeaderboardEntry, Contest } from '@/types/telegram';
 import { useApp } from '@/context/AppContext';
@@ -25,14 +25,14 @@ function triggerHaptic(type: 'impact' | 'success' = 'impact') {
 }
 
 /* ===============================
-   ANIMATED COUNTER
+   ANIMATED POINTS
 ================================ */
 function AnimatedPoints({ value }: { value: number }) {
   const [display, setDisplay] = useState(value);
-  const prev = useRef(value);
+  const previous = useRef(value);
 
   useEffect(() => {
-    let start = prev.current;
+    let start = previous.current;
     const diff = value - start;
     const duration = 600;
     const steps = 30;
@@ -51,7 +51,7 @@ function AnimatedPoints({ value }: { value: number }) {
       }
     }, duration / steps);
 
-    prev.current = value;
+    previous.current = value;
     return () => clearInterval(timer);
   }, [value]);
 
@@ -71,13 +71,15 @@ export default function LeaderboardPage() {
 
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
   const [previousRanks, setPreviousRanks] = useState<Record<number, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<LeaderboardTab>('points');
-  const [contests, setContests] = useState<Contest[]>([]);
   const [contestLeaders, setContestLeaders] = useState<any[]>([]);
   const [referralLeaders, setReferralLeaders] = useState<any[]>([]);
+  const [contests, setContests] = useState<Contest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<LeaderboardTab>('points');
 
-  /* AUTO REFRESH */
+  /* ===============================
+     AUTO REFRESH
+  ================================= */
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 15000);
@@ -98,39 +100,43 @@ export default function LeaderboardPage() {
 
       setPreviousRanks(prev);
       setLeaders(newLeaders);
-    } else if (tab === 'ads') {
+    }
+
+    if (tab === 'ads' || tab === 'referrals') {
       const activeContests = await getActiveContests();
       setContests(activeContests as Contest[]);
-      if (activeContests.length > 0) {
-        const adContest = activeContests.find(
-          (c: { contest_type: string }) => c.contest_type === 'ads_watch'
-        );
-        if (adContest) {
-          const entries = await getContestLeaderboard(adContest.id);
-          setContestLeaders(entries || []);
-        }
-      }
-    } else if (tab === 'referrals') {
-      const activeContests = await getActiveContests();
-      const refContest = (activeContests as Contest[]).find(
-        c => c.contest_type === 'referral'
+
+      const contestType =
+        tab === 'ads' ? 'ads_watch' : 'referral';
+
+      const activeContest = activeContests.find(
+        (c: Contest) => c.contest_type === contestType
       );
-      setContests(activeContests as Contest[]);
-      if (refContest) {
-        const entries = await getContestLeaderboard(refContest.id);
+
+      if (activeContest) {
+        const entries = await getContestLeaderboard(activeContest.id);
         setContestLeaders(entries || []);
-      } else {
+        setReferralLeaders([]);
+      } else if (tab === 'referrals') {
         const data = await getReferralLeaderboard();
         setReferralLeaders(data || []);
+        setContestLeaders([]);
       }
     }
 
     setLoading(false);
   }
 
-  const myRank = user
-    ? leaders.find(l => l.telegram_id === user.telegram_id)?.rank
-    : null;
+  const myRank =
+    user && leaders.length > 0
+      ? leaders.find(l => l.telegram_id === user.telegram_id)?.rank
+      : null;
+
+  const tabs = [
+    { id: 'points', label: 'Points', icon: '⚡' },
+    { id: 'ads', label: 'Ads Watch', icon: '🎬' },
+    { id: 'referrals', label: 'Inviters', icon: '👥' }
+  ] as const;
 
   const activeContest =
     tab === 'ads'
@@ -144,10 +150,48 @@ export default function LeaderboardPage() {
 
       <div className="mb-4">
         <h2 className="text-lg font-bold">Leaderboard</h2>
-        <p className="text-xs text-gray-400">Compete & win rewards</p>
+        <p className="text-xs text-gray-400">
+          Compete & win rewards
+        </p>
       </div>
 
-      {/* My rank */}
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 p-1 rounded-xl bg-[#111827]">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => {
+              triggerHaptic();
+              setTab(t.id);
+            }}
+            className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
+            style={{
+              background:
+                tab === t.id
+                  ? 'linear-gradient(135deg,#facc15,#f97316)'
+                  : 'transparent',
+              color:
+                tab === t.id ? '#111' : '#9ca3af'
+            }}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Active Contest */}
+      {activeContest && (
+        <div className="rounded-xl p-3 mb-4 bg-[#1f2937] border border-yellow-500/30">
+          <div className="font-bold mb-1">
+            🏆 {activeContest.title}
+          </div>
+          <div className="text-xs text-gray-400">
+            Ends in {formatCountdown(activeContest.ends_at)}
+          </div>
+        </div>
+      )}
+
+      {/* My Rank */}
       {tab === 'points' && myRank && (
         <div className="rounded-xl p-3 mb-4 bg-yellow-500/10 border border-yellow-500/30 text-center font-bold">
           Your Rank: #{myRank}
@@ -155,17 +199,25 @@ export default function LeaderboardPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-8 text-gray-400">Loading...</div>
-      ) : (
+        <div className="text-center py-8 text-gray-400">
+          Loading...
+        </div>
+      ) : tab === 'points' ? (
         <div className="space-y-3">
+
           {leaders.map(leader => {
             const isMe =
-              user && leader.telegram_id === user.telegram_id;
+              user &&
+              leader.telegram_id === user.telegram_id;
 
             const totalPoints =
-              leader.total_points ?? leader.points ?? 0;
+              leader.total_points ??
+              leader.points ??
+              0;
 
-            const previousRank = previousRanks[leader.telegram_id];
+            const previousRank =
+              previousRanks[leader.telegram_id];
+
             let movement: 'up' | 'down' | null = null;
 
             if (previousRank) {
@@ -190,20 +242,19 @@ export default function LeaderboardPage() {
               <div
                 key={leader.id}
                 onClick={openChat}
-                className="flex items-center justify-between p-4 rounded-2xl cursor-pointer transition active:scale-[0.97]"
+                className="flex items-center justify-between p-4 rounded-xl cursor-pointer transition active:scale-[0.97]"
                 style={{
                   background: isMe
                     ? 'rgba(250,204,21,0.12)'
                     : 'rgba(17,24,39,0.85)',
                   border: isMe
                     ? '1px solid rgba(250,204,21,0.5)'
-                    : '1px solid rgba(255,255,255,0.05)',
+                    : '1px solid rgba(255,255,255,0.05)'
                 }}
               >
                 <div className="flex items-center gap-3">
 
-                  {/* Rank + Crown */}
-                  <div className="relative text-yellow-400 font-bold w-8">
+                  <div className="relative font-bold text-yellow-400 w-8">
                     #{leader.rank}
                     {leader.rank === 1 && (
                       <span
@@ -211,8 +262,7 @@ export default function LeaderboardPage() {
                           position: 'absolute',
                           top: -12,
                           left: 2,
-                          animation: 'float 2s ease-in-out infinite',
-                          filter: 'drop-shadow(0 0 8px gold)'
+                          animation: 'float 2s ease-in-out infinite'
                         }}
                       >
                         👑
@@ -220,7 +270,6 @@ export default function LeaderboardPage() {
                     )}
                   </div>
 
-                  {/* PFP */}
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
                     {leader.photo_url ? (
                       <img
@@ -235,7 +284,6 @@ export default function LeaderboardPage() {
                     )}
                   </div>
 
-                  {/* Name + Movement */}
                   <div>
                     <div className="flex items-center gap-2 text-sm font-medium">
                       {leader.first_name ||
@@ -260,7 +308,6 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
 
-                {/* Animated Total Points */}
                 <div className="text-right">
                   <div className="font-bold text-yellow-400 text-lg">
                     <AnimatedPoints value={totalPoints} />
@@ -272,6 +319,34 @@ export default function LeaderboardPage() {
               </div>
             );
           })}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(contestLeaders.length > 0
+            ? contestLeaders
+            : referralLeaders
+          ).map((entry: any, i: number) => (
+            <div
+              key={entry.user_id || i}
+              className="flex justify-between items-center p-4 rounded-xl bg-[#111827] border border-white/5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="text-yellow-400 font-bold">
+                  #{i + 1}
+                </div>
+                <div>
+                  {entry.users?.first_name ||
+                    entry.user?.first_name ||
+                    'User'}
+                </div>
+              </div>
+              <div className="font-bold text-yellow-400">
+                {entry.score ||
+                  entry.count}{' '}
+                {tab === 'ads' ? 'ads' : 'invites'}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
