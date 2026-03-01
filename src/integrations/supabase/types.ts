@@ -289,6 +289,99 @@ export type Database = {
           },
         ]
       }
+      miner_leaderboard: {
+        Row: {
+          id: string
+          mine_level: number
+          total_coins_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          mine_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          mine_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "miner_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "miner_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      miner_progress: {
+        Row: {
+          coins: number
+          coins_per_second: number
+          id: string
+          last_collected_at: string
+          mine_level: number
+          pickaxe_level: number
+          total_coins_earned: number
+          updated_at: string
+          user_id: string
+          worker_count: number
+        }
+        Insert: {
+          coins?: number
+          coins_per_second?: number
+          id?: string
+          last_collected_at?: string
+          mine_level?: number
+          pickaxe_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id: string
+          worker_count?: number
+        }
+        Update: {
+          coins?: number
+          coins_per_second?: number
+          id?: string
+          last_collected_at?: string
+          mine_level?: number
+          pickaxe_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id?: string
+          worker_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "miner_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "miner_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -494,6 +587,93 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tower_leaderboard: {
+        Row: {
+          best_floor: number
+          id: string
+          total_floors: number
+          total_runs: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_floor?: number
+          id?: string
+          total_floors?: number
+          total_runs?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_floor?: number
+          id?: string
+          total_floors?: number
+          total_runs?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tower_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tower_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tower_runs: {
+        Row: {
+          created_at: string
+          floors_reached: number
+          id: string
+          points_earned: number
+          revives_used: number
+          shields_used: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          floors_reached?: number
+          id?: string
+          points_earned?: number
+          revives_used?: number
+          shields_used?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          floors_reached?: number
+          id?: string
+          points_earned?: number
+          revives_used?: number
+          shields_used?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tower_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tower_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {

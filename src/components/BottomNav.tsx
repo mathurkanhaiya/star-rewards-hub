@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin';
+type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner';
 
 interface BottomNavProps {
   currentPage: Page;
@@ -11,8 +11,8 @@ interface BottomNavProps {
 const navItems = [
   { id: 'home' as Page, icon: '🏠', label: 'Home' },
   { id: 'tasks' as Page, icon: '📋', label: 'Tasks' },
+  { id: 'games' as Page, icon: '🎮', label: 'Games' },
   { id: 'spin' as Page, icon: '🎡', label: 'Spin' },
-  { id: 'referral' as Page, icon: '👥', label: 'Invite' },
   { id: 'wallet' as Page, icon: '💰', label: 'Wallet' },
 ];
 

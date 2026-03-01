@@ -14,10 +14,13 @@ import LeaderboardPage from "@/pages/LeaderboardPage";
 import WalletPage from "@/pages/WalletPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import AdminPanel from "@/pages/AdminPanel";
+import GamesPage from "@/pages/GamesPage";
+import TowerClimbPage from "@/pages/TowerClimbPage";
+import IdleMinerPage from "@/pages/IdleMinerPage";
 
 const queryClient = new QueryClient();
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin';
+type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner';
 
 function AppContent() {
   const { isLoading, user, isAdmin } = useApp();
@@ -55,6 +58,9 @@ function AppContent() {
       case 'wallet': return <WalletPage />;
       case 'notifications': return <NotificationsPage />;
       case 'admin': return isAdmin ? <AdminPanel /> : <HomePage />;
+      case 'games': return <GamesPage onNavigate={setCurrentPage} />;
+      case 'tower': return <TowerClimbPage />;
+      case 'miner': return <IdleMinerPage />;
       default: return <HomePage />;
     }
   };
