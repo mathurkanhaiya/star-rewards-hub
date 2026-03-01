@@ -333,8 +333,8 @@ export default function TowerClimbPage() {
 
        <button
   onClick={async () => {
-    await showInterstitialAd(); // show interstitial first
-    startGame();                // then start game
+    await showInterstitialAd();  // 👈 interstitial
+    startGame();                 // 👈 then start game
   }}
   className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
 >
