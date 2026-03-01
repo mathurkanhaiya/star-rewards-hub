@@ -185,7 +185,7 @@ export default function LeaderboardPage() {
               user && leader.telegram_id === user.telegram_id;
 
             const totalPoints =
-              leader.total_points ?? leader.points ?? 0;
+              leader.total_points ?? (leader as any).points ?? 0;
 
             const previousRank =
               previousRanks[leader.telegram_id];
