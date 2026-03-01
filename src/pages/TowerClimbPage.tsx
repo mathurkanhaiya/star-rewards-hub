@@ -82,7 +82,6 @@ export default function TowerClimbPage() {
     if (user) logAdWatch(user.id, 'tower_2x', 0);
   }, [user]);
 
-  const { showAd: showStartAd } = useRewardedAd(onStartReward);
   const { showAd: showReviveAd } = useRewardedAd(onReviveReward);
   const { showAd: showShieldAd } = useRewardedAd(onShieldReward);
   const { showAd: showMultiplierAd } = useRewardedAd(onMultiplierReward);
