@@ -179,7 +179,7 @@ export default function TowerClimbPage() {
 
     if (cursorRef.current >= zoneStart && cursorRef.current <= zoneEnd) {
       // Success
-      const pts = (10 + floor * 2) * multiplier;
+      const pts = (2 + floor * 2) * multiplier;
       setScore(s => s + pts);
       setFloor(f => f + 1);
       setShowResult('success');
