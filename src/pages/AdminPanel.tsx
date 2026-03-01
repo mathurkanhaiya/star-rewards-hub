@@ -262,7 +262,7 @@ export default function AdminPanel() {
               : showMsg('Failed', 'error');
             loadDashboard();
           }}
-          message={message}
+          
         />
       )}
 
