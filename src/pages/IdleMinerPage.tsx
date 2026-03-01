@@ -111,26 +111,28 @@ export default function IdleMinerPage() {
     loadLeaderboard();
   }, [user]);
 
-  async function loadMiner() {
-    if (!user) return;
-    const { data } = await supabase
-      .from('miner_progress')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  if (data) {
+  // 🔥 Recalculate correct CPS based on level
+  const recalculatedCPS =
+    getBaseCPSByLevel(data.mine_level) +
+    data.pickaxe_level * UPGRADES.pickaxe.cpsBonus +
+    data.worker_count * UPGRADES.worker.cpsBonus;
 
-    if (data) {
-      // Calculate idle earnings
-      const lastCollected = new Date(data.last_collected_at).getTime();
-      const elapsed = Math.min((Date.now() - lastCollected) / 1000, 7200); // max 2hr idle
-      const idleEarnings = data.coins_per_second * elapsed;
-      const updated = {
-        ...data,
-        coins: data.coins + idleEarnings,
-        total_coins_earned: data.total_coins_earned + idleEarnings,
-      };
-      setMiner(updated as MinerState);
-      setDisplayCoins(updated.coins);
+  // Calculate idle earnings using NEW cps
+  const lastCollected = new Date(data.last_collected_at).getTime();
+  const elapsed = Math.min((Date.now() - lastCollected) / 1000, 7200);
+  const idleEarnings = recalculatedCPS * elapsed;
+
+  const updated = {
+    ...data,
+    coins_per_second: recalculatedCPS, // 🔥 override old DB value
+    coins: data.coins + idleEarnings,
+    total_coins_earned: data.total_coins_earned + idleEarnings,
+  };
+
+  setMiner(updated as MinerState);
+  setDisplayCoins(updated.coins);
+}
 
       if (idleEarnings > 10) {
         setShowBoost(`+${formatNum(idleEarnings)} idle coins collected!`);
