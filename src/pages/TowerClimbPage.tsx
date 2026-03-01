@@ -330,14 +330,18 @@ export default function TowerClimbPage() {
           </div>
         </div>
 
-        <button
-  disabled={!showStartAd}
+       <button
   onClick={async () => {
-    await showStartAd();
+    try {
+      await showStartAd();
+    } catch (err) {
+      console.error('Start ad failed:', err);
+    }
   }}
-> className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3">
-          🚀 Start Climbing
-        </button>
+  className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
+>
+  🚀 Start Climbing
+</button>
 
         <button onClick={() => setShowLeaderboard(true)} className="w-full glass-card rounded-2xl py-3 text-sm font-semibold neon-border-gold">
           🏆 Leaderboard
