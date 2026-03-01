@@ -4,7 +4,6 @@ import { useRewardedAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 import { logAdWatch } from '@/lib/api';
 import { Progress } from '@/components/ui/progress';
-import { showInterstitialAd } from '@/hooks/Adsgram';
 
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
@@ -82,7 +81,10 @@ export default function TowerClimbPage() {
     if (user) logAdWatch(user.id, 'tower_2x', 0);
   }, [user]);
 
-  
+  const { showAd: showStartAd } = useRewardedAd(onStartReward);
+  const { showAd: showReviveAd } = useRewardedAd(onReviveReward);
+  const { showAd: showShieldAd } = useRewardedAd(onShieldReward);
+  const { showAd: showMultiplierAd } = useRewardedAd(onMultiplierReward);
 
   // Load best score
   useEffect(() => {
@@ -330,8 +332,11 @@ export default function TowerClimbPage() {
 
        <button
   onClick={async () => {
-    await showInterstitialAd(); // 👈 Interstitial
-    startGame();                // 👈 Then start game
+    try {
+      await showStartAd();
+    } catch (err) {
+      console.error('Start ad failed:', err);
+    }
   }}
   className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
 >
@@ -361,26 +366,17 @@ export default function TowerClimbPage() {
 
         {/* Revive */}
         <button
-  onClick={async () => {
-    // 1️⃣ Show interstitial first
-    await showInterstitialAd();
+          onClick={async () => {
+            await showReviveAd();
+          }}
+          className="w-full btn-purple rounded-2xl py-4 text-lg font-bold mb-3"
+        >
+          🎬 Watch Ad to Revive
+        </button>
 
-    // 2️⃣ Then show rewarded revive ad
-    await showReviveAd();
-  }}
-  className="w-full btn-purple rounded-2xl py-4 text-lg font-bold mb-3"
->
-  🎬 Watch Ad to Revive
-</button>
-
-        <button
-  onClick={async () => {
-    await showInterstitialAd();
-    startGame();
-  }}
->
-  🔄 Play Again
-</button>
+        <button onClick={startGame} className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3">
+          🔄 Play Again
+        </button>
 
         <button onClick={() => { setGameState('menu'); loadStats(); }} className="w-full glass-card rounded-2xl py-3 text-sm font-semibold neon-border-gold">
           ← Back to Menu
