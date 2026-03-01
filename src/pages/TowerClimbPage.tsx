@@ -68,6 +68,11 @@ export default function TowerClimbPage() {
     setShieldsUsed(s => s + 1);
     if (user) logAdWatch(user.id, 'tower_shield', 0);
   }, [user]);
+  
+  const onStartReward = useCallback(() => {
+  startGame(); // start only AFTER ad finishes
+  if (user) logAdWatch(user.id, 'tower_start', 0);
+}, [user, startGame]);
 
   const onMultiplierReward = useCallback(() => {
     triggerHaptic('success');
@@ -76,6 +81,7 @@ export default function TowerClimbPage() {
     if (user) logAdWatch(user.id, 'tower_2x', 0);
   }, [user]);
 
+  const { showAd: showStartAd } = useRewardedAd(onStartReward);
   const { showAd: showReviveAd } = useRewardedAd(onReviveReward);
   const { showAd: showShieldAd } = useRewardedAd(onShieldReward);
   const { showAd: showMultiplierAd } = useRewardedAd(onMultiplierReward);
@@ -324,7 +330,12 @@ export default function TowerClimbPage() {
           </div>
         </div>
 
-        <button onClick={startGame} className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3">
+        <button
+  disabled={!showStartAd}
+  onClick={async () => {
+    await showStartAd();
+  }}
+> className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3">
           🚀 Start Climbing
         </button>
 
