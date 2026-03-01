@@ -37,6 +37,13 @@ const UPGRADES = {
   mine: { baseCost: 1000, costMultiplier: 2.5, cpsBonus: 5, icon: '⛰️', name: 'Mine Level' },
 };
 
+function getBaseCPSByLevel(level: number): number {
+  if (level >= 100) return 1;
+  if (level >= 50) return 0.1;
+  if (level >= 10) return 0.01;
+  return 0.001;
+}
+
 function getUpgradeCost(type: keyof typeof UPGRADES, level: number) {
   const u = UPGRADES[type];
   return Math.floor(u.baseCost * Math.pow(u.costMultiplier, level));
@@ -133,7 +140,7 @@ export default function IdleMinerPage() {
       // Create initial miner
       const initial: MinerState = {
         coins: 0,
-        coins_per_second: 1,
+        coins_per_second: 0.001,
         mine_level: 1,
         pickaxe_level: 1,
         worker_count: 0,
@@ -259,18 +266,31 @@ export default function IdleMinerPage() {
     const bonus = UPGRADES[type].cpsBonus;
 
     setMiner(prev => {
-      if (!prev) return prev;
-      const updated = {
-        ...prev,
-        coins: prev.coins - cost,
-        coins_per_second: prev.coins_per_second + bonus,
-      };
-      if (type === 'pickaxe') updated.pickaxe_level = prev.pickaxe_level + 1;
-      if (type === 'worker') updated.worker_count = prev.worker_count + 1;
-      if (type === 'mine') updated.mine_level = prev.mine_level + 1;
-      return updated;
-    });
-  }
+  if (!prev) return prev;
+
+  const newMineLevel =
+    type === 'mine' ? prev.mine_level + 1 : prev.mine_level;
+
+  const newPickaxe =
+    type === 'pickaxe' ? prev.pickaxe_level + 1 : prev.pickaxe_level;
+
+  const newWorker =
+    type === 'worker' ? prev.worker_count + 1 : prev.worker_count;
+
+  const base = getBaseCPSByLevel(newMineLevel);
+
+  const pickaxeBonus = newPickaxe * UPGRADES.pickaxe.cpsBonus;
+  const workerBonus = newWorker * UPGRADES.worker.cpsBonus;
+
+  return {
+    ...prev,
+    coins: prev.coins - cost,
+    mine_level: newMineLevel,
+    pickaxe_level: newPickaxe,
+    worker_count: newWorker,
+    coins_per_second: base + pickaxeBonus + workerBonus,
+  };
+});
 
   async function collectToBalance() {
     if (!user || !miner || miner.coins < 100) return;
