@@ -374,9 +374,18 @@ export default function TowerClimbPage() {
           🎬 Watch Ad to Revive
         </button>
 
-        <button onClick={startGame} className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3">
-          🔄 Play Again
-        </button>
+        <button
+  onClick={async () => {
+    try {
+      await showStartAd();
+    } catch (err) {
+      console.error('Play Again ad failed:', err);
+    }
+  }}
+  className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
+>
+  🎬 Watch Ad & Play Again
+</button>
 
         <button onClick={() => { setGameState('menu'); loadStats(); }} className="w-full glass-card rounded-2xl py-3 text-sm font-semibold neon-border-gold">
           ← Back to Menu
