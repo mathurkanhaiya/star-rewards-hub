@@ -28,6 +28,10 @@ export default function AdminUsersTab({
   const [adjustReason, setAdjustReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState<number | 'all'>(20);
+
+  /* ---------------- FILTER ---------------- */
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return users;
@@ -40,154 +44,186 @@ export default function AdminUsersTab({
     );
   }, [users, searchQuery]);
 
+  /* ---------------- PAGINATION ---------------- */
+  const totalPages =
+    perPage === 'all'
+      ? 1
+      : Math.ceil(filtered.length / perPage);
+
+  const paginatedUsers = useMemo(() => {
+    if (perPage === 'all') return filtered;
+
+    const start = (currentPage - 1) * perPage;
+    return filtered.slice(start, start + perPage);
+  }, [filtered, currentPage, perPage]);
+
+  const changePage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
   return (
-    <div className="space-y-6 perspective-1000">
-      {/* 3D Animated Search */}
-      <div className="relative group">
-        <input
-          placeholder="🔍 Search by name, username, telegram ID or UID..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full px-4 py-3 rounded-2xl text-sm outline-none transition-all duration-500
-          bg-[hsl(220_25%_8%)]
-          border border-[hsl(220_20%_20%)]
-          text-[hsl(210_40%_95%)]
-          shadow-[0_0_20px_rgba(0,255,255,0.1)]
-          focus:shadow-[0_0_30px_rgba(0,255,255,0.4)]
-          focus:scale-[1.02]"
-        />
+    <div className="space-y-6">
+
+      {/* SEARCH */}
+      <input
+        placeholder="🔍 Search by name, username, telegram ID or UID..."
+        value={searchQuery}
+        onChange={e => {
+          setSearchQuery(e.target.value);
+          setCurrentPage(1);
+        }}
+        className="w-full px-4 py-3 rounded-2xl text-sm outline-none
+        bg-[hsl(220_25%_8%)]
+        border border-[hsl(220_20%_20%)]
+        text-white
+        transition-all duration-300 focus:scale-[1.02]"
+      />
+
+      {/* PER PAGE SELECTOR */}
+      <div className="flex items-center justify-between text-xs text-gray-400">
+        <div>
+          Showing {perPage === 'all'
+            ? filtered.length
+            : paginatedUsers.length} of {filtered.length}
+        </div>
+
+        <select
+          value={perPage}
+          onChange={e => {
+            const value =
+              e.target.value === 'all'
+                ? 'all'
+                : parseInt(e.target.value);
+            setPerPage(value);
+            setCurrentPage(1);
+          }}
+          className="bg-black/40 border border-gray-700 rounded-lg px-2 py-1 text-white"
+        >
+          <option value={20}>20</option>
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+          <option value="all">Show All</option>
+        </select>
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        Showing {filtered.length} of {users.length} users
-      </div>
-
-      {filtered.map(u => (
+      {/* USERS */}
+      {paginatedUsers.map(u => (
         <div
           key={u.id}
-          className="relative group transition-all duration-500 transform-gpu hover:-translate-y-2 hover:rotate-x-2 hover:rotate-y-2"
-          style={{ transformStyle: 'preserve-3d' }}
+          className="p-4 rounded-2xl bg-gradient-to-br
+          from-[rgba(20,25,40,0.9)]
+          to-[rgba(10,15,25,0.9)]
+          border border-white/5
+          shadow-xl
+          transition-all duration-500
+          hover:-translate-y-2 hover:shadow-2xl"
         >
-          {/* Glow Border */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500" />
-
-          {/* Card */}
-          <div
-            className="relative p-4 rounded-2xl backdrop-blur-xl transition-all duration-500"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20,25,40,0.9), rgba(10,15,25,0.9))',
-              border: '1px solid rgba(255,255,255,0.05)',
-              boxShadow:
-                '0 20px 40px rgba(0,0,0,0.4), inset 0 0 20px rgba(255,255,255,0.02)'
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                {/* Avatar */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white
-                  bg-gradient-to-br from-cyan-400 to-purple-500
-                  shadow-lg shadow-purple-500/30
-                  transition-all duration-500 group-hover:scale-110"
-                >
-                  {u.first_name?.[0] || '?'}
-                </div>
-
-                <div>
-                  <div className="text-sm font-semibold text-white tracking-wide">
-                    {u.first_name || 'Anonymous'}{' '}
-                    {u.username && `@${u.username}`}
-                  </div>
-
-                  <div className="text-xs text-gray-400">
-                    UID: {u.id} • TG: {u.telegram_id} • Lv{u.level} •{' '}
-                    {u.total_points.toLocaleString()} pts
-                    {u.balances?.[0] && (
-                      <> • Bal: {u.balances[0].points.toLocaleString()}</>
-                    )}
-                  </div>
-                </div>
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="font-semibold text-white">
+                {u.first_name || 'Anonymous'} {u.username && `@${u.username}`}
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    setAdjustUserId(adjustUserId === u.id ? null : u.id)
-                  }
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold
-                  bg-yellow-500/10 text-yellow-400
-                  hover:bg-yellow-500/20
-                  transition-all duration-300 hover:scale-110"
-                >
-                  💰
-                </button>
-
-                <button
-                  onClick={() => onBan(u.id, !u.is_banned)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-110 ${
-                    u.is_banned
-                      ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                      : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                  }`}
-                >
-                  {u.is_banned ? 'Unban' : 'Ban'}
-                </button>
+              <div className="text-xs text-gray-400">
+                UID: {u.id} • TG: {u.telegram_id} • Lv{u.level} •{' '}
+                {u.total_points.toLocaleString()} pts
               </div>
             </div>
 
-            {/* Animated Expand Panel */}
-            <div
-              className={`transition-all duration-500 overflow-hidden ${
-                adjustUserId === u.id
-                  ? 'max-h-40 opacity-100 mt-3'
-                  : 'max-h-0 opacity-0'
-              }`}
-            >
-              <div className="p-3 rounded-xl bg-black/40 backdrop-blur-md border border-yellow-500/20 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={adjustAmount}
-                    onChange={e => setAdjustAmount(e.target.value)}
-                    placeholder="Points (+/-)"
-                    className="flex-1 px-2 py-2 rounded-lg text-xs bg-black/50 border border-gray-700 text-white outline-none focus:border-yellow-400 transition-all"
-                  />
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setAdjustUserId(adjustUserId === u.id ? null : u.id)
+                }
+                className="px-3 py-1 rounded-lg text-xs bg-yellow-500/10 text-yellow-400 hover:scale-110 transition"
+              >
+                💰
+              </button>
 
-                  <input
-                    value={adjustReason}
-                    onChange={e => setAdjustReason(e.target.value)}
-                    placeholder="Reason"
-                    className="flex-1 px-2 py-2 rounded-lg text-xs bg-black/50 border border-gray-700 text-white outline-none focus:border-yellow-400 transition-all"
-                  />
-                </div>
-
-                <button
-                  onClick={() => {
-                    const pts = parseInt(adjustAmount);
-                    if (!isNaN(pts) && adjustReason.trim()) {
-                      onAdjustBalance(u.id, pts, adjustReason.trim());
-                      setAdjustUserId(null);
-                      setAdjustAmount('');
-                      setAdjustReason('');
-                    }
-                  }}
-                  className="w-full py-2 rounded-xl text-xs font-bold
-                  bg-gradient-to-r from-yellow-400 to-orange-500
-                  text-black
-                  hover:scale-105
-                  transition-all duration-300"
-                >
-                  Apply Balance Change
-                </button>
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 mt-3">
-              {new Date(u.created_at).toLocaleDateString()}
+              <button
+                onClick={() => onBan(u.id, !u.is_banned)}
+                className={`px-3 py-1 rounded-lg text-xs transition hover:scale-110 ${
+                  u.is_banned
+                    ? 'bg-green-500/10 text-green-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}
+              >
+                {u.is_banned ? 'Unban' : 'Ban'}
+              </button>
             </div>
           </div>
+
+          {/* BALANCE PANEL */}
+          {adjustUserId === u.id && (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={adjustAmount}
+                  onChange={e => setAdjustAmount(e.target.value)}
+                  placeholder="Points"
+                  className="flex-1 px-2 py-2 rounded bg-black/40 border border-gray-700 text-white text-xs"
+                />
+                <input
+                  value={adjustReason}
+                  onChange={e => setAdjustReason(e.target.value)}
+                  placeholder="Reason"
+                  className="flex-1 px-2 py-2 rounded bg-black/40 border border-gray-700 text-white text-xs"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  const pts = parseInt(adjustAmount);
+                  if (!isNaN(pts) && adjustReason.trim()) {
+                    onAdjustBalance(u.id, pts, adjustReason.trim());
+                    setAdjustUserId(null);
+                    setAdjustAmount('');
+                    setAdjustReason('');
+                  }
+                }}
+                className="w-full py-2 rounded-lg bg-yellow-500 text-black text-xs font-bold hover:scale-105 transition"
+              >
+                Apply Balance Change
+              </button>
+            </div>
+          )}
         </div>
       ))}
+
+      {/* PAGINATION CONTROLS */}
+      {perPage !== 'all' && totalPages > 1 && (
+        <div className="flex justify-center gap-2 pt-4 flex-wrap">
+          <button
+            onClick={() => changePage(currentPage - 1)}
+            className="px-3 py-1 rounded-lg bg-black/40 text-white border border-gray-700 hover:scale-110 transition"
+          >
+            Prev
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => changePage(i + 1)}
+              className={`px-3 py-1 rounded-lg text-xs transition ${
+                currentPage === i + 1
+                  ? 'bg-yellow-500 text-black'
+                  : 'bg-black/40 text-white border border-gray-700 hover:scale-110'
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button
+            onClick={() => changePage(currentPage + 1)}
+            className="px-3 py-1 rounded-lg bg-black/40 text-white border border-gray-700 hover:scale-110 transition"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }
