@@ -17,10 +17,13 @@ import AdminPanel from "@/pages/AdminPanel";
 import GamesPage from "@/pages/GamesPage";
 import TowerClimbPage from "@/pages/TowerClimbPage";
 import IdleMinerPage from "@/pages/IdleMinerPage";
+import CrashGamePage from "@/pages/CrashGamePage";
+import IdleLabPage from "@/pages/IdleLabPage";
+import WeeklyKingPage from "@/pages/WeeklyKingPage";
 
 const queryClient = new QueryClient();
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner';
+type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner' | 'crash' | 'lab' | 'weekly-king';
 
 function AppContent() {
   const { isLoading, user, isAdmin } = useApp();
@@ -61,6 +64,9 @@ function AppContent() {
       case 'games': return <GamesPage onNavigate={setCurrentPage} />;
       case 'tower': return <TowerClimbPage />;
       case 'miner': return <IdleMinerPage />;
+      case 'crash': return <CrashGamePage />;
+      case 'lab': return <IdleLabPage />;
+      case 'weekly-king': return <WeeklyKingPage />;
       default: return <HomePage />;
     }
   };

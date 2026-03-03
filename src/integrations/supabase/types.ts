@@ -247,6 +247,102 @@ export type Database = {
         }
         Relationships: []
       }
+      crash_leaderboard: {
+        Row: {
+          best_multiplier: number
+          id: string
+          total_earned: number
+          total_rounds: number
+          total_won: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_multiplier?: number
+          id?: string
+          total_earned?: number
+          total_rounds?: number
+          total_won?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_multiplier?: number
+          id?: string
+          total_earned?: number
+          total_rounds?: number
+          total_won?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crash_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crash_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crash_rounds: {
+        Row: {
+          bet_amount: number
+          crash_multiplier: number
+          created_at: string
+          had_shield: boolean
+          id: string
+          multiplier_at_cashout: number | null
+          points_earned: number
+          user_id: string
+          won: boolean
+        }
+        Insert: {
+          bet_amount?: number
+          crash_multiplier: number
+          created_at?: string
+          had_shield?: boolean
+          id?: string
+          multiplier_at_cashout?: number | null
+          points_earned?: number
+          user_id: string
+          won?: boolean
+        }
+        Update: {
+          bet_amount?: number
+          crash_multiplier?: number
+          created_at?: string
+          had_shield?: boolean
+          id?: string
+          multiplier_at_cashout?: number | null
+          points_earned?: number
+          user_id?: string
+          won?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crash_rounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crash_rounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_claims: {
         Row: {
           claim_date: string
@@ -284,6 +380,102 @@ export type Database = {
             foreignKeyName: "daily_claims_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_leaderboard: {
+        Row: {
+          highest_machine: string
+          id: string
+          total_coins_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          highest_machine?: string
+          id?: string
+          total_coins_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          highest_machine?: string
+          id?: string
+          total_coins_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_leaderboard_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_progress: {
+        Row: {
+          accelerator_level: number
+          booster_level: number
+          coins: number
+          coins_per_second: number
+          generator_level: number
+          id: string
+          last_collected_at: string
+          quantum_level: number
+          total_coins_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accelerator_level?: number
+          booster_level?: number
+          coins?: number
+          coins_per_second?: number
+          generator_level?: number
+          id?: string
+          last_collected_at?: string
+          quantum_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accelerator_level?: number
+          booster_level?: number
+          coins?: number
+          coins_per_second?: number
+          generator_level?: number
+          id?: string
+          last_collected_at?: string
+          quantum_level?: number
+          total_coins_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -855,6 +1047,54 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      weekly_kings: {
+        Row: {
+          badge: string | null
+          created_at: string
+          id: string
+          rank: number | null
+          total_earned: number
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          badge?: string | null
+          created_at?: string
+          id?: string
+          rank?: number | null
+          total_earned?: number
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          badge?: string | null
+          created_at?: string
+          id?: string
+          rank?: number | null
+          total_earned?: number
+          user_id?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_kings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_kings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       withdrawals: {
         Row: {
