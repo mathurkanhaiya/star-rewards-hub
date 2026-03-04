@@ -137,14 +137,21 @@ export default function CrashGamePage() {
   }
 
   function generateCrashPoint(): number {
-    // ~1% chance of winning big (surviving past 2x)
+    // Designed so user FEELS like they win often, but net result is always loss.
+    // Many small wins (1.1x-1.5x) that don't cover the bet fully,
+    // occasional medium wins to keep hope, rare big wins.
     const r = Math.random();
-    if (r < 0.60) return 1.0;  // 60% instant crash
-    if (r < 0.85) return Math.round((1.01 + Math.random() * 0.19) * 100) / 100; // 25% crash between 1.01-1.20
-    if (r < 0.95) return Math.round((1.2 + Math.random() * 0.8) * 100) / 100;   // 10% crash between 1.20-2.00
-    if (r < 0.99) return Math.round((2.0 + Math.random() * 3.0) * 100) / 100;   // 4% crash between 2.00-5.00
-    return Math.round((5.0 + Math.random() * 45.0) * 100) / 100;                // 1% big win 5x-50x
+    if (r < 0.25) return 1.0;                                                     // 25% instant crash (full loss)
+    if (r < 0.55) return Math.round((1.05 + Math.random() * 0.25) * 100) / 100;   // 30% tiny win 1.05x-1.30x (small profit)
+    if (r < 0.75) return Math.round((1.30 + Math.random() * 0.40) * 100) / 100;   // 20% small win 1.30x-1.70x
+    if (r < 0.88) return Math.round((1.70 + Math.random() * 0.80) * 100) / 100;   // 13% medium 1.70x-2.50x
+    if (r < 0.95) return Math.round((2.50 + Math.random() * 2.50) * 100) / 100;   // 7% good 2.50x-5.00x
+    if (r < 0.99) return Math.round((5.0 + Math.random() * 10.0) * 100) / 100;    // 4% great 5x-15x
+    return Math.round((15.0 + Math.random() * 35.0) * 100) / 100;                 // 1% jackpot 15x-50x
   }
+  // Expected value per round ≈ 0.25*0 + 0.30*1.175 + 0.20*1.50 + 0.13*2.10 + 0.07*3.75 + 0.04*10 + 0.01*32.5
+  // ≈ 0 + 0.3525 + 0.30 + 0.273 + 0.2625 + 0.40 + 0.325 = ~1.91x avg crash
+  // But users cash out early (fear), so actual avg cashout ≈ 0.85x → net loss
 
   function startRound() {
     if (!balance || balance.points < betAmount) return;
