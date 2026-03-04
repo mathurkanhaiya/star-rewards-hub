@@ -23,12 +23,12 @@ interface LeaderEntry {
 
 type GameState = 'menu' | 'betting' | 'running' | 'cashout' | 'crashed' | 'result';
 
-const BET_OPTIONS = [5, 10, 25, 50, 100];
+const BET_OPTIONS = [100, 250, 500, 750, 1000];
 
 export default function CrashGamePage() {
   const { user, balance, refreshBalance } = useApp();
   const [gameState, setGameState] = useState<GameState>('menu');
-  const [betAmount, setBetAmount] = useState(10);
+  const [betAmount, setBetAmount] = useState(100);
   const [multiplier, setMultiplier] = useState(1.0);
   const [crashPoint, setCrashPoint] = useState(0);
   const [winnings, setWinnings] = useState(0);
@@ -137,10 +137,13 @@ export default function CrashGamePage() {
   }
 
   function generateCrashPoint(): number {
-    // House edge ~5%. Exponential distribution.
+    // ~1% chance of winning big (surviving past 2x)
     const r = Math.random();
-    if (r < 0.03) return 1.0; // instant crash 3%
-    return Math.max(1.0, Math.floor((1 / (1 - r)) * 100) / 100);
+    if (r < 0.60) return 1.0;  // 60% instant crash
+    if (r < 0.85) return Math.round((1.01 + Math.random() * 0.19) * 100) / 100; // 25% crash between 1.01-1.20
+    if (r < 0.95) return Math.round((1.2 + Math.random() * 0.8) * 100) / 100;   // 10% crash between 1.20-2.00
+    if (r < 0.99) return Math.round((2.0 + Math.random() * 3.0) * 100) / 100;   // 4% crash between 2.00-5.00
+    return Math.round((5.0 + Math.random() * 45.0) * 100) / 100;                // 1% big win 5x-50x
   }
 
   function startRound() {
