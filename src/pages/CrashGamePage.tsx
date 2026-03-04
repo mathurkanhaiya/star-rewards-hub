@@ -3,7 +3,10 @@ import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 import { logAdWatch } from '@/lib/api';
-
+import CrashHistory from '@/components/crash/CrashHistory';
+import LiveBets from '@/components/crash/LiveBets';
+import PlayerCounter from '@/components/crash/PlayerCounter';
+import BigWinAnnouncement from '@/components/crash/BigWinAnnouncement';
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
     const hf = (window as any).Telegram.WebApp.HapticFeedback;
@@ -42,6 +45,8 @@ export default function CrashGamePage() {
   const [bestMultiplier, setBestMultiplier] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [lastCrashPoint, setLastCrashPoint] = useState(0);
+  const [showBigWin, setShowBigWin] = useState(false);
 
   // Animation
   const animRef = useRef<number>(0);
@@ -206,7 +211,9 @@ export default function CrashGamePage() {
     const won = Math.floor(betAmount * multRef.current);
     setWinnings(won);
     setGameState('cashout');
+    setLastCrashPoint(crashRef.current);
     triggerHaptic('success');
+    if (won > betAmount * 3) setShowBigWin(true);
 
     // Award winnings
     if (user) {
@@ -226,6 +233,7 @@ export default function CrashGamePage() {
   function handleCrash() {
     cancelAnimationFrame(animRef.current);
     triggerHaptic('error');
+    setLastCrashPoint(crashRef.current);
 
     if (hasShield) {
       // Shield saves: return bet
@@ -368,6 +376,9 @@ export default function CrashGamePage() {
   if (gameState === 'menu') {
     return (
       <div className="px-4 pb-28">
+        <BigWinAnnouncement multiplier={0} winnings={0} show={false} />
+        <CrashHistory latestCrash={lastCrashPoint} />
+        <PlayerCounter gameState={gameState} />
         <div className="text-center mb-6">
           <div className="text-6xl mb-3 animate-float">🚀</div>
           <h2 className="text-2xl font-bold shimmer-text mb-1">Crash Multiplier</h2>
@@ -398,6 +409,8 @@ export default function CrashGamePage() {
     const pts = balance?.points || 0;
     return (
       <div className="px-4 pb-28">
+        <CrashHistory latestCrash={lastCrashPoint} />
+        <PlayerCounter gameState={gameState} />
         <button onClick={() => setGameState('menu')} className="mb-4 text-sm" style={{ color: 'hsl(var(--gold))' }}>← Back</button>
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">🎰</div>
@@ -465,6 +478,8 @@ export default function CrashGamePage() {
     const color = multiplier >= 5 ? 'hsl(var(--gold))' : multiplier >= 2 ? 'hsl(var(--green-reward))' : 'hsl(var(--foreground))';
     return (
       <div className="px-4 pb-28">
+        <CrashHistory latestCrash={lastCrashPoint} />
+        <LiveBets gameState={gameState} multiplier={multiplier} crashPoint={crashPoint} />
         <div className="text-center mb-2">
           <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Bet: {betAmount}</div>
         </div>
@@ -521,6 +536,8 @@ export default function CrashGamePage() {
   if (gameState === 'cashout') {
     return (
       <div className="px-4 pb-28">
+        <BigWinAnnouncement multiplier={multiplier} winnings={winnings} show={showBigWin} />
+        <CrashHistory latestCrash={lastCrashPoint} />
         <div className="text-center mb-6">
           <div className="text-6xl mb-3" style={{ animation: 'float 1s ease-in-out' }}>🤑</div>
           <h2 className="text-2xl font-bold mb-2" style={{ color: 'hsl(var(--green-reward))' }}>You Cashed Out!</h2>
@@ -546,6 +563,8 @@ export default function CrashGamePage() {
   if (gameState === 'crashed') {
     return (
       <div className="px-4 pb-28">
+        <CrashHistory latestCrash={lastCrashPoint} />
+        <LiveBets gameState={gameState} multiplier={multiplier} crashPoint={crashPoint} />
         <div className="text-center mb-6">
           <div className="text-6xl mb-3" style={{ animation: 'float 0.5s ease-in-out' }}>💥</div>
           <h2 className="text-2xl font-bold mb-2" style={{ color: 'hsl(var(--destructive))' }}>CRASHED!</h2>
