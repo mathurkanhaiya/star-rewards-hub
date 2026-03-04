@@ -23,10 +23,10 @@ interface Machine {
 }
 
 const MACHINES: Machine[] = [
-  { key: 'generator', name: 'Generator', icon: '⚡', baseCps: 1, costMultiplier: 1, unlockLevel: 1, color: 'var(--gold)' },
-  { key: 'booster', name: 'Booster', icon: '🔋', baseCps: 5, costMultiplier: 3, unlockLevel: 3, color: 'var(--cyan)' },
-  { key: 'accelerator', name: 'Accelerator', icon: '🧪', baseCps: 25, costMultiplier: 8, unlockLevel: 5, color: 'var(--purple)' },
-  { key: 'quantum', name: 'Quantum Lab', icon: '🔬', baseCps: 100, costMultiplier: 20, unlockLevel: 8, color: 'var(--green-reward)' },
+  { key: 'generator', name: 'Generator', icon: '⚡', baseCps: 0.001, costMultiplier: 1, unlockLevel: 1, color: 'var(--gold)' },
+  { key: 'booster', name: 'Booster', icon: '🔋', baseCps: 0.005, costMultiplier: 3, unlockLevel: 3, color: 'var(--cyan)' },
+  { key: 'accelerator', name: 'Accelerator', icon: '🧪', baseCps: 0.025, costMultiplier: 8, unlockLevel: 5, color: 'var(--purple)' },
+  { key: 'quantum', name: 'Quantum Lab', icon: '🔬', baseCps: 0.1, costMultiplier: 20, unlockLevel: 8, color: 'var(--green-reward)' },
 ];
 
 function getUpgradeCost(machine: Machine, level: number): number {
@@ -208,8 +208,8 @@ export default function IdleLabPage() {
   }
 
   async function collectToBalance() {
-    if (!user || coins < 100) return;
-    const pointsToAdd = Math.floor(coins / 10); // 10 lab coins = 1 point
+    if (!user || coins < 1) return;
+    const pointsToAdd = Math.floor(coins); // 1 lab coin = 1 point
     triggerHaptic('success');
 
     const { data: bal } = await supabase.from('balances').select('points, total_earned').eq('user_id', user.id).single();
@@ -263,10 +263,10 @@ export default function IdleLabPage() {
           </div>
         )}
         <div className="text-center">
-          <div className="text-4xl font-black mb-1" style={{ color: 'hsl(var(--gold))' }}>{Math.floor(coins).toLocaleString()}</div>
+          <div className="text-4xl font-black mb-1" style={{ color: 'hsl(var(--gold))' }}>{coins.toFixed(3)}</div>
           <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Lab Coins</div>
           <div className="text-sm font-semibold mt-1" style={{ color: isBoosted ? 'hsl(var(--purple))' : 'hsl(var(--green-reward))' }}>
-            ⚡ {(cps * (isBoosted ? boostMultiplier : 1)).toFixed(1)}/sec {isBoosted && `(${boostMultiplier}x boost!)`}
+            ⚡ {(cps * (isBoosted ? boostMultiplier : 1)).toFixed(3)}/sec {isBoosted && `(${boostMultiplier}x boost!)`}
           </div>
         </div>
 
@@ -275,7 +275,7 @@ export default function IdleLabPage() {
           <div
             className="h-full rounded-full transition-all"
             style={{
-              width: `${Math.min(100, (cps / 200) * 100)}%`,
+              width: `${Math.min(100, (cps / 2) * 100)}%`,
               background: 'linear-gradient(90deg, hsl(var(--gold)), hsl(var(--green-reward)))',
               animation: 'pulse-gold 2s ease-in-out infinite',
             }}
@@ -286,10 +286,10 @@ export default function IdleLabPage() {
       {/* Collect button */}
       <button
         onClick={collectToBalance}
-        disabled={coins < 100}
+        disabled={coins < 1}
         className="w-full btn-gold rounded-2xl py-3 text-sm font-bold mb-4 disabled:opacity-40"
       >
-        💰 Collect → {Math.floor(coins / 10).toLocaleString()} Points
+        💰 Collect → {Math.floor(coins).toLocaleString()} Points
       </button>
 
       {/* Machines */}
@@ -330,7 +330,7 @@ export default function IdleLabPage() {
                     </span>
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    +{contribution.toFixed(1)}/sec • Next: +{machine.baseCps}/sec
+                    +{contribution.toFixed(3)}/sec • Next: +{machine.baseCps}/sec
                   </div>
                   {/* Mini progress bar */}
                   <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>

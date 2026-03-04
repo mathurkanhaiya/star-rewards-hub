@@ -23,12 +23,12 @@ interface LeaderEntry {
 
 type GameState = 'menu' | 'betting' | 'running' | 'cashout' | 'crashed' | 'result';
 
-const BET_OPTIONS = [50, 100, 250, 500, 1000];
+const BET_OPTIONS = [5, 10, 25, 50, 100];
 
 export default function CrashGamePage() {
   const { user, balance, refreshBalance } = useApp();
   const [gameState, setGameState] = useState<GameState>('menu');
-  const [betAmount, setBetAmount] = useState(100);
+  const [betAmount, setBetAmount] = useState(10);
   const [multiplier, setMultiplier] = useState(1.0);
   const [crashPoint, setCrashPoint] = useState(0);
   const [winnings, setWinnings] = useState(0);
