@@ -1,6 +1,6 @@
 import React from 'react';
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner' | 'crash' | 'lab' | 'weekly-king';
+type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'miner' | 'luckybox' | 'lab' | 'weekly-king';
 
 interface GamesMenuProps {
   onNavigate: (page: Page) => void;
@@ -15,11 +15,11 @@ const games = [
     color: 'gold',
   },
   {
-    id: 'crash' as Page,
-    icon: '🚀',
-    name: 'Crash Multiplier',
-    desc: 'Watch the multiplier rise. Cash out before it crashes!',
-    color: 'destructive',
+    id: 'luckybox' as Page,
+    icon: '🎁',
+    name: 'Lucky Box',
+    desc: 'Watch an ad, pick a mystery box, win big prizes!',
+    color: 'gold',
   },
   {
     id: 'lab' as Page,
