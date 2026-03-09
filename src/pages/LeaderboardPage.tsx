@@ -329,73 +329,91 @@ export default function LeaderboardPage() {
           })}
         </div>
       ) : (
-        <div className="space-y-3">
-          {contestLeaders.map((entry: any, i: number) => {
-
-            const openChat = () => {
-              triggerHaptic();
-              if (entry.users?.username) {
-                window.open(`https://t.me/${entry.users.username}`, '_blank');
-              } else {
-                window.open(`tg://user?id=${entry.users?.telegram_id}`);
-              }
-            };
-
-            return (
-              <div
-                key={entry.user_id}
-                onClick={openChat}
-                className="flex items-center justify-between p-4 rounded-xl cursor-pointer bg-[#111827] border border-white/5 transition active:scale-[0.97]"
+        <>
+          {/* Ads Sub-Tabs */}
+          <div className="flex gap-1 mb-4 p-1 rounded-lg bg-[#0f172a]">
+            {[
+              { id: 'alltime', label: 'All Time Watch' },
+              { id: 'today', label: 'Today Watch' },
+            ].map(st => (
+              <button
+                key={st.id}
+                onClick={() => {
+                  triggerHaptic();
+                  setAdsSubTab(st.id as AdsSubTab);
+                }}
+                className="flex-1 py-1.5 rounded-md text-[11px] font-bold transition-all"
+                style={{
+                  background: adsSubTab === st.id ? 'rgba(250,204,21,0.2)' : 'transparent',
+                  color: adsSubTab === st.id ? '#facc15' : '#6b7280',
+                  border: adsSubTab === st.id ? '1px solid rgba(250,204,21,0.4)' : '1px solid transparent',
+                }}
               >
-                <div className="flex items-center gap-3">
+                {st.label}
+              </button>
+            ))}
+          </div>
 
-                  <div className="relative font-bold text-yellow-400 w-8">
-                    #{i + 1}
-                    {i === 0 && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: -12,
-                          left: 2,
-                          animation: 'float 2s ease-in-out infinite'
-                        }}
-                      >
-                        👑
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
-                    {entry.users?.photo_url ? (
-                      <img
-                        src={entry.users.photo_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      entry.users?.first_name?.[0] || '?'
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-medium">
-                      {entry.users?.first_name ||
-                        entry.users?.username ||
-                        'User'}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      UID: {entry.users?.telegram_id}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="font-bold text-yellow-400">
-                  {entry.score} ads
-                </div>
+          <div className="space-y-3">
+            {adLeaders.length === 0 && (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                No ad watches {adsSubTab === 'today' ? 'today' : 'yet'}
               </div>
-            );
-          })}
-        </div>
+            )}
+            {adLeaders.map((entry: any, i: number) => {
+              const openChat = () => {
+                triggerHaptic();
+                if (entry.users?.username) {
+                  window.open(`https://t.me/${entry.users.username}`, '_blank');
+                } else {
+                  window.open(`tg://user?id=${entry.users?.telegram_id}`);
+                }
+              };
+
+              return (
+                <div
+                  key={entry.user_id}
+                  onClick={openChat}
+                  className="flex items-center justify-between p-4 rounded-xl cursor-pointer bg-[#111827] border border-white/5 transition active:scale-[0.97]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative font-bold text-yellow-400 w-8">
+                      #{i + 1}
+                      {i === 0 && (
+                        <span style={{ position: 'absolute', top: -12, left: 2, animation: 'float 2s ease-in-out infinite' }}>
+                          👑
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
+                      {entry.users?.photo_url ? (
+                        <img src={entry.users.photo_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          {entry.users?.first_name?.[0] || '?'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-medium">
+                        {entry.users?.first_name || entry.users?.username || 'User'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        UID: {entry.users?.telegram_id}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="font-bold text-yellow-400">
+                    {entry.score} ads
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <style>
