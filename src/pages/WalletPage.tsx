@@ -70,11 +70,14 @@ export default function WalletPage() {
   useEffect(() => {
     if (user) {
       getWithdrawals(user.id).then(w => setWithdrawals(w));
-      // Fetch total ad watches
+      // Fetch today's ad watches (daily reset at UTC midnight)
+      const todayUTC = new Date();
+      const startOfDay = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate())).toISOString();
       supabase
         .from('ad_logs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id)
+        .gte('created_at', startOfDay)
         .then(({ count }) => {
           setAdCount(count || 0);
           setAdCountLoading(false);
