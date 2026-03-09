@@ -126,7 +126,9 @@ export default function HomePage() {
       triggerHaptic('success');
       setDailyMessage(`+${result.points} pts! 🔥`);
       setCoinBurst(true);
-      setDailyCooldown(86400);
+      const now = new Date();
+      const midnightUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+      setDailyCooldown(Math.floor((midnightUTC.getTime() - now.getTime()) / 1000));
       await refreshBalance();
       setTimeout(() => setCoinBurst(false), 1200);
     } else {
