@@ -241,7 +241,7 @@ export async function adminGetUsers() {
     .from('users')
     .select('*, balances(*)')
     .order('created_at', { ascending: false })
-    .range(0, 9999);
+    .range(0, 9999999);
 
   return data || [];
 }
