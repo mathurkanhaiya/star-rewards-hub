@@ -73,26 +73,54 @@ function AppContent() {
 
   // 🚫 BAN CHECK
   if (user?.is_banned) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center px-6">
-        <div className="text-6xl mb-4">🚫</div>
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen text-center px-6 relative overflow-hidden">
 
-        <h1 className="text-2xl font-bold text-red-500 mb-2">
-          Account Banned
-        </h1>
+      {/* background glow */}
+      <div className="absolute inset-0 bg-red-500/5 blur-3xl animate-pulse"></div>
 
-        <p className="text-sm text-muted-foreground">
-          Your account has been suspended by the admin.
-        </p>
-
-        {user?.ban_reason && (
-          <p className="text-xs text-gray-400 mt-3">
-            Reason: {user.ban_reason}
-          </p>
-        )}
+      {/* ban icon */}
+      <div className="text-7xl mb-4 animate-bounce">
+        🚫
       </div>
-    );
-  }
+
+      {/* title */}
+      <h1 className="text-3xl font-extrabold text-red-500 mb-2 animate-pulse">
+        ACCOUNT BANNED
+      </h1>
+
+      {/* message */}
+      <p className="text-sm text-gray-300 max-w-xs">
+        Your account has been suspended for violating our platform rules.
+      </p>
+
+      {/* reason if exists */}
+      {user?.ban_reason && (
+        <p className="text-xs text-red-300 mt-3">
+          Reason: {user.ban_reason}
+        </p>
+      )}
+
+      {/* contact admin */}
+      <div className="mt-6">
+        <a
+          href="https://t.me/im_poorman"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition transform hover:scale-105 shadow-lg"
+        >
+          Contact Admin to Appeal
+        </a>
+      </div>
+
+      {/* small hint */}
+      <p className="text-xs text-gray-500 mt-4">
+        If you think this was a mistake, contact support.
+      </p>
+
+    </div>
+  );
+}
 
   const renderPage = () => {
     switch (currentPage) {
