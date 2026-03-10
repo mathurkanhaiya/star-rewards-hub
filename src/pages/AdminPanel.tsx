@@ -24,6 +24,7 @@ import AdminWithdrawalsTab from '@/components/admin/AdminWithdrawalsTab';
 import AdminTasksTab from '@/components/admin/AdminTasksTab';
 import AdminSettingsTab from '@/components/admin/AdminSettingsTab';
 import AdminContestsTab from '@/components/admin/AdminContestsTab';
+import AdminPromosTab from '@/components/admin/AdminPromosTab';
 
 type AdminTab =
   | 'dashboard'
