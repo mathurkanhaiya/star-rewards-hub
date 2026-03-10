@@ -270,3 +270,15 @@
     animation: confetti-fall 1s ease-out forwards;
   }
 }
+
+@keyframes float3d {
+  0% {
+    transform: translateY(0px) rotateX(0deg) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) rotateX(10deg) scale(1.05);
+  }
+  100% {
+    transform: translateY(0px) rotateX(0deg) scale(1);
+  }
+}
