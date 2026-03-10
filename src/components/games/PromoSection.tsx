@@ -52,7 +52,7 @@ export default function PromoSection() {
       // Show ad first
       if (typeof window !== 'undefined' && (window as any).Adsgram) {
         try {
-          const adController = (window as any).Adsgram.init({ blockId: '23390' });
+          const adController = (window as any).Adsgram.init({ blockId: 'int-23322' });
           await adController.show();
         } catch {
           // Ad failed/skipped, still allow claim
