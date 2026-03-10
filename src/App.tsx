@@ -9,6 +9,7 @@ import Header from "@/components/Header";
 import HomePage from "@/pages/HomePage";
 import TasksPage from "@/pages/TasksPage";
 import SpinPage from "@/pages/SpinPage";
+import ReferralPage from "@/pages/ReferralPage";
 
 import LeaderboardPage from "@/pages/LeaderboardPage";
 import WalletPage from "@/pages/WalletPage";
