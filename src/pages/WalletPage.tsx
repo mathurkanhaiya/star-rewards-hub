@@ -48,7 +48,7 @@ const METHODS = [
   { id: 'ton', label: 'TON', icon: '💎', color: '#3b82f6', rateKey: 'ton_conversion_rate' },
 ];
 
-const REQUIRED_ADS = 50;
+const REQUIRED_ADS = 30;
 
 export default function WalletPage() {
   const { user, balance, settings, refreshBalance } = useApp();
