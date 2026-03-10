@@ -32,6 +32,7 @@ type AdminTab =
   | 'withdrawals'
   | 'tasks'
   | 'contests'
+  | 'promos'
   | 'broadcast'
   | 'settings';
 
