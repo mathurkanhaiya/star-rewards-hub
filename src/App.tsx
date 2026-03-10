@@ -45,31 +45,45 @@ function AppContent() {
 
   // Loading screen
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="animate-float text-5xl mb-4">🎮</div>
-        <div className="text-lg font-display font-bold shimmer-text">
-          ADS REWARDS
-        </div>
-        <div className="text-xs text-muted-foreground mt-2">
-          Loading your account...
-        </div>
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
 
-        <div className="mt-4 flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full"
-              style={{
-                background: "hsl(45 100% 55%)",
-                animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
-              }}
-            />
-          ))}
-        </div>
+      {/* Circular loading logo */}
+      <div className="relative mb-6">
+        <img
+          src="https://i.ibb.co/hJxry1hZ/53-AB4888-9018-455-D-B962-232-FAA620823.png"
+          alt="Loading"
+          className="w-24 h-24 rounded-full animate-spin"
+        />
+
+        {/* glow ring */}
+        <div className="absolute inset-0 rounded-full border-4 border-yellow-400/20 animate-pulse"></div>
       </div>
-    );
-  }
+
+      <div className="text-lg font-display font-bold shimmer-text">
+        ADS REWARDS
+      </div>
+
+      <div className="text-xs text-muted-foreground mt-2">
+        Loading your account...
+      </div>
+
+      <div className="mt-4 flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full"
+            style={{
+              background: "hsl(45 100% 55%)",
+              animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+
+    </div>
+  );
+}
 
   // 🚫 BAN CHECK
   if (user?.is_banned) {
