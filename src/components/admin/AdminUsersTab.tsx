@@ -36,7 +36,7 @@ export default function AdminUsersTab({ users, onBan, onAdjustBalance }: Props) 
   const [adjustReason, setAdjustReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [perPage, setPerPage] = useState<number | 'all'>(20);
+  const [perPage, setPerPage] = useState<number | 'all'>('all');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<Record<string, EarningsBreakdown>>({});
 

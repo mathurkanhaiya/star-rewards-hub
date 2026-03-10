@@ -57,7 +57,7 @@ function AppContent() {
       case 'home': return <HomePage />;
       case 'tasks': return <TasksPage />;
       case 'spin': return <SpinPage />;
-      
+      case 'referral': return <ReferralPage />;
       case 'leaderboard': return <LeaderboardPage />;
       case 'wallet': return <WalletPage />;
       case 'notifications': return <NotificationsPage />;

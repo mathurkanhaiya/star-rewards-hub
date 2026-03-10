@@ -12,7 +12,7 @@ const navItems = [
   { id: 'home' as Page, icon: '🏠', label: 'Home' },
   { id: 'tasks' as Page, icon: '📋', label: 'Tasks' },
   { id: 'games' as Page, icon: '🎮', label: 'Games' },
-  { id: 'spin' as Page, icon: '🎡', label: 'Spin' },
+  { id: 'referral' as Page, icon: '👥', label: 'Refer' },
   { id: 'wallet' as Page, icon: '💰', label: 'Wallet' },
 ];
 
