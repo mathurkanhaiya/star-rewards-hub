@@ -1,7 +1,21 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
 
-type Page = 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard' | 'wallet' | 'notifications' | 'admin' | 'games' | 'tower' | 'dice' | 'cardflip' | 'numberguess' | 'luckybox';
+type Page =
+  | 'home'
+  | 'tasks'
+  | 'spin'
+  | 'referral'
+  | 'leaderboard'
+  | 'wallet'
+  | 'notifications'
+  | 'admin'
+  | 'games'
+  | 'tower'
+  | 'dice'
+  | 'cardflip'
+  | 'numberguess'
+  | 'luckybox';
 
 interface BottomNavProps {
   currentPage: Page;
@@ -9,58 +23,104 @@ interface BottomNavProps {
 }
 
 const navItems = [
-  { id: 'home' as Page, icon: '🏠', label: 'Home' },
-  { id: 'tasks' as Page, icon: '📋', label: 'Tasks' },
-  { id: 'games' as Page, icon: '🎮', label: 'Games' },
-  { id: 'referral' as Page, icon: '👥', label: 'Refer' },
-  { id: 'wallet' as Page, icon: '💰', label: 'Wallet' },
+  {
+    id: 'home' as Page,
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
+    label: 'Home'
+  },
+  {
+    id: 'tasks' as Page,
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
+    label: 'Tasks'
+  },
+  {
+    id: 'games' as Page,
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
+    label: 'Games'
+  },
+  {
+    id: 'referral' as Page,
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
+    label: 'Refer'
+  },
+  {
+    id: 'wallet' as Page,
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
+    label: 'Wallet'
+  }
 ];
 
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
   const { isAdmin, unreadCount } = useApp();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50" style={{ maxWidth: 480, margin: '0 auto' }}>
+    <div
+      className="fixed bottom-0 left-0 right-0 z-50"
+      style={{ maxWidth: 480, margin: '0 auto' }}
+    >
       <div
         className="glass-card mx-3 mb-3 rounded-2xl px-1 py-2"
         style={{
-          background: 'linear-gradient(135deg, hsl(220 25% 8% / 0.95), hsl(220 25% 6% / 0.95))',
+          background:
+            'linear-gradient(135deg, hsl(220 25% 8% / 0.95), hsl(220 25% 6% / 0.95))',
           border: '1px solid hsl(220 30% 20% / 0.6)',
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(20px)'
         }}
       >
         <div className="flex items-center justify-around">
-          {navItems.map(item => (
+          {navItems.map((item) => (
             <button
               key={item.id}
-              className={`bottom-nav-item ${currentPage === item.id ? 'active' : ''}`}
+              className={`bottom-nav-item ${
+                currentPage === item.id ? 'active' : ''
+              }`}
               onClick={() => onNavigate(item.id)}
             >
-              <span className="text-lg">{item.icon}</span>
-              <span className="font-medium" style={{ fontSize: 9 }}>{item.label}</span>
+              <img
+                src={item.icon}
+                alt={item.label}
+                className="w-6 h-6 object-contain"
+              />
+              <span className="font-medium" style={{ fontSize: 9 }}>
+                {item.label}
+              </span>
             </button>
           ))}
+
           {/* Notifications */}
           <button
-            className={`bottom-nav-item relative ${currentPage === 'notifications' ? 'active' : ''}`}
+            className={`bottom-nav-item relative ${
+              currentPage === 'notifications' ? 'active' : ''
+            }`}
             onClick={() => onNavigate('notifications')}
           >
             <span className="text-lg">🔔</span>
+
             {unreadCount > 0 && (
-              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ background: 'hsl(0 80% 55%)', fontSize: 8 }}>
+              <div
+                className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
+                style={{ background: 'hsl(0 80% 55%)', fontSize: 8 }}
+              >
                 {unreadCount > 9 ? '9+' : unreadCount}
               </div>
             )}
-            <span className="font-medium" style={{ fontSize: 9 }}>Notifs</span>
+
+            <span className="font-medium" style={{ fontSize: 9 }}>
+              Notifs
+            </span>
           </button>
+
           {isAdmin && (
             <button
-              className={`bottom-nav-item ${currentPage === 'admin' ? 'active' : ''}`}
+              className={`bottom-nav-item ${
+                currentPage === 'admin' ? 'active' : ''
+              }`}
               onClick={() => onNavigate('admin')}
             >
               <span className="text-lg">⚙️</span>
-              <span className="font-medium" style={{ fontSize: 9 }}>Admin</span>
+              <span className="font-medium" style={{ fontSize: 9 }}>
+                Admin
+              </span>
             </button>
           )}
         </div>
