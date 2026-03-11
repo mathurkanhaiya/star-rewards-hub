@@ -15,7 +15,6 @@
 <meta property="og:title" content="ADS Rewards Mini App" />
 <meta property="og:description" content="Earn crypto by completing tasks and inviting friends!" />
 <meta property="og:type" content="website" />
-
 <meta name="twitter:card" content="summary_large_image" />
 
 <style>
@@ -28,10 +27,19 @@ body{
 <script>
 window.addEventListener("DOMContentLoaded", function(){
 
-  if (window.Telegram && Telegram.WebApp) {
-    Telegram.WebApp.expand();
-    Telegram.WebApp.ready();
+  const isTelegram =
+    window.Telegram &&
+    Telegram.WebApp &&
+    Telegram.WebApp.initData &&
+    Telegram.WebApp.initData.length > 0;
+
+  if(!isTelegram){
+    document.body.innerHTML = "<h2 style='text-align:center;margin-top:40vh'>Open this app inside Telegram</h2>";
+    return;
   }
+
+  Telegram.WebApp.expand();
+  Telegram.WebApp.ready();
 
 });
 </script>
