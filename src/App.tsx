@@ -120,9 +120,9 @@ function AppContent() {
         Your account has been suspended for violating our platform rules.
       </p>
 
-      {user?.ban_reason && (
+      {(user as any)?.ban_reason && (
         <p className="text-xs text-red-300 mt-3">
-          Reason: {user.ban_reason}
+          Reason: {(user as any).ban_reason}
         </p>
       )}
 

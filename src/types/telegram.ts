@@ -73,6 +73,7 @@ export interface AppUser {
   referral_code: string;
   referred_by: number | null;
   is_banned: boolean;
+  ban_reason?: string | null;
   last_active_at: string;
   created_at: string;
 }
