@@ -52,7 +52,7 @@ const games = [
   },
   {
     id: 'numberguess' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773236312067-54b2669f.gif'',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773236312067-54b2669f.gif',
     name: 'Number Guess',
     desc: 'Watch an ad, guess the hidden number, closer = more points!',
     color: 'cyan',
@@ -64,7 +64,6 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
     <div className="px-4 pb-28">
       <div className="text-center mb-6">
 
-        {/* Header GIF */}
         <img
           src="https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif"
           alt="Games"
@@ -94,7 +93,6 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
           >
             <div className="flex items-center gap-4">
 
-              {/* Game Icon */}
               <div className="game-icon">
                 <img
                   src={game.icon}
