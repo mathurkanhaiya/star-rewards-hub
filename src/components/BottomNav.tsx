@@ -25,27 +25,42 @@ interface BottomNavProps {
 const navItems = [
   {
     id: 'home' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
+    staticIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
+    animatedIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
     label: 'Home'
   },
   {
     id: 'tasks' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
+    staticIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
+    animatedIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
     label: 'Tasks'
   },
   {
     id: 'games' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
+    staticIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
+    animatedIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
     label: 'Games'
   },
   {
     id: 'referral' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
+    staticIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
+    animatedIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
     label: 'Refer'
   },
   {
     id: 'wallet' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
+    staticIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
+    animatedIcon:
+      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
     label: 'Wallet'
   }
 ];
@@ -68,30 +83,33 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
         }}
       >
         <div className="flex items-center justify-around">
+          {navItems.map((item) => {
+            const isActive = currentPage === item.id;
 
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={`bottom-nav-item flex flex-col items-center justify-center ${
-                currentPage === item.id ? 'active' : ''
-              }`}
-              onClick={() => onNavigate(item.id)}
-            >
-              <img
-                src={item.icon}
-                alt={item.label}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  objectFit: 'contain'
-                }}
-              />
+            return (
+              <button
+                key={item.id}
+                className={`bottom-nav-item flex flex-col items-center ${
+                  isActive ? 'active' : ''
+                }`}
+                onClick={() => onNavigate(item.id)}
+              >
+                <img
+                  src={isActive ? item.animatedIcon : item.staticIcon}
+                  alt={item.label}
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    objectFit: 'contain'
+                  }}
+                />
 
-              <span className="font-medium" style={{ fontSize: 9 }}>
-                {item.label}
-              </span>
-            </button>
-          ))}
+                <span className="font-medium" style={{ fontSize: 9 }}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
 
           {/* Notifications */}
           <button
@@ -132,7 +150,6 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
               </span>
             </button>
           )}
-
         </div>
       </div>
     </div>
