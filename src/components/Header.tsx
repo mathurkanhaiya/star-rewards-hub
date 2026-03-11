@@ -1,5 +1,6 @@
 import React from "react";
 import { useApp } from "@/context/AppContext";
+import TgEmoji from "@/components/TgEmoji";
 
 function getLevelInfo(level: number) {
   const levels = [
