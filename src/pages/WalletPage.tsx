@@ -44,7 +44,6 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 const METHODS = [
-  { id: 'stars', label: 'Telegram Stars', icon: '⭐', color: '#22d3ee', rateKey: 'stars_conversion_rate' },
   { id: 'ton', label: 'TON', icon: '💎', color: '#3b82f6', rateKey: 'ton_conversion_rate' },
 ];
 
