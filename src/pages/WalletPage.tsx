@@ -258,7 +258,15 @@ export default function WalletPage() {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">{m.icon}</span>
+                {m.icon.startsWith('http') ? (
+  <img
+    src={m.icon}
+    alt={m.label}
+    className="w-6 h-6"
+  />
+) : (
+  <span className="text-xl">{m.icon}</span>
+)}
                   <div className="text-left">
                     <div className="font-semibold">{m.label}</div>
                     <div className="text-xs text-gray-400">
