@@ -84,8 +84,8 @@ export default function Header() {
               className="text-xs font-medium flex items-center gap-1"
               style={{ color: levelInfo.color }}
             >
-              ⭐
-
+              <TgEmoji id="5325547803936572038" size={16} fallback="⭐" />
+              {levelInfo.name}
             </div>
           </div>
         </div>
