@@ -20,25 +20,30 @@ function getLevelInfo(level) {
 
 export default function Header() {
   const { user, balance, telegramUser } = useApp();
+
   const levelInfo = getLevelInfo(user?.level || 1);
 
-  const displayName = user?.first_name || telegramUser?.first_name || 'User';
+  const displayName =
+    user?.first_name ||
+    telegramUser?.first_name ||
+    'User';
+
   const points = balance?.points || 0;
 
   return (
     <div className="px-4 pt-4 pb-2">
-      
-      {/* User row */}
+
+      {/* USER INFO ROW */}
       <div className="flex items-center justify-between mb-4">
-        
+
         <div className="flex items-center gap-3">
 
-          {/* Avatar */}
+          {/* AVATAR */}
           <div
             className="w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold relative"
             style={{
               background: `linear-gradient(135deg, ${levelInfo.color}, hsl(220 30% 20%))`,
-              boxShadow: `0 0 15px ${levelInfo.color}40`,
+              boxShadow: `0 0 15px ${levelInfo.color}40`
             }}
           >
             {user?.photo_url ? (
@@ -51,7 +56,7 @@ export default function Header() {
               <span>{displayName[0]?.toUpperCase()}</span>
             )}
 
-            {/* Level badge */}
+            {/* LEVEL BADGE */}
             <div
               className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
               style={{
@@ -64,9 +69,12 @@ export default function Header() {
             </div>
           </div>
 
+          {/* NAME + LEVEL */}
           <div>
+
             <div className="text-sm font-semibold text-foreground">
               {displayName}
+
               {user?.username && (
                 <span className="text-muted-foreground font-normal">
                   {' '}@{user.username}
@@ -74,29 +82,27 @@ export default function Header() {
               )}
             </div>
 
-            {/* Level text with Telegram emoji */}
+            {/* LEVEL LABEL */}
             <div
               className="text-xs font-medium flex items-center gap-1"
               style={{ color: levelInfo.color }}
             >
-              <tg-emoji
-                emoji-id="5325547803936572038"
-                style={{ width: "16px", height: "16px" }}
-              ></tg-emoji>
-
+              <tg-emoji emoji-id="5325547803936572038">✨</tg-emoji>
               {levelInfo.name}
             </div>
+
           </div>
 
         </div>
 
-        {/* Points */}
+        {/* POINTS BADGE */}
         <div
           className="px-3 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1"
           style={{
-            background: 'linear-gradient(135deg, hsl(45 100% 55% / 0.15), hsl(45 100% 55% / 0.05))',
+            background:
+              'linear-gradient(135deg, hsl(45 100% 55% / 0.15), hsl(45 100% 55% / 0.05))',
             border: '1px solid hsl(45 100% 55% / 0.3)',
-            color: 'hsl(var(--gold))',
+            color: 'hsl(var(--gold))'
           }}
         >
           ⚡ {points.toLocaleString()}
@@ -104,7 +110,7 @@ export default function Header() {
 
       </div>
 
-      {/* App title */}
+      {/* APP TITLE */}
       <div className="text-center mb-1">
         <h1 className="text-lg font-display font-bold shimmer-text tracking-wider">
           ADS REWARDS
