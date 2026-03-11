@@ -44,7 +44,13 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 const METHODS = [
-  { id: 'ton', label: 'TON', icon: '💎', color: '#3b82f6', rateKey: 'ton_conversion_rate' },
+  {
+    id: 'ton',
+    label: 'TON',
+    icon: 'https://resources.cryptocompare.com/asset-management/813/1671195834071.png',
+    color: '#3b82f6',
+    rateKey: 'ton_conversion_rate'
+  },
 ];
 
 const REQUIRED_ADS = 40;
