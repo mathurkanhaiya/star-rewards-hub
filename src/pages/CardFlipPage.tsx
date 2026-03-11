@@ -8,24 +8,37 @@ const SYMBOLS = ['💎', '🌟', '🔥', '🍀', '💰', '🎯', '🏆', '⚡'];
 export default function CardFlipPage() {
   const { user, refreshBalance } = useApp();
 
-  const [phase, setPhase] = useState<'locked' | 'loading' | 'shuffling' | 'picking' | 'result'>('locked');
+  const [phase, setPhase] = useState<'locked' | 'loading' | 'slot' | 'picking' | 'result'>('locked');
   const [cards, setCards] = useState<string[]>([]);
   const [flipped, setFlipped] = useState<boolean[]>([]);
   const [reward, setReward] = useState(0);
+  const [slotSymbols, setSlotSymbols] = useState(['❓', '❓', '❓']);
 
   const onAdWatched = useCallback(() => {
-    setPhase('shuffling');
+    setPhase('slot');
+
+    const interval = setInterval(() => {
+      setSlotSymbols([
+        SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)],
+        SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)],
+        SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)]
+      ]);
+    }, 100);
 
     setTimeout(() => {
+      clearInterval(interval);
+
       const c = Array.from(
         { length: 3 },
         () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
       );
 
       setCards(c);
-      setFlipped([false, false, false]);
+      setFlipped([false,false,false]);
       setPhase('picking');
-    }, 1200);
+
+    },1200);
+
   }, []);
 
   const { showAd } = useRewardedAd(onAdWatched);
@@ -33,39 +46,42 @@ export default function CardFlipPage() {
   const handleUnlock = async () => {
     setPhase('loading');
     const ok = await showAd();
-    if (!ok) setPhase('locked');
+    if(!ok) setPhase('locked');
   };
 
-  const flipCard = (i: number) => {
-    if (flipped[i]) return;
+  const flipCard = (i:number) => {
+
+    if(flipped[i]) return;
 
     const next = [...flipped];
     next[i] = true;
     setFlipped(next);
 
-    if (next.every(Boolean)) {
+    if(next.every(Boolean)){
+
       const unique = new Set(cards).size;
 
       let pts = 10;
 
-      if (unique === 1) pts = 100;
-      else if (unique === 2) pts = 50;
-      else pts = 15 + Math.floor(Math.random() * 10);
+      if(unique === 1) pts = 100;
+      else if(unique === 2) pts = 50;
+      else pts = 15 + Math.floor(Math.random()*10);
 
       setReward(pts);
       setPhase('result');
 
-      if (user) {
-        supabase.functions.invoke('log-ad', {
-          body: {
-            userId: user.id,
-            adType: 'card_flip',
-            rewardGiven: pts
+      if(user){
+        supabase.functions.invoke('log-ad',{
+          body:{
+            userId:user.id,
+            adType:'card_flip',
+            rewardGiven:pts
           }
         });
 
         refreshBalance();
       }
+
     }
   };
 
@@ -82,26 +98,19 @@ export default function CardFlipPage() {
 
       <h2 className="text-2xl font-bold shimmer-text mb-1">Card Flip</h2>
 
-      <p
-        className="text-xs mb-6"
-        style={{ color: 'hsl(var(--muted-foreground))' }}
-      >
+      <p className="text-xs mb-6 text-muted">
         Watch an ad, flip 3 cards — match them for big rewards!
       </p>
 
-      <div
-        className="glass-card rounded-2xl p-6 mb-4"
-        style={{ border: '1px solid hsl(var(--purple) / 0.3)' }}
-      >
+      <div className="glass-card rounded-2xl p-6 mb-4 border border-purple/30">
 
         {phase === 'locked' && (
           <button
             onClick={handleUnlock}
             className="w-full py-3 rounded-xl font-bold text-sm"
             style={{
-              background:
-                'linear-gradient(135deg, hsl(var(--gold)), hsl(35 100% 45%))',
-              color: '#000'
+              background:'linear-gradient(135deg, hsl(var(--gold)), hsl(35 100% 45%))',
+              color:'#000'
             }}
           >
             📺 Watch Ad to Play
@@ -109,16 +118,33 @@ export default function CardFlipPage() {
         )}
 
         {phase === 'loading' && (
-          <div className="text-sm text-muted">Loading ad...</div>
+          <div className="text-sm text-muted">
+            Loading ad...
+          </div>
         )}
 
-        {phase === 'shuffling' && (
-          <div className="text-sm animate-pulse text-muted">
-            Shuffling cards...
+        {phase === 'slot' && (
+          <div>
+
+            <div className="text-sm mb-4 text-muted">
+              Rolling the cards...
+            </div>
+
+            <div className="flex justify-center gap-4">
+
+              {slotSymbols.map((s,i)=>(
+                <div key={i} className="slot-box">
+                  {s}
+                </div>
+              ))}
+
+            </div>
+
           </div>
         )}
 
         {phase === 'picking' && (
+
           <div>
 
             <div className="text-sm mb-4 text-muted">
@@ -127,12 +153,13 @@ export default function CardFlipPage() {
 
             <div className="flex justify-center gap-4">
 
-              {cards.map((sym, i) => (
+              {cards.map((sym,i)=>(
                 <div
                   key={i}
-                  className={`card ${flipped[i] ? 'flipped' : ''}`}
-                  onClick={() => flipCard(i)}
+                  className={`card ${flipped[i]?'flipped':''}`}
+                  onClick={()=>flipCard(i)}
                 >
+
                   <div className="card-inner">
 
                     <div className="card-front">
@@ -144,25 +171,30 @@ export default function CardFlipPage() {
                     </div>
 
                   </div>
+
                 </div>
               ))}
 
             </div>
 
           </div>
+
         )}
 
         {phase === 'result' && (
+
           <div>
 
             <div className="text-5xl flex justify-center gap-3 mb-3">
-              {cards.map((s, i) => (
+              {cards.map((s,i)=>(
                 <span key={i}>{s}</span>
               ))}
             </div>
 
             {isTriple && (
-              <div className="confetti">🎉🎉🎉</div>
+              <div className="confetti">
+                🎉🎉🎉
+              </div>
             )}
 
             <div className="text-xs mb-2 text-muted">
@@ -178,13 +210,14 @@ export default function CardFlipPage() {
             </div>
 
             <button
-              onClick={() => setPhase('locked')}
+              onClick={()=>setPhase('locked')}
               className="mt-4 w-full py-2 rounded-xl text-xs font-bold bg-purple/15 text-purple"
             >
               Play Again
             </button>
 
           </div>
+
         )}
 
       </div>
