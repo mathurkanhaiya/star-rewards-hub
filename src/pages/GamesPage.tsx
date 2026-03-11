@@ -64,11 +64,11 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
     <div className="px-4 pb-28">
       <div className="text-center mb-6">
 
-        {/* Games Header GIF */}
+        {/* Header GIF */}
         <img
           src="https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif"
           alt="Games"
-          className="w-16 h-16 mx-auto mb-2 object-contain animate-float"
+          className="w-20 h-20 mx-auto mb-2 object-contain animate-float drop-shadow-lg"
         />
 
         <h2 className="text-2xl font-bold shimmer-text">Games</h2>
@@ -84,21 +84,24 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
       <PromoSection />
 
       <div className="space-y-3">
+
         {games.map((game) => (
           <button
             key={game.id}
             onClick={() => onNavigate(game.id)}
-            className="w-full glass-card rounded-2xl p-5 text-left transition-all active:scale-[0.97]"
+            className="game-card w-full rounded-2xl p-5 text-left"
             style={{ border: `1px solid hsl(var(--${game.color}) / 0.3)` }}
           >
             <div className="flex items-center gap-4">
 
-              {/* Game GIF Icon */}
-              <img
-                src={game.icon}
-                alt={game.name}
-                className="w-12 h-12 object-contain"
-              />
+              {/* Game Icon */}
+              <div className="game-icon">
+                <img
+                  src={game.icon}
+                  alt={game.name}
+                  className="w-14 h-14 object-contain"
+                />
+              </div>
 
               <div className="flex-1">
                 <div className="font-bold text-lg">{game.name}</div>
@@ -111,11 +114,12 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
                 </div>
               </div>
 
-              <div style={{ color: `hsl(var(--${game.color}))` }}>→</div>
+              <div className="game-arrow">→</div>
 
             </div>
           </button>
         ))}
+
       </div>
     </div>
   );
