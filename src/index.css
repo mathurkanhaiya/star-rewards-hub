@@ -283,3 +283,59 @@
   }
 }
 
+
+
+/* Bottom Nav Item */
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  color: #9ca3af;
+  transition: all 0.25s ease;
+  min-width: 50px;
+}
+
+/* Icon */
+.bottom-nav-item img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  transition: transform 0.25s ease;
+}
+
+/* Label */
+.bottom-nav-item span {
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+
+/* Hover effect */
+.bottom-nav-item:hover {
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* Active tab */
+.bottom-nav-item.active {
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 150, 255, 0.15),
+    rgba(0, 200, 255, 0.1)
+  );
+  box-shadow: 0 0 10px rgba(0, 150, 255, 0.25);
+}
+
+/* Active icon animation */
+.bottom-nav-item.active img {
+  transform: scale(1.15);
+}
+
+/* Press animation */
+.bottom-nav-item:active {
+  transform: scale(0.95);
+}
