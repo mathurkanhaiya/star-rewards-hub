@@ -25,45 +25,33 @@ interface BottomNavProps {
 const navItems = [
   {
     id: 'home' as Page,
-    staticIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
-    animatedIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
     label: 'Home'
   },
   {
     id: 'tasks' as Page,
-    staticIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
-    animatedIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
     label: 'Tasks'
   },
   {
     id: 'games' as Page,
-    staticIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
-    animatedIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
     label: 'Games'
   },
   {
     id: 'referral' as Page,
-    staticIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
-    animatedIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
     label: 'Refer'
   },
   {
     id: 'wallet' as Page,
-    staticIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
-    animatedIcon:
-      'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
+    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
     label: 'Wallet'
   }
 ];
+
+const notificationIcon =
+  'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234754093-d8278f25.gif';
 
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
   const { isAdmin, unreadCount } = useApp();
@@ -83,42 +71,39 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
         }}
       >
         <div className="flex items-center justify-around">
-          {navItems.map((item) => {
-            const isActive = currentPage === item.id;
 
-            return (
-              <button
-                key={item.id}
-                className={`bottom-nav-item flex flex-col items-center ${
-                  isActive ? 'active' : ''
-                }`}
-                onClick={() => onNavigate(item.id)}
-              >
-                <img
-                  src={isActive ? item.animatedIcon : item.staticIcon}
-                  alt={item.label}
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    objectFit: 'contain'
-                  }}
-                />
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={`bottom-nav-item ${
+                currentPage === item.id ? 'active' : ''
+              }`}
+              onClick={() => onNavigate(item.id)}
+            >
+              <img
+                src={item.icon}
+                alt={item.label}
+                className="nav-icon"
+              />
 
-                <span className="font-medium" style={{ fontSize: 9 }}>
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
+              <span className="font-medium" style={{ fontSize: 9 }}>
+                {item.label}
+              </span>
+            </button>
+          ))}
 
           {/* Notifications */}
           <button
-            className={`bottom-nav-item relative flex flex-col items-center ${
+            className={`bottom-nav-item relative ${
               currentPage === 'notifications' ? 'active' : ''
             }`}
             onClick={() => onNavigate('notifications')}
           >
-            <span style={{ fontSize: 20 }}>🔔</span>
+            <img
+              src={notificationIcon}
+              alt="Notifications"
+              className="nav-icon"
+            />
 
             {unreadCount > 0 && (
               <div
@@ -139,7 +124,7 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
 
           {isAdmin && (
             <button
-              className={`bottom-nav-item flex flex-col items-center ${
+              className={`bottom-nav-item ${
                 currentPage === 'admin' ? 'active' : ''
               }`}
               onClick={() => onNavigate('admin')}
@@ -150,6 +135,7 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
               </span>
             </button>
           )}
+
         </div>
       </div>
     </div>
