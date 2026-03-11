@@ -100,7 +100,7 @@ export default function Header() {
             color: "hsl(var(--gold))",
           }}
         >
-          🪙
+          <TgEmoji id="5249381781622247862" size={18} fallback="🪙" />
           {points.toLocaleString()}
         </div>
 
