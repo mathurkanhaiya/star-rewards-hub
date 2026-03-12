@@ -9,6 +9,7 @@ import { useRewardedAd } from "@/hooks/useAdsgram";
 function triggerHaptic(type) {
   if (typeof window !== "undefined" && window.Telegram) {
     const tg = window.Telegram.WebApp;
+
     if (tg?.HapticFeedback) {
       if (type === "impact") tg.HapticFeedback.impactOccurred("medium");
       if (type === "success") tg.HapticFeedback.notificationOccurred("success");
@@ -82,6 +83,7 @@ export default function HomePage() {
     triggerHaptic("success");
 
     await logAdWatch(user.id,"adsgram_reward",50);
+
     await refreshBalance();
 
     setCoinBurst(true);
@@ -110,17 +112,31 @@ export default function HomePage() {
   },[visitCooldown]);
 
   /* ===============================
-     VISIT REWARD
+     SPONSOR VISIT REWARD
+     (NOT counted as ad)
   =================================*/
-  async function rewardVisit(type){
+  async function rewardVisit(){
 
-    await logAdWatch(user.id,type,5);
+    if(!user) return;
+
+    await fetch("/api/add-points",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        user_id:user.id,
+        points:5,
+        type:"sponsor_visit"
+      })
+    });
+
     await refreshBalance();
 
     triggerHaptic("success");
 
     setCoinBurst(true);
-    setDailyMessage("+5 pts visit 🎯");
+    setDailyMessage("+5 pts sponsor visit 🎯");
 
     setTimeout(()=>setCoinBurst(false),1200);
     setTimeout(()=>setDailyMessage(""),3000);
@@ -142,18 +158,14 @@ export default function HomePage() {
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor...");
-
     const handleVisibility = async ()=>{
 
-      if(document.visibilityState === "visible"){
+      if(document.visibilityState==="visible"){
 
         const stay = Date.now() - start;
 
         if(stay > 5000){
-          await rewardVisit("visit_ad_1");
-        } else {
-          setDailyMessage("Visit too short ❌");
+          await rewardVisit();
         }
 
         document.removeEventListener("visibilitychange",handleVisibility);
@@ -179,18 +191,14 @@ export default function HomePage() {
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor...");
-
     const handleVisibility = async ()=>{
 
-      if(document.visibilityState === "visible"){
+      if(document.visibilityState==="visible"){
 
         const stay = Date.now() - start;
 
         if(stay > 5000){
-          await rewardVisit("visit_ad_2");
-        } else {
-          setDailyMessage("Visit too short ❌");
+          await rewardVisit();
         }
 
         document.removeEventListener("visibilitychange",handleVisibility);
@@ -280,16 +288,17 @@ export default function HomePage() {
     } else {
 
       triggerHaptic("error");
-      setDailyMessage(result.message || "Already claimed!");
 
+      setDailyMessage(result.message || "Already claimed!");
       await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
+
     setTimeout(()=>setDailyMessage(""),3000);
   }
 
-  return (
+  return(
 
     <div className="px-4 pb-28 text-white">
 
@@ -353,7 +362,7 @@ export default function HomePage() {
 
       </div>
 
-      {/* VISIT ADS */}
+      {/* SPONSOR VISITS */}
       <div className="space-y-4 mb-6">
 
         <button
