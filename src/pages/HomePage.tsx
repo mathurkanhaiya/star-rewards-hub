@@ -91,37 +91,6 @@ export default function HomePage() {
   const { showAd } = useRewardedAd(onAdReward);
 
   /* ===============================
-     VISIT SPONSOR ADS (+5)
-  =================================*/
-  async function openVisitAd1() {
-    if (!user) return;
-
-    window.open(
-      "https://www.effectivegatecpm.com/d798i310?key=c517fe2242432b0ae5dc4b6d916f81ff",
-      "_blank"
-    );
-
-    await logAdWatch(user.id, "visit_ad_1", 0);
-    await refreshBalance();
-
-    setDailyMessage("+5 pts visit 🎯");
-  }
-
-  async function openVisitAd2() {
-    if (!user) return;
-
-    window.open(
-      "https://www.effectivegatecpm.com/fyuxhh2b8y?key=1901eea23f0fed88cecae79fc3ffd1fd",
-      "_blank"
-    );
-
-    await logAdWatch(user.id, "visit_ad_2", 0);
-    await refreshBalance();
-
-    setDailyMessage("+5 pts visit 🎯");
-  }
-
-  /* ===============================
      LOAD DATA
   =================================*/
   useEffect(() => {
@@ -260,25 +229,6 @@ export default function HomePage() {
           className="px-5 py-2 bg-green-500 rounded-xl font-bold"
         >
           {dailyCooldown > 0 ? "Locked" : "Claim"}
-        </button>
-
-      </div>
-
-      {/* VISIT SPONSOR ADS */}
-      <div className="space-y-4 mb-6">
-
-        <button
-          onClick={openVisitAd1}
-          className="w-full rounded-3xl p-5 font-bold text-lg bg-blue-500"
-        >
-          🌐 Visit Sponsor Offer
-        </button>
-
-        <button
-          onClick={openVisitAd2}
-          className="w-full rounded-3xl p-5 font-bold text-lg bg-purple-500"
-        >
-          🚀 View Trending Offer 
         </button>
 
       </div>
