@@ -69,6 +69,7 @@ export default function HomePage() {
   const [transactions,setTransactions] = useState([]);
   const [adLoading,setAdLoading] = useState(false);
   const [dailyCooldown,setDailyCooldown] = useState(0);
+  const [visitCooldown,setVisitCooldown] = useState(0);
   const [coinBurst,setCoinBurst] = useState(false);
 
   /* ===============================
@@ -81,7 +82,6 @@ export default function HomePage() {
     triggerHaptic("success");
 
     await logAdWatch(user.id,"adsgram_reward",50);
-
     await refreshBalance();
 
     setCoinBurst(true);
@@ -95,30 +95,45 @@ export default function HomePage() {
   const { showAd } = useRewardedAd(onAdReward);
 
   /* ===============================
-     VERIFIED VISIT ADS
+     VISIT COOLDOWN TIMER
   =================================*/
+  useEffect(()=>{
 
+    if(visitCooldown<=0) return;
+
+    const timer = setInterval(()=>{
+      setVisitCooldown(prev => prev<=1 ? 0 : prev-1);
+    },1000);
+
+    return ()=>clearInterval(timer);
+
+  },[visitCooldown]);
+
+  /* ===============================
+     VISIT REWARD
+  =================================*/
   async function rewardVisit(type){
 
     await logAdWatch(user.id,type,5);
-
     await refreshBalance();
 
     triggerHaptic("success");
 
-    setDailyMessage("+5 pts visit 🎯");
-
     setCoinBurst(true);
+    setDailyMessage("+5 pts visit 🎯");
 
     setTimeout(()=>setCoinBurst(false),1200);
     setTimeout(()=>setDailyMessage(""),3000);
   }
 
+  /* ===============================
+     VISIT AD 1
+  =================================*/
   async function openVisitAd1(){
 
-    if(!user) return;
+    if(!user || visitCooldown>0) return;
 
-    triggerHaptic("impact");
+    setVisitCooldown(5);
 
     const start = Date.now();
 
@@ -127,29 +142,35 @@ export default function HomePage() {
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor for a few seconds...");
+    setDailyMessage("Visit sponsor...");
 
-    const checkReturn = ()=>{
+    const handleVisibility = async ()=>{
 
-      const stayTime = Date.now() - start;
+      if(document.visibilityState === "visible"){
 
-      if(stayTime > 8000){
-        rewardVisit("visit_ad_1");
-      } else {
-        setDailyMessage("Visit too short ❌");
+        const stay = Date.now() - start;
+
+        if(stay > 5000){
+          await rewardVisit("visit_ad_1");
+        } else {
+          setDailyMessage("Visit too short ❌");
+        }
+
+        document.removeEventListener("visibilitychange",handleVisibility);
       }
-
-      window.removeEventListener("focus",checkReturn);
     };
 
-    window.addEventListener("focus",checkReturn);
+    document.addEventListener("visibilitychange",handleVisibility);
   }
 
+  /* ===============================
+     VISIT AD 2
+  =================================*/
   async function openVisitAd2(){
 
-    if(!user) return;
+    if(!user || visitCooldown>0) return;
 
-    triggerHaptic("impact");
+    setVisitCooldown(5);
 
     const start = Date.now();
 
@@ -158,34 +179,36 @@ export default function HomePage() {
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor for a few seconds...");
+    setDailyMessage("Visit sponsor...");
 
-    const checkReturn = ()=>{
+    const handleVisibility = async ()=>{
 
-      const stayTime = Date.now() - start;
+      if(document.visibilityState === "visible"){
 
-      if(stayTime > 8000){
-        rewardVisit("visit_ad_2");
-      } else {
-        setDailyMessage("Visit too short ❌");
+        const stay = Date.now() - start;
+
+        if(stay > 5000){
+          await rewardVisit("visit_ad_2");
+        } else {
+          setDailyMessage("Visit too short ❌");
+        }
+
+        document.removeEventListener("visibilitychange",handleVisibility);
       }
-
-      window.removeEventListener("focus",checkReturn);
     };
 
-    window.addEventListener("focus",checkReturn);
+    document.addEventListener("visibilitychange",handleVisibility);
   }
 
   /* ===============================
      LOAD DATA
   =================================*/
-
   useEffect(()=>{
     if(!user) return;
 
     getTransactions(user.id).then(setTransactions);
-
     checkDailyCooldown();
+
   },[user]);
 
   useEffect(()=>{
@@ -238,7 +261,6 @@ export default function HomePage() {
       triggerHaptic("success");
 
       setDailyMessage(`+${result.points} pts 🔥`);
-
       setCoinBurst(true);
 
       const now = new Date();
@@ -258,14 +280,12 @@ export default function HomePage() {
     } else {
 
       triggerHaptic("error");
-
       setDailyMessage(result.message || "Already claimed!");
 
       await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
-
     setTimeout(()=>setDailyMessage(""),3000);
   }
 
@@ -298,11 +318,8 @@ export default function HomePage() {
       <button
         onClick={async ()=>{
           triggerHaptic("impact");
-
           setAdLoading(true);
-
           await showAd();
-
           setAdLoading(false);
         }}
         disabled={adLoading}
@@ -341,16 +358,18 @@ export default function HomePage() {
 
         <button
           onClick={openVisitAd1}
+          disabled={visitCooldown>0}
           className="w-full rounded-3xl p-5 font-bold text-lg bg-blue-500"
         >
-          🌐 Visit Sponsor +5
+          {visitCooldown>0 ? `Wait ${visitCooldown}s` : "🌐 Visit Sponsor +5"}
         </button>
 
         <button
           onClick={openVisitAd2}
+          disabled={visitCooldown>0}
           className="w-full rounded-3xl p-5 font-bold text-lg bg-purple-500"
         >
-          🚀 View Offer +5
+          {visitCooldown>0 ? `Wait ${visitCooldown}s` : "🚀 View Offer +5"}
         </button>
 
       </div>
