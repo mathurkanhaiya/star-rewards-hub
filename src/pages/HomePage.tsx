@@ -1,11 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import {
-  claimDailyReward,
-  getTransactions,
-  logAdWatch,
-  getDailyClaim,
-} from "@/lib/api";
+import { claimDailyReward, getTransactions, logAdWatch, getDailyClaim } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 
 /* ===============================
@@ -14,7 +9,6 @@ import { useRewardedAd } from "@/hooks/useAdsgram";
 function triggerHaptic(type) {
   if (typeof window !== "undefined" && window.Telegram) {
     const tg = window.Telegram.WebApp;
-
     if (tg?.HapticFeedback) {
       if (type === "impact") tg.HapticFeedback.impactOccurred("medium");
       if (type === "success") tg.HapticFeedback.notificationOccurred("success");
@@ -50,7 +44,6 @@ function AnimatedNumber({ value }) {
     }, 20);
 
     prev.current = value;
-
     return () => clearInterval(timer);
   }, [value]);
 
@@ -75,11 +68,10 @@ export default function HomePage() {
   const [transactions, setTransactions] = useState([]);
   const [adLoading, setAdLoading] = useState(false);
   const [dailyCooldown, setDailyCooldown] = useState(0);
-  const [visitCooldown, setVisitCooldown] = useState(0);
   const [coinBurst, setCoinBurst] = useState(false);
 
   /* ===============================
-     ADSGRAM REWARDED
+     ADSGRAM REWARDED AD
   =================================*/
   const onAdReward = useCallback(async () => {
     if (!user) return;
@@ -87,7 +79,6 @@ export default function HomePage() {
     triggerHaptic("success");
 
     await logAdWatch(user.id, "adsgram_reward", 50);
-
     await refreshBalance();
 
     setCoinBurst(true);
@@ -100,101 +91,34 @@ export default function HomePage() {
   const { showAd } = useRewardedAd(onAdReward);
 
   /* ===============================
-     VISIT COOLDOWN TIMER
-  =================================*/
-  useEffect(() => {
-    if (visitCooldown <= 0) return;
-
-    const timer = setInterval(() => {
-      setVisitCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [visitCooldown]);
-
-  /* ===============================
-     VISIT REWARD
-  =================================*/
-  async function rewardVisit(type) {
-    await logAdWatch(user.id, type, 5);
-
-    await refreshBalance();
-
-    triggerHaptic("success");
-
-    setCoinBurst(true);
-    setDailyMessage("+5 pts visit 🎯");
-
-    setTimeout(() => setCoinBurst(false), 1200);
-    setTimeout(() => setDailyMessage(""), 3000);
-  }
-
-  /* ===============================
-     VISIT AD 1
+     VISIT SPONSOR ADS (+5)
   =================================*/
   async function openVisitAd1() {
-    if (!user || visitCooldown > 0) return;
-
-    setVisitCooldown(5);
-
-    const start = Date.now();
+    if (!user) return;
 
     window.open(
       "https://www.effectivegatecpm.com/d798i310?key=c517fe2242432b0ae5dc4b6d916f81ff",
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor...");
+    await logAdWatch(user.id, "visit_ad_1", 0);
+    await refreshBalance();
 
-    const handleVisibility = async () => {
-      if (document.visibilityState === "visible") {
-        const stay = Date.now() - start;
-
-        if (stay > 5000) {
-          await rewardVisit("visit_ad_1");
-        } else {
-          setDailyMessage("Visit too short ❌");
-        }
-
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
+    setDailyMessage("+5 pts visit 🎯");
   }
 
-  /* ===============================
-     VISIT AD 2
-  =================================*/
   async function openVisitAd2() {
-    if (!user || visitCooldown > 0) return;
-
-    setVisitCooldown(5);
-
-    const start = Date.now();
+    if (!user) return;
 
     window.open(
       "https://www.effectivegatecpm.com/fyuxhh2b8y?key=1901eea23f0fed88cecae79fc3ffd1fd",
       "_blank"
     );
 
-    setDailyMessage("Visit sponsor...");
+    await logAdWatch(user.id, "visit_ad_2", 0);
+    await refreshBalance();
 
-    const handleVisibility = async () => {
-      if (document.visibilityState === "visible") {
-        const stay = Date.now() - start;
-
-        if (stay > 5000) {
-          await rewardVisit("visit_ad_2");
-        } else {
-          setDailyMessage("Visit too short ❌");
-        }
-
-        document.removeEventListener("visibilitychange", handleVisibility);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
+    setDailyMessage("+5 pts visit 🎯");
   }
 
   /* ===============================
@@ -204,7 +128,6 @@ export default function HomePage() {
     if (!user) return;
 
     getTransactions(user.id).then(setTransactions);
-
     checkDailyCooldown();
   }, [user]);
 
@@ -225,13 +148,8 @@ export default function HomePage() {
 
     if (claim) {
       const now = new Date();
-
       const midnightUTC = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1
-        )
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
       );
 
       const remaining = Math.max(
@@ -247,7 +165,6 @@ export default function HomePage() {
     if (!user || dailyCooldown > 0) return;
 
     triggerHaptic("impact");
-
     setDailyClaiming(true);
 
     const result = await claimDailyReward(user.id);
@@ -256,17 +173,11 @@ export default function HomePage() {
       triggerHaptic("success");
 
       setDailyMessage(`+${result.points} pts 🔥`);
-
       setCoinBurst(true);
 
       const now = new Date();
-
       const midnightUTC = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1
-        )
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
       );
 
       setDailyCooldown(
@@ -278,21 +189,18 @@ export default function HomePage() {
       setTimeout(() => setCoinBurst(false), 1200);
     } else {
       triggerHaptic("error");
-
       setDailyMessage(result.message || "Already claimed!");
-
       await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
-
     setTimeout(() => setDailyMessage(""), 3000);
   }
 
   return (
     <div className="px-4 pb-28 text-white">
 
-      {/* BALANCE */}
+      {/* BALANCE CARD */}
       <div className="rounded-3xl p-6 mb-6 text-center bg-slate-800">
 
         {coinBurst && (
@@ -356,23 +264,21 @@ export default function HomePage() {
 
       </div>
 
-      {/* VISIT ADS */}
+      {/* VISIT SPONSOR ADS */}
       <div className="space-y-4 mb-6">
 
         <button
           onClick={openVisitAd1}
-          disabled={visitCooldown > 0}
           className="w-full rounded-3xl p-5 font-bold text-lg bg-blue-500"
         >
-          {visitCooldown > 0 ? `Wait ${visitCooldown}s` : "🌐 Visit Sponsor +5"}
+          🌐 Visit Sponsor Offer
         </button>
 
         <button
           onClick={openVisitAd2}
-          disabled={visitCooldown > 0}
           className="w-full rounded-3xl p-5 font-bold text-lg bg-purple-500"
         >
-          {visitCooldown > 0 ? `Wait ${visitCooldown}s` : "🚀 View Offer +5"}
+          🚀 View Trending Offer 
         </button>
 
       </div>
