@@ -4,12 +4,11 @@ import { claimDailyReward, getTransactions, logAdWatch, getDailyClaim } from "@/
 import { useRewardedAd } from "@/hooks/useAdsgram";
 
 /* ===============================
-   HAPTIC
+   TELEGRAM HAPTIC
 ================================ */
 function triggerHaptic(type) {
   if (typeof window !== "undefined" && window.Telegram) {
     const tg = window.Telegram.WebApp;
-
     if (tg?.HapticFeedback) {
       if (type === "impact") tg.HapticFeedback.impactOccurred("medium");
       if (type === "success") tg.HapticFeedback.notificationOccurred("success");
@@ -19,7 +18,7 @@ function triggerHaptic(type) {
 }
 
 /* ===============================
-   Animated Counter
+   Animated Balance
 ================================ */
 function AnimatedNumber({ value }) {
   const [display, setDisplay] = useState(value);
@@ -73,7 +72,7 @@ export default function HomePage() {
   const [coinBurst, setCoinBurst] = useState(false);
 
   /* ===============================
-     ADSGRAM REWARD
+     ADSGRAM REWARDED AD
   =================================*/
   const onAdReward = useCallback(async () => {
     if (!user) return;
@@ -84,7 +83,7 @@ export default function HomePage() {
     await refreshBalance();
 
     setCoinBurst(true);
-    setDailyMessage("+50 pts bonus 🎬");
+    setDailyMessage("+50 pts 🎬");
 
     setTimeout(() => setCoinBurst(false), 1200);
     setTimeout(() => setDailyMessage(""), 3000);
@@ -115,11 +114,10 @@ export default function HomePage() {
 
     setTimeout(async () => {
       await logAdWatch(user.id, "adsterra_popunder", 30);
-
       await refreshBalance();
 
       setCoinBurst(true);
-      setDailyMessage("+30 pts Adsterra reward 📺");
+      setDailyMessage("+30 pts 📺");
 
       setTimeout(() => setCoinBurst(false), 1200);
       setTimeout(() => setDailyMessage(""), 3000);
@@ -152,7 +150,6 @@ export default function HomePage() {
     if (!user) return;
 
     getTransactions(user.id).then(setTransactions);
-
     checkDailyCooldown();
   }, [user]);
 
@@ -173,7 +170,6 @@ export default function HomePage() {
 
     if (claim) {
       const now = new Date();
-
       const midnightUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
       );
@@ -191,7 +187,6 @@ export default function HomePage() {
     if (!user || dailyCooldown > 0) return;
 
     triggerHaptic("impact");
-
     setDailyClaiming(true);
 
     const result = await claimDailyReward(user.id);
@@ -200,11 +195,9 @@ export default function HomePage() {
       triggerHaptic("success");
 
       setDailyMessage(`+${result.points} pts 🔥`);
-
       setCoinBurst(true);
 
       const now = new Date();
-
       const midnightUTC = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
       );
@@ -218,38 +211,39 @@ export default function HomePage() {
       setTimeout(() => setCoinBurst(false), 1200);
     } else {
       triggerHaptic("error");
-
       setDailyMessage(result.message || "Already claimed!");
-
       await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
-
     setTimeout(() => setDailyMessage(""), 3000);
   }
 
   return (
     <div className="px-4 pb-28 text-white">
 
-      {/* BALANCE */}
+      {/* BALANCE CARD */}
       <div className="rounded-3xl p-6 mb-6 text-center bg-slate-800">
 
         {coinBurst && (
           <div className="text-4xl animate-bounce">💰</div>
         )}
 
-        <div className="text-xs text-gray-400">Total Balance</div>
+        <div className="text-xs text-gray-400 mb-2">
+          Total Balance
+        </div>
 
         <div className="text-5xl font-black text-yellow-400">
           <AnimatedNumber value={balance?.points || 0} />
         </div>
 
-        <div className="text-sm text-gray-400">Available Points</div>
+        <div className="text-sm text-gray-400 mt-2">
+          Available Points
+        </div>
 
       </div>
 
-      {/* ADSGRAM */}
+      {/* WATCH ADSGRAM */}
       <button
         onClick={async () => {
           triggerHaptic("impact");
@@ -260,20 +254,21 @@ export default function HomePage() {
 
           setAdLoading(false);
         }}
+        disabled={adLoading}
         className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-yellow-400 text-black"
       >
         🎬 WATCH & EARN +50
       </button>
 
-      {/* ADSTERRA POPUNDER */}
+      {/* WATCH ADSTERRA */}
       <button
         onClick={handlePopunderReward}
         className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-blue-500"
       >
-        📺 WATCH ADSTERRA AD +30
+        📺 WATCH AD +30
       </button>
 
-      {/* ADSTERRA NATIVE BANNER */}
+      {/* NATIVE BANNER */}
       <div className="my-6">
         <div id="container-1b89685908e0ae9bf3327082f3d0a363"></div>
       </div>
@@ -282,19 +277,23 @@ export default function HomePage() {
       <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
 
         <div>
-          <div className="font-bold">Daily Reward</div>
+          <div className="font-bold">
+            Daily Reward
+          </div>
 
           <div className="text-xs text-gray-400">
+
             {dailyMessage ||
               (dailyCooldown > 0
                 ? `⏳ ${formatCountdown(dailyCooldown)}`
                 : `+${settings?.daily_bonus_base || 100} pts`)}
+
           </div>
         </div>
 
         <button
           onClick={handleDailyClaim}
-          disabled={dailyCooldown > 0}
+          disabled={dailyClaiming || dailyCooldown > 0}
           className="px-5 py-2 bg-green-500 rounded-xl font-bold"
         >
           {dailyCooldown > 0 ? "Locked" : "Claim"}
@@ -310,27 +309,36 @@ export default function HomePage() {
         </div>
 
         {transactions.slice(0, 5).map((tx) => (
+
           <div
             key={tx.id}
             className="p-4 mb-3 rounded-xl bg-slate-800 flex justify-between"
           >
+
             <div>
-              <div>{tx.description || tx.type}</div>
+
+              <div>
+                {tx.description || tx.type}
+              </div>
+
               <div className="text-xs text-gray-400">
                 {new Date(tx.created_at).toLocaleDateString()}
               </div>
+
             </div>
 
             <div
               className="font-bold"
               style={{
-                color: tx.points >= 0 ? "#22c55e" : "#ef4444",
+                color: tx.points >= 0 ? "#22c55e" : "#ef4444"
               }}
             >
               {tx.points >= 0 ? "+" : ""}
               {tx.points} pts
             </div>
+
           </div>
+
         ))}
 
       </div>
