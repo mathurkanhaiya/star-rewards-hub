@@ -55,121 +55,245 @@ function formatCountdown(seconds) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
 
-  return `${h.toString().padStart(2, "0")}:${m
+  return `${h.toString().padStart(2,"0")}:${m
     .toString()
-    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    .padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
 }
 
 export default function HomePage() {
+
   const { user, balance, settings, refreshBalance } = useApp();
 
-  const [dailyClaiming, setDailyClaiming] = useState(false);
-  const [dailyMessage, setDailyMessage] = useState("");
-  const [transactions, setTransactions] = useState([]);
-  const [adLoading, setAdLoading] = useState(false);
-  const [dailyCooldown, setDailyCooldown] = useState(0);
-  const [coinBurst, setCoinBurst] = useState(false);
+  const [dailyClaiming,setDailyClaiming] = useState(false);
+  const [dailyMessage,setDailyMessage] = useState("");
+  const [transactions,setTransactions] = useState([]);
+  const [adLoading,setAdLoading] = useState(false);
+  const [dailyCooldown,setDailyCooldown] = useState(0);
+  const [visitCooldown,setVisitCooldown] = useState(0);
+  const [coinBurst,setCoinBurst] = useState(false);
 
   /* ===============================
-     ADSGRAM REWARDED AD
+     ADSGRAM REWARDED
   =================================*/
-  const onAdReward = useCallback(async () => {
-    if (!user) return;
+  const onAdReward = useCallback(async ()=>{
+
+    if(!user) return;
 
     triggerHaptic("success");
 
-    await logAdWatch(user.id, "adsgram_reward", 50);
+    await logAdWatch(user.id,"adsgram_reward",50);
     await refreshBalance();
 
     setCoinBurst(true);
     setDailyMessage("+50 pts 🎬");
 
-    setTimeout(() => setCoinBurst(false), 1200);
-    setTimeout(() => setDailyMessage(""), 3000);
-  }, [user, refreshBalance]);
+    setTimeout(()=>setCoinBurst(false),1200);
+    setTimeout(()=>setDailyMessage(""),3000);
+
+  },[user,refreshBalance]);
 
   const { showAd } = useRewardedAd(onAdReward);
 
   /* ===============================
+     VISIT COOLDOWN TIMER
+  =================================*/
+  useEffect(()=>{
+
+    if(visitCooldown<=0) return;
+
+    const timer = setInterval(()=>{
+      setVisitCooldown(prev => prev<=1 ? 0 : prev-1);
+    },1000);
+
+    return ()=>clearInterval(timer);
+
+  },[visitCooldown]);
+
+  /* ===============================
+     VISIT REWARD
+  =================================*/
+  async function rewardVisit(type){
+
+    await logAdWatch(user.id,type,5);
+    await refreshBalance();
+
+    triggerHaptic("success");
+
+    setCoinBurst(true);
+    setDailyMessage("+5 pts visit 🎯");
+
+    setTimeout(()=>setCoinBurst(false),1200);
+    setTimeout(()=>setDailyMessage(""),3000);
+  }
+
+  /* ===============================
+     VISIT AD 1
+  =================================*/
+  async function openVisitAd1(){
+
+    if(!user || visitCooldown>0) return;
+
+    setVisitCooldown(5);
+
+    const start = Date.now();
+
+    window.open(
+      "https://www.effectivegatecpm.com/d798i310?key=c517fe2242432b0ae5dc4b6d916f81ff",
+      "_blank"
+    );
+
+    setDailyMessage("Visit sponsor...");
+
+    const handleVisibility = async ()=>{
+
+      if(document.visibilityState === "visible"){
+
+        const stay = Date.now() - start;
+
+        if(stay > 5000){
+          await rewardVisit("visit_ad_1");
+        } else {
+          setDailyMessage("Visit too short ❌");
+        }
+
+        document.removeEventListener("visibilitychange",handleVisibility);
+      }
+    };
+
+    document.addEventListener("visibilitychange",handleVisibility);
+  }
+
+  /* ===============================
+     VISIT AD 2
+  =================================*/
+  async function openVisitAd2(){
+
+    if(!user || visitCooldown>0) return;
+
+    setVisitCooldown(5);
+
+    const start = Date.now();
+
+    window.open(
+      "https://www.effectivegatecpm.com/fyuxhh2b8y?key=1901eea23f0fed88cecae79fc3ffd1fd",
+      "_blank"
+    );
+
+    setDailyMessage("Visit sponsor...");
+
+    const handleVisibility = async ()=>{
+
+      if(document.visibilityState === "visible"){
+
+        const stay = Date.now() - start;
+
+        if(stay > 5000){
+          await rewardVisit("visit_ad_2");
+        } else {
+          setDailyMessage("Visit too short ❌");
+        }
+
+        document.removeEventListener("visibilitychange",handleVisibility);
+      }
+    };
+
+    document.addEventListener("visibilitychange",handleVisibility);
+  }
+
+  /* ===============================
      LOAD DATA
   =================================*/
-  useEffect(() => {
-    if (!user) return;
+  useEffect(()=>{
+    if(!user) return;
 
     getTransactions(user.id).then(setTransactions);
     checkDailyCooldown();
-  }, [user]);
 
-  useEffect(() => {
-    if (dailyCooldown <= 0) return;
+  },[user]);
 
-    const interval = setInterval(() => {
-      setDailyCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
+  useEffect(()=>{
 
-    return () => clearInterval(interval);
-  }, [dailyCooldown]);
+    if(dailyCooldown<=0) return;
 
-  async function checkDailyCooldown() {
-    if (!user) return;
+    const interval = setInterval(()=>{
+      setDailyCooldown(prev => prev<=1 ? 0 : prev-1);
+    },1000);
+
+    return ()=>clearInterval(interval);
+
+  },[dailyCooldown]);
+
+  async function checkDailyCooldown(){
+
+    if(!user) return;
 
     const claim = await getDailyClaim(user.id);
 
-    if (claim) {
+    if(claim){
+
       const now = new Date();
+
       const midnightUTC = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+        Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1)
       );
 
       const remaining = Math.max(
         0,
-        Math.floor((midnightUTC.getTime() - now.getTime()) / 1000)
+        Math.floor((midnightUTC.getTime() - now.getTime())/1000)
       );
 
       setDailyCooldown(remaining);
     }
   }
 
-  async function handleDailyClaim() {
-    if (!user || dailyCooldown > 0) return;
+  async function handleDailyClaim(){
+
+    if(!user || dailyCooldown>0) return;
 
     triggerHaptic("impact");
+
     setDailyClaiming(true);
 
     const result = await claimDailyReward(user.id);
 
-    if (result.success) {
+    if(result.success){
+
       triggerHaptic("success");
 
       setDailyMessage(`+${result.points} pts 🔥`);
       setCoinBurst(true);
 
       const now = new Date();
+
       const midnightUTC = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+        Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1)
       );
 
       setDailyCooldown(
-        Math.floor((midnightUTC.getTime() - now.getTime()) / 1000)
+        Math.floor((midnightUTC.getTime() - now.getTime())/1000)
       );
 
       await refreshBalance();
 
-      setTimeout(() => setCoinBurst(false), 1200);
+      setTimeout(()=>setCoinBurst(false),1200);
+
     } else {
+
       triggerHaptic("error");
       setDailyMessage(result.message || "Already claimed!");
+
       await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
-    setTimeout(() => setDailyMessage(""), 3000);
+    setTimeout(()=>setDailyMessage(""),3000);
   }
 
   return (
+
     <div className="px-4 pb-28 text-white">
 
-      {/* BALANCE CARD */}
+      {/* BALANCE */}
       <div className="rounded-3xl p-6 mb-6 text-center bg-slate-800">
 
         {coinBurst && (
@@ -181,7 +305,7 @@ export default function HomePage() {
         </div>
 
         <div className="text-5xl font-black text-yellow-400">
-          <AnimatedNumber value={balance?.points || 0} />
+          <AnimatedNumber value={balance?.points || 0}/>
         </div>
 
         <div className="text-sm text-gray-400 mt-2">
@@ -190,15 +314,12 @@ export default function HomePage() {
 
       </div>
 
-      {/* WATCH ADSGRAM */}
+      {/* ADSGRAM */}
       <button
-        onClick={async () => {
+        onClick={async ()=>{
           triggerHaptic("impact");
-
           setAdLoading(true);
-
           await showAd();
-
           setAdLoading(false);
         }}
         disabled={adLoading}
@@ -211,24 +332,44 @@ export default function HomePage() {
       <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
 
         <div>
-          <div className="font-bold">
-            Daily Reward
-          </div>
+          <div className="font-bold">Daily Reward</div>
 
           <div className="text-xs text-gray-400">
             {dailyMessage ||
-              (dailyCooldown > 0
+              (dailyCooldown>0
                 ? `⏳ ${formatCountdown(dailyCooldown)}`
-                : `+${settings?.daily_bonus_base || 100} pts`)}
+                : `+${settings?.daily_bonus_base || 100} pts`)
+            }
           </div>
         </div>
 
         <button
           onClick={handleDailyClaim}
-          disabled={dailyClaiming || dailyCooldown > 0}
+          disabled={dailyClaiming || dailyCooldown>0}
           className="px-5 py-2 bg-green-500 rounded-xl font-bold"
         >
-          {dailyCooldown > 0 ? "Locked" : "Claim"}
+          {dailyCooldown>0 ? "Locked" : "Claim"}
+        </button>
+
+      </div>
+
+      {/* VISIT ADS */}
+      <div className="space-y-4 mb-6">
+
+        <button
+          onClick={openVisitAd1}
+          disabled={visitCooldown>0}
+          className="w-full rounded-3xl p-5 font-bold text-lg bg-blue-500"
+        >
+          {visitCooldown>0 ? `Wait ${visitCooldown}s` : "🌐 Visit Sponsor +5"}
+        </button>
+
+        <button
+          onClick={openVisitAd2}
+          disabled={visitCooldown>0}
+          className="w-full rounded-3xl p-5 font-bold text-lg bg-purple-500"
+        >
+          {visitCooldown>0 ? `Wait ${visitCooldown}s` : "🚀 View Offer +5"}
         </button>
 
       </div>
