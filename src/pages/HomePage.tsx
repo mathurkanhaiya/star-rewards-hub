@@ -44,7 +44,6 @@ function AnimatedNumber({ value }) {
     }, 20);
 
     prev.current = value;
-
     return () => clearInterval(timer);
   }, [value]);
 
@@ -90,58 +89,6 @@ export default function HomePage() {
   }, [user, refreshBalance]);
 
   const { showAd } = useRewardedAd(onAdReward);
-
-  /* ===============================
-     ADSTERRA POPUNDER
-  =================================*/
-  function showAdsterraPopunder() {
-    const script = document.createElement("script");
-
-    script.src =
-      "https://pl28904336.effectivegatecpm.com/43/dc/6e/43dc6e7f42cb75b97aff13c278339d34.js";
-
-    script.async = true;
-
-    document.body.appendChild(script);
-  }
-
-  async function handlePopunderReward() {
-    if (!user) return;
-
-    triggerHaptic("impact");
-
-    showAdsterraPopunder();
-
-    setTimeout(async () => {
-      await logAdWatch(user.id, "adsterra_popunder", 30);
-      await refreshBalance();
-
-      setCoinBurst(true);
-      setDailyMessage("+30 pts 📺");
-
-      setTimeout(() => setCoinBurst(false), 1200);
-      setTimeout(() => setDailyMessage(""), 3000);
-    }, 4000);
-  }
-
-  /* ===============================
-     ADSTERRA NATIVE BANNER
-  =================================*/
-  useEffect(() => {
-    const script = document.createElement("script");
-
-    script.src =
-      "https://pl28904350.effectivegatecpm.com/1b89685908e0ae9bf3327082f3d0a363/invoke.js";
-
-    script.async = true;
-    script.setAttribute("data-cfasync", "false");
-
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
 
   /* ===============================
      LOAD DATA
@@ -260,19 +207,6 @@ export default function HomePage() {
         🎬 WATCH & EARN +50
       </button>
 
-      {/* WATCH ADSTERRA */}
-      <button
-        onClick={handlePopunderReward}
-        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-blue-500"
-      >
-        📺 WATCH AD +30
-      </button>
-
-      {/* NATIVE BANNER */}
-      <div className="my-6">
-        <div id="container-1b89685908e0ae9bf3327082f3d0a363"></div>
-      </div>
-
       {/* DAILY REWARD */}
       <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
 
@@ -282,12 +216,10 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-gray-400">
-
             {dailyMessage ||
               (dailyCooldown > 0
                 ? `⏳ ${formatCountdown(dailyCooldown)}`
                 : `+${settings?.daily_bonus_base || 100} pts`)}
-
           </div>
         </div>
 
@@ -298,48 +230,6 @@ export default function HomePage() {
         >
           {dailyCooldown > 0 ? "Locked" : "Claim"}
         </button>
-
-      </div>
-
-      {/* TRANSACTIONS */}
-      <div>
-
-        <div className="text-xs text-gray-400 mb-3">
-          Recent Activity
-        </div>
-
-        {transactions.slice(0, 5).map((tx) => (
-
-          <div
-            key={tx.id}
-            className="p-4 mb-3 rounded-xl bg-slate-800 flex justify-between"
-          >
-
-            <div>
-
-              <div>
-                {tx.description || tx.type}
-              </div>
-
-              <div className="text-xs text-gray-400">
-                {new Date(tx.created_at).toLocaleDateString()}
-              </div>
-
-            </div>
-
-            <div
-              className="font-bold"
-              style={{
-                color: tx.points >= 0 ? "#22c55e" : "#ef4444"
-              }}
-            >
-              {tx.points >= 0 ? "+" : ""}
-              {tx.points} pts
-            </div>
-
-          </div>
-
-        ))}
 
       </div>
 
