@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { getTasks, getUserTasks, completeTask } from '@/lib/api';
 import { Task } from '@/types/telegram';
@@ -28,11 +28,56 @@ const TASK_COLORS: Record<string, string> = {
 
 export default function TasksPage() {
   const { user, refreshBalance } = useApp();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState<string | null>(null);
   const [message, setMessage] = useState<{ id: string; text: string; success: boolean } | null>(null);
   const [filter, setFilter] = useState<string>('all');
+
+  /* ===============================
+     AD REFS
+  =================================*/
+  const nativeAdRef = useRef<HTMLDivElement | null>(null);
+  const bannerAdRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+
+    /* -------- Native Ad -------- */
+    <script async="async" data-cfasync="false" src="https://pl28920186.effectivegatecpm.com/65f78d2b1d2d5031eeb69949eac0b89f/invoke.js"></script>
+<div id="container-65f78d2b1d2d5031eeb69949eac0b89f"></div>
+
+      const script = document.createElement("script");
+      script.src = "https://www.highperformanceformat.com/YOUR_NATIVE_KEY/invoke.js";
+      script.async = true;
+
+      nativeAdRef.current.appendChild(config);
+      nativeAdRef.current.appendChild(script);
+    }
+
+    /* -------- 320x50 Banner -------- */
+    if (bannerAdRef.current) {
+
+      const config = document.createElement("script");
+      config.innerHTML = `
+        atOptions = {
+          'key' : '51ed0e5213d1e44096de5736dd56a99e',
+          'format' : 'iframe',
+          'height' : 50,
+          'width' : 320,
+          'params' : {}
+        };
+      `;
+
+      const script = document.createElement("script");
+      script.src = "https://www.highperformanceformat.com/51ed0e5213d1e44096de5736dd56a99e/invoke.js";
+      script.async = true;
+
+      bannerAdRef.current.appendChild(config);
+      bannerAdRef.current.appendChild(script);
+    }
+
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -90,30 +135,11 @@ export default function TasksPage() {
         <p className="text-xs text-gray-400">Complete tasks & earn rewards</p>
       </div>
 
-      {/* FILTERS */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar">
-        {filters.map(f => (
-          <button
-            key={f}
-            onClick={() => {
-              triggerHaptic();
-              setFilter(f);
-            }}
-            className="px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-all active:scale-95"
-            style={{
-              background: filter === f
-                ? 'linear-gradient(135deg,#facc15,#f97316)'
-                : '#111827',
-              color: filter === f ? '#111' : '#9ca3af',
-              boxShadow: filter === f
-                ? '0 10px 20px rgba(250,204,21,0.3)'
-                : 'none',
-            }}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+      {/* NATIVE AD */}
+      <div
+        ref={nativeAdRef}
+        style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}
+      />
 
       {/* TASK LIST */}
       <div className="space-y-4">
@@ -125,113 +151,62 @@ export default function TasksPage() {
           return (
             <div
               key={task.id}
-              className="rounded-3xl p-5 relative overflow-hidden transition-all active:scale-[0.98]"
+              className="rounded-3xl p-5 relative overflow-hidden"
               style={{
                 background: 'linear-gradient(145deg,#0f172a,#1e293b)',
                 border: `1px solid ${color}40`,
-                boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
               }}
             >
-              {/* Glow top highlight */}
-              <div
-                className="absolute top-0 left-0 w-full h-1"
-                style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
-              />
-
               <div className="flex items-center gap-4">
 
-                {/* Icon */}
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
                   style={{
                     background: `${color}20`,
                     border: `1px solid ${color}50`,
-                    boxShadow: `0 0 20px ${color}30`,
                   }}
                 >
                   {task.icon || '✨'}
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate">
-                    {task.title}
+                <div className="flex-1">
+                  <div className="font-semibold text-sm">{task.title}</div>
+
+                  <div className="text-xs text-gray-400 mt-1">
+                    {task.description}
                   </div>
 
-                  {task.description && (
-                    <div className="text-xs text-gray-400 mt-1 truncate">
-                      {task.description}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 mt-2 text-xs">
-                    <span className="font-bold text-yellow-400">
-                      +{task.reward_points.toLocaleString()} pts
-                    </span>
-
-                    {task.reward_stars > 0 && (
-                      <span className="font-bold text-cyan-400">
-                        +{task.reward_stars} ⭐
-                      </span>
-                    )}
-
-                    <span
-                      className="px-2 py-0.5 rounded-lg capitalize"
-                      style={{
-                        background: `${color}20`,
-                        color,
-                      }}
-                    >
-                      {task.task_type}
-                    </span>
+                  <div className="text-xs text-yellow-400 mt-2 font-bold">
+                    +{task.reward_points} pts
                   </div>
                 </div>
 
-                {/* BUTTON */}
                 <button
                   disabled={isCompleted || isCompleting}
-                  onClick={() => !isCompleted && handleComplete(task)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
+                  onClick={() => handleComplete(task)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold"
                   style={{
                     background: isCompleted
                       ? '#1f2937'
                       : `linear-gradient(135deg, ${color}, ${color}cc)`,
-                    color: isCompleted ? '#6b7280' : '#111',
-                    boxShadow: isCompleted ? 'none' : `0 10px 20px ${color}40`,
-                    opacity: isCompleting ? 0.7 : 1,
+                    color: '#111'
                   }}
                 >
-                  {isCompleted ? '✓ Done' : isCompleting ? '...' : 'Start'}
+                  {isCompleted ? '✓ Done' : 'Start'}
                 </button>
-              </div>
 
-              {/* MESSAGE */}
-              {message?.id === task.id && (
-                <div
-                  className="mt-4 text-xs font-semibold text-center py-2 rounded-xl animate-pulse"
-                  style={{
-                    background: message.success
-                      ? 'rgba(34,197,94,0.15)'
-                      : 'rgba(239,68,68,0.15)',
-                    color: message.success
-                      ? '#22c55e'
-                      : '#ef4444',
-                  }}
-                >
-                  {message.text}
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="text-center text-gray-500 py-12">
-          <div className="text-4xl mb-3">📋</div>
-          No tasks here
-        </div>
-      )}
+      {/* 320x50 BANNER */}
+      <div
+        ref={bannerAdRef}
+        style={{ display: "flex", justifyContent: "center", marginTop: "20px" }}
+      />
+
     </div>
   );
 }
