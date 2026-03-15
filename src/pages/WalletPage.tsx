@@ -53,7 +53,7 @@ const METHODS = [
   },
 ];
 
-const REQUIRED_ADS = 40;
+const REQUIRED_ADS = 1;
 
 export default function WalletPage() {
   const { user, balance, settings, refreshBalance } = useApp();
