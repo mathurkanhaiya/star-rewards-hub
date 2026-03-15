@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import PromoSection from '@/components/games/PromoSection';
 
 type Page =
@@ -60,8 +60,36 @@ const games = [
 ];
 
 function GamesMenu({ onNavigate }: GamesMenuProps) {
+
+  useEffect(() => {
+
+    const configScript = document.createElement("script");
+    configScript.innerHTML = `
+      atOptions = {
+        'key' : '51ed0e5213d1e44096de5736dd56a99e',
+        'format' : 'iframe',
+        'height' : 50,
+        'width' : 320,
+        'params' : {}
+      };
+    `;
+
+    const adScript = document.createElement("script");
+    adScript.src = "https://www.highperformanceformat.com/51ed0e5213d1e44096de5736dd56a99e/invoke.js";
+    adScript.async = true;
+
+    const container = document.getElementById("game-ad-container");
+
+    if (container) {
+      container.appendChild(configScript);
+      container.appendChild(adScript);
+    }
+
+  }, []);
+
   return (
     <div className="px-4 pb-28">
+
       <div className="text-center mb-6">
 
         <img
@@ -78,9 +106,20 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
         >
           Play games, earn points & climb leaderboards!
         </p>
+
       </div>
 
       <PromoSection />
+
+      {/* AD BANNER */}
+      <div
+        id="game-ad-container"
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          marginBottom: "15px"
+        }}
+      />
 
       <div className="space-y-3">
 
@@ -91,6 +130,7 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
             className="game-card w-full rounded-2xl p-5 text-left"
             style={{ border: `1px solid hsl(var(--${game.color}) / 0.3)` }}
           >
+
             <div className="flex items-center gap-4">
 
               <div className="game-icon">
@@ -102,7 +142,10 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
               </div>
 
               <div className="flex-1">
-                <div className="font-bold text-lg">{game.name}</div>
+
+                <div className="font-bold text-lg">
+                  {game.name}
+                </div>
 
                 <div
                   className="text-xs mt-1"
@@ -110,15 +153,18 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
                 >
                   {game.desc}
                 </div>
+
               </div>
 
               <div className="game-arrow">→</div>
 
             </div>
+
           </button>
         ))}
 
       </div>
+
     </div>
   );
 }
