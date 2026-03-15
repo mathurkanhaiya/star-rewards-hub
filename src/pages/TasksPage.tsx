@@ -43,19 +43,19 @@ export default function TasksPage() {
 
   useEffect(() => {
 
-  /* -------- Native Ad (Adsterra) -------- */
+  /* -------- Native Ad -------- */
   if (nativeAdRef.current) {
 
     const container = document.createElement("div");
-    container.id = "container-65f78d2b1d2d5031eeb69949eac0b89f";
+    container.id = "container-1b89685908e0ae9bf3327082f3d0a363";
 
     const script = document.createElement("script");
-    script.src = "https://pl28920186.effectivegatecpm.com/65f78d2b1d2d5031eeb69949eac0b89f/invoke.js";
+    script.src = "https://pl28904350.effectivegatecpm.com/1b89685908e0ae9bf3327082f3d0a363/invoke.js";
     script.async = true;
     script.setAttribute("data-cfasync", "false");
 
-    nativeAdRef.current.appendChild(container);
     nativeAdRef.current.appendChild(script);
+    nativeAdRef.current.appendChild(container);
   }
 
   /* -------- 320x50 Banner -------- */
@@ -72,12 +72,12 @@ export default function TasksPage() {
       };
     `;
 
-    const bannerScript = document.createElement("script");
-    bannerScript.src = "https://www.highperformanceformat.com/51ed0e5213d1e44096de5736dd56a99e/invoke.js";
-    bannerScript.async = true;
+    const script = document.createElement("script");
+    script.src = "https://www.highperformanceformat.com/51ed0e5213d1e44096de5736dd56a99e/invoke.js";
+    script.async = true;
 
     bannerAdRef.current.appendChild(config);
-    bannerAdRef.current.appendChild(bannerScript);
+    bannerAdRef.current.appendChild(script);
   }
 
 }, []);
