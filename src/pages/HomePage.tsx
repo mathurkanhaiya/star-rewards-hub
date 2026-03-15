@@ -381,6 +381,26 @@ export default function HomePage() {
         >
           {dailyCooldown>0 ? "Locked" : "Claim"}
         </button>
+{/* SPONSOR OFFERS */}
+<div className="space-y-4 mb-6">
+
+  <button
+    onClick={openVisitAd1}
+    disabled={visitCooldown > 0}
+    className="w-full rounded-3xl p-5 font-bold text-lg bg-blue-500"
+  >
+    {visitCooldown > 0 ? `Wait ${visitCooldown}s` : "🌐 Visit Sponsor +5"}
+  </button>
+
+  <button
+    onClick={openVisitAd2}
+    disabled={visitCooldown > 0}
+    className="w-full rounded-3xl p-5 font-bold text-lg bg-purple-500"
+  >
+    {visitCooldown > 0 ? `Wait ${visitCooldown}s` : "🚀 View Offer +5"}
+  </button>
+
+</div>
 
       </div>
 
