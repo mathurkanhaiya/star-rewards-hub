@@ -7,241 +7,355 @@ import {
   getDailyClaim
 } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
+import AdsgramTask from "@/components/AdsgramTask";
 
 /* ===============================
    TYPES
 ================================ */
-type Transaction = {
+type HapticType = "impact" | "success" | "error";
+
+interface Transaction {
   id: string;
   type: string;
   points: number;
-};
+}
 
 /* ===============================
-   MAIN
+   TELEGRAM HAPTIC
+================================ */
+function triggerHaptic(type: HapticType) {
+  if (typeof window !== "undefined" && (window as any).Telegram) {
+    const tg = (window as any).Telegram.WebApp;
+
+    if (tg?.HapticFeedback) {
+      if (type === "impact") tg.HapticFeedback.impactOccurred("medium");
+      if (type === "success") tg.HapticFeedback.notificationOccurred("success");
+      if (type === "error") tg.HapticFeedback.notificationOccurred("error");
+    }
+  }
+}
+
+/* ===============================
+   Animated Balance
+================================ */
+function AnimatedNumber({ value = 0 }: { value: number }) {
+  const [display, setDisplay] = useState<number>(value);
+  const prev = useRef<number>(value);
+
+  useEffect(() => {
+    let start = prev.current;
+    const diff = value - start;
+
+    const steps = 30;
+    const inc = diff / steps;
+
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      start += inc;
+
+      if (step >= steps) {
+        setDisplay(value);
+        clearInterval(timer);
+      } else {
+        setDisplay(Math.floor(start));
+      }
+    }, 20);
+
+    prev.current = value;
+
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <>{display.toLocaleString()}</>;
+}
+
+/* ===============================
+   UTILS
+================================ */
+function formatCountdown(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  return `${h.toString().padStart(2, "0")}:${m
+    .toString()
+    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+/* ===============================
+   MAIN COMPONENT
 ================================ */
 export default function HomePage() {
   const { user, balance, settings, refreshBalance } = useApp();
+
+  const [dailyClaiming, setDailyClaiming] = useState(false);
+  const [dailyMessage, setDailyMessage] = useState("");
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [adLoading, setAdLoading] = useState(false);
 
   const [dailyCooldown, setDailyCooldown] = useState(0);
-  const [dailyMessage, setDailyMessage] = useState("");
+  const [coinBurst, setCoinBurst] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<"earn" | "history">("earn");
 
   /* ===============================
-     AD STATE
+     🔥 PERSISTENT AD STATE
   =================================*/
-  const [adNetwork, setAdNetwork] = useState<"adsgram" | "monetag">("adsgram");
-  const [lastAdTime, setLastAdTime] = useState(0);
-  const isAdRunning = useRef(false);
-  const COOLDOWN = 8000;
-
-  /* ===============================
-     AUTO ADS (INTERSTITIAL)
-  =================================*/
-  const [autoAdsEnabled, setAutoAdsEnabled] = useState(
-    localStorage.getItem("autoAds") === "true"
-  );
-
-  const [autoAdCount, setAutoAdCount] = useState(
-    Number(localStorage.getItem("autoAdCount") || 0)
-  );
-
-  const [autoAdLimit, setAutoAdLimit] = useState(() => {
-    const saved = localStorage.getItem("autoAdLimit");
-    if (saved) return Number(saved);
-    const limit = 10 + Math.floor(Math.random() * 6);
-    localStorage.setItem("autoAdLimit", String(limit));
-    return limit;
+  const [adNetwork, setAdNetwork] = useState<"adsgram" | "monetag">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("adNetwork");
+      if (saved === "adsgram" || saved === "monetag") {
+        return saved;
+      }
+    }
+    return "adsgram";
   });
 
+  const [lastAdTime, setLastAdTime] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      return Number(localStorage.getItem("lastAdTime") || 0);
+    }
+    return 0;
+  });
+
+  const COOLDOWN = 8000;
+  const isAdRunning = useRef(false);
+
   useEffect(() => {
-    localStorage.setItem("autoAds", String(autoAdsEnabled));
-    localStorage.setItem("autoAdCount", String(autoAdCount));
-  }, [autoAdsEnabled, autoAdCount]);
+    localStorage.setItem("adNetwork", adNetwork);
+  }, [adNetwork]);
+
+  useEffect(() => {
+    localStorage.setItem("lastAdTime", lastAdTime.toString());
+  }, [lastAdTime]);
 
   /* ===============================
-     ADSGRAM (REWARDED)
+     ADSGRAM REWARD
   =================================*/
   const onAdsgramReward = useCallback(async () => {
     if (!user) return;
 
+    triggerHaptic("success");
+
     await logAdWatch(user.id, "adsgram_reward", 40);
     await refreshBalance();
 
-    setLastAdTime(Date.now());
+    setLastAdTime(Date.now()); // ✅ FIX
+
+    setCoinBurst(true);
+    setDailyMessage("+40 pts 🎬 (Adsgram)");
+
+    setTimeout(() => setCoinBurst(false), 1200);
+    setTimeout(() => setDailyMessage(""), 3000);
+
     setAdNetwork("monetag");
-  }, [user]);
+  }, [user, refreshBalance]);
 
   const { showAd: showAdsgramAd } = useRewardedAd(onAdsgramReward);
 
   /* ===============================
-     MONETAG (REWARDED)
+     MONETAG
   =================================*/
-  const showMonetagRewardAd = async () => {
-    if (!(window as any).show_10742752) return false;
-
-    await (window as any).show_10742752();
-
-    await logAdWatch(user!.id, "monetag_reward", 15);
-    await refreshBalance();
-
-    setLastAdTime(Date.now());
-    setAdNetwork("adsgram");
-
-    return true;
-  };
-
-  /* ===============================
-     INTERSTITIAL (AUTO ADS)
-  =================================*/
-  const showInterstitialAd = async () => {
-    try {
-      if (!(window as any).show_10742752) return;
-      await (window as any).show_10742752(); // same monetag interstitial
-    } catch (e) {
-      console.log("Interstitial failed");
-    }
-  };
-
-  /* ===============================
-     MANUAL AD (UNCHANGED)
-  =================================*/
-  const runAd = async () => {
-    if (!user) return;
-    if (isAdRunning.current) return;
-
-    if (Date.now() - lastAdTime < COOLDOWN) {
-      alert("⏳ Wait before next ad");
-      return;
-    }
-
-    isAdRunning.current = true;
-    setAdLoading(true);
+  const showMonetagAd = async (): Promise<boolean> => {
+    if (!user) return false;
 
     try {
-      if (adNetwork === "adsgram") {
-        await showAdsgramAd();
-      } else {
-        const ok = await showMonetagRewardAd();
-        if (!ok) await showAdsgramAd();
+      if (!(window as any).show_10742752) {
+        throw new Error("Monetag not loaded");
       }
-    } catch {
-      await showAdsgramAd();
-    }
 
-    setAdLoading(false);
-    isAdRunning.current = false;
-  };
+      await (window as any).show_10742752();
 
-  /* ===============================
-     AUTO ADS LOOP (INTERSTITIAL)
-  =================================*/
-  useEffect(() => {
-    if (!autoAdsEnabled || !user) return;
+      triggerHaptic("success");
 
-    let stopped = false;
-
-    const loop = async () => {
-      if (autoAdCount >= autoAdLimit) return;
-
-      await showInterstitialAd(); // ❗ INTERSTITIAL ONLY
-
-      if (stopped) return;
-
-      setAutoAdCount((prev) => prev + 1);
-
-      const delay = 3000 + Math.random() * 2000;
-
-      setTimeout(() => {
-        if (!stopped) loop();
-      }, delay);
-    };
-
-    loop();
-
-    return () => {
-      stopped = true;
-    };
-  }, [autoAdsEnabled, user, autoAdCount]);
-
-  /* ===============================
-     DAILY CLAIM
-  =================================*/
-  const handleDailyClaim = async () => {
-    if (!user || dailyCooldown > 0) return;
-
-    const res = await claimDailyReward(user.id);
-
-    if (res.success) {
-      setDailyMessage(`+${res.points} pts`);
+      await logAdWatch(user.id, "monetag_reward", 15);
       await refreshBalance();
-    } else {
-      setDailyMessage(res.message);
-    }
 
-    setTimeout(() => setDailyMessage(""), 3000);
+      setLastAdTime(Date.now()); // ✅ FIX
+
+      setCoinBurst(true);
+      setDailyMessage("+15 pts 💰 (Monetag)");
+
+      setTimeout(() => setCoinBurst(false), 1200);
+      setTimeout(() => setDailyMessage(""), 3000);
+
+      setAdNetwork("adsgram");
+      return true;
+    } catch (err) {
+      console.error("❌ Monetag failed", err);
+      return false;
+    }
   };
 
   /* ===============================
-     LOAD
+     LOAD DATA
   =================================*/
   useEffect(() => {
     if (!user) return;
+
     getTransactions(user.id).then(setTransactions);
+    checkDailyCooldown();
   }, [user]);
 
-  const [activeTab, setActiveTab] = useState<"earn" | "history">("earn");
+  /* ===============================
+     COUNTDOWN FIX
+  =================================*/
+  useEffect(() => {
+    if (dailyCooldown <= 0) return;
+
+    const interval = setInterval(() => {
+      setDailyCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [dailyCooldown]);
+
+  async function checkDailyCooldown() {
+    if (!user) return;
+
+    const claim = await getDailyClaim(user.id);
+
+    if (claim) {
+      const now = new Date();
+
+      const midnightUTC = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1
+        )
+      );
+
+      const remaining = Math.max(
+        0,
+        Math.floor((midnightUTC.getTime() - now.getTime()) / 1000)
+      );
+
+      setDailyCooldown(remaining);
+    }
+  }
+
+  async function handleDailyClaim() {
+    if (!user || dailyCooldown > 0) return;
+
+    triggerHaptic("impact");
+    setDailyClaiming(true);
+
+    const result = await claimDailyReward(user.id);
+
+    if (result.success) {
+      triggerHaptic("success");
+
+      setDailyMessage(`+${result.points} pts 🔥`);
+      setCoinBurst(true);
+
+      const now = new Date();
+
+      const midnightUTC = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + 1
+        )
+      );
+
+      setDailyCooldown(
+        Math.floor((midnightUTC.getTime() - now.getTime()) / 1000)
+      );
+
+      await refreshBalance();
+
+      setTimeout(() => setCoinBurst(false), 1200);
+    } else {
+      triggerHaptic("error");
+      setDailyMessage(result.message || "Already claimed!");
+      await checkDailyCooldown();
+    }
+
+    setDailyClaiming(false);
+    setTimeout(() => setDailyMessage(""), 3000);
+  }
 
   return (
     <div className="px-4 pb-28 text-white">
-
       {/* BALANCE */}
-      <div className="text-center mb-6">
-        <div className="text-4xl font-black text-yellow-400">
-          {balance?.points || 0}
+      <div className="rounded-3xl p-6 mb-6 text-center bg-gradient-to-br from-slate-900 to-slate-800 border border-yellow-400/20">
+        {coinBurst && <div className="text-4xl animate-bounce">💰</div>}
+
+        <div className="text-xs text-gray-400 mb-1">Total Balance</div>
+
+        <div className="text-5xl font-black text-yellow-400">
+          <AnimatedNumber value={balance?.points || 0} />
         </div>
-        <div className="text-xs text-gray-400">Total Balance</div>
+
+        <div className="text-xs text-gray-500 mt-1">Available Points</div>
       </div>
 
-      {/* MAIN AD BUTTON */}
+      {/* WATCH AD */}
       <button
-        onClick={runAd}
+        onClick={async () => {
+          if (!user) return;
+          if (isAdRunning.current) return;
+
+          if (Date.now() - lastAdTime < COOLDOWN) {
+            alert("⏳ Wait a few seconds before next ad");
+            return;
+          }
+
+          isAdRunning.current = true;
+          triggerHaptic("impact");
+          setAdLoading(true);
+
+          try {
+            if (adNetwork === "adsgram") {
+              await showAdsgramAd();
+            } else {
+              const success = await showMonetagAd();
+              if (!success) await showAdsgramAd();
+            }
+          } catch {
+            try {
+              await showAdsgramAd();
+            } catch {
+              alert("Ad failed. Try again later.");
+            }
+          }
+
+          setAdLoading(false);
+          isAdRunning.current = false;
+        }}
         disabled={adLoading}
-        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-gradient-to-r from-yellow-400 to-orange-500 text-black"
+        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-gradient-to-r from-yellow-400 to-orange-500 text-black shadow-lg active:scale-95"
       >
         {adLoading
           ? "Loading Ad..."
           : adNetwork === "adsgram"
-          ? "🎬 Watch Adsgram (+40)"
-          : "💰 Watch Monetag (+15)"}
+          ? "🎬 Watch Adsgram Ad (+40)"
+          : "💰 Watch Monetag Ad (+15)"}
       </button>
 
-      {/* DAILY CLAIM */}
-      <div className="p-4 bg-slate-800 rounded-xl mb-6 flex justify-between">
+      {/* DAILY */}
+      <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
         <div>
           <div className="font-bold">🎁 Daily Reward</div>
-          <div className="text-xs text-gray-400">{dailyMessage}</div>
+
+          <div className="text-xs text-gray-400">
+            {dailyMessage ||
+              (dailyCooldown > 0
+                ? `⏳ ${formatCountdown(dailyCooldown)}`
+                : `+${settings?.daily_bonus_base || 100} pts`)}
+          </div>
         </div>
+
         <button
           onClick={handleDailyClaim}
-          className="bg-green-500 px-4 py-1 rounded-lg"
+          disabled={dailyClaiming || dailyCooldown > 0}
+          className="px-5 py-2 bg-green-500 rounded-xl font-bold"
         >
-          Claim
-        </button>
-      </div>
-
-      {/* AUTO ADS */}
-      <div className="flex justify-between mb-4 bg-slate-800 p-3 rounded-xl">
-        <span>🤖 Auto Ads</span>
-        <button
-          onClick={() => setAutoAdsEnabled(!autoAdsEnabled)}
-          className={`px-3 py-1 rounded ${
-            autoAdsEnabled ? "bg-green-500" : "bg-red-500"
-          }`}
-        >
-          {autoAdsEnabled ? "ON" : "OFF"}
+          {dailyCooldown > 0 ? "Locked" : "Claim"}
         </button>
       </div>
 
@@ -249,8 +363,10 @@ export default function HomePage() {
       <div className="flex mb-4 bg-slate-900 rounded-xl p-1">
         <button
           onClick={() => setActiveTab("earn")}
-          className={`flex-1 py-2 ${
-            activeTab === "earn" ? "bg-yellow-400 text-black" : ""
+          className={`flex-1 py-2 rounded-lg font-bold ${
+            activeTab === "earn"
+              ? "bg-yellow-400 text-black"
+              : "text-gray-400"
           }`}
         >
           Earn
@@ -258,28 +374,42 @@ export default function HomePage() {
 
         <button
           onClick={() => setActiveTab("history")}
-          className={`flex-1 py-2 ${
-            activeTab === "history" ? "bg-yellow-400 text-black" : ""
+          className={`flex-1 py-2 rounded-lg font-bold ${
+            activeTab === "history"
+              ? "bg-yellow-400 text-black"
+              : "text-gray-400"
           }`}
         >
           History
         </button>
       </div>
 
-      {/* CONTENT */}
-      {activeTab === "earn" ? (
-        <div className="text-center text-gray-400">
-          No extra tasks
+      {/* EARN */}
+      {activeTab === "earn" && (
+        <div className="space-y-4 mb-6">
+          <AdsgramTask blockId="task-25198" />
         </div>
-      ) : (
+      )}
+
+      {/* HISTORY */}
+      {activeTab === "history" && (
         <div className="space-y-3">
+          {transactions.length === 0 && (
+            <div className="text-gray-400 text-center">
+              No transactions yet
+            </div>
+          )}
+
           {transactions.map((t) => (
             <div
               key={t.id}
-              className="p-3 bg-slate-800 rounded-xl flex justify-between"
+              className="p-4 rounded-xl bg-slate-800 flex justify-between"
             >
-              <span>{t.type}</span>
-              <span className="text-yellow-400">+{t.points}</span>
+              <div className="text-sm">{t.type}</div>
+
+              <div className="text-yellow-400 font-bold">
+                +{t.points}
+              </div>
             </div>
           ))}
         </div>
