@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from "@/context/AppContext";
 import { logAdWatch } from "@/lib/api";
 
@@ -22,43 +22,19 @@ interface GamesMenuProps {
   onNavigate: (page: Page) => void;
 }
 
-const ALLOWED_COUNTRIES = ['US', 'MX', 'FR', 'DE', 'GB', 'CA', 'AU'];
-
-async function fetchCountry(): Promise<string | null> {
-  try {
-    const res = await fetch('https://ipapi.co/json/');
-    const data = await res.json();
-    return data.country_code;
-  } catch {
-    return null;
-  }
-}
-
 function GamesMenu({ onNavigate }: GamesMenuProps) {
   const { user, balance, refreshBalance } = useApp();
 
-  const [country, setCountry] = useState<string | null>(null);
   const [loadingAd, setLoadingAd] = useState(false);
   const [lastAdTime, setLastAdTime] = useState(0);
 
   const COOLDOWN = 8000;
-
-  useEffect(() => {
-    fetchCountry().then(setCountry);
-  }, []);
-
-  const isAllowed = country && ALLOWED_COUNTRIES.includes(country);
 
   /* ===============================
      🎬 MAIN AD (+15)
   ================================ */
   const handleMainAd = async () => {
     if (!user) return;
-
-    if (!isAllowed) {
-      alert("❌ Use VPN (USA/UK/DE/FR/CA/AU)");
-      return;
-    }
 
     const now = Date.now();
     if (now - lastAdTime < COOLDOWN) {
@@ -91,11 +67,6 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
   const handlePopupAd = async () => {
     if (!user) return;
 
-    if (!isAllowed) {
-      alert("❌ Use VPN (USA/UK/DE/FR/CA/AU)");
-      return;
-    }
-
     const now = Date.now();
     if (now - lastAdTime < COOLDOWN) {
       alert("⏳ Wait before next ad");
@@ -122,7 +93,7 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
   };
 
   /* ===============================
-     🎮 GAMES (GIF ICONS)
+     🎮 GAMES
   ================================ */
   const games = [
     {
@@ -167,19 +138,10 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
         </div>
       </div>
 
-      {/* 🌍 COUNTRY */}
-      <div className="text-center mb-4 text-sm">
-        🌍 {country || "Detecting..."} • {isAllowed ? "Eligible" : "Not Eligible"}
-      </div>
-
       {/* 🎬 MAIN AD */}
       <div
         onClick={handleMainAd}
-        className={`mb-4 p-5 rounded-2xl cursor-pointer transition-all
-        ${isAllowed 
-          ? 'bg-green-500/10 border border-green-400/30 hover:scale-[1.02]' 
-          : 'bg-red-500/10 border border-red-400/30'
-        }`}
+        className="mb-4 p-5 rounded-2xl cursor-pointer transition-all bg-green-500/10 border border-green-400/30 hover:scale-[1.02]"
       >
         <div className="flex justify-between items-center">
           <div>
@@ -195,11 +157,7 @@ function GamesMenu({ onNavigate }: GamesMenuProps) {
       {/* ⚡ POPUP AD */}
       <div
         onClick={handlePopupAd}
-        className={`mb-6 p-5 rounded-2xl cursor-pointer transition-all
-        ${isAllowed 
-          ? 'bg-blue-500/10 border border-blue-400/30 hover:scale-[1.02]' 
-          : 'bg-red-500/10 border border-red-400/30'
-        }`}
+        className="mb-6 p-5 rounded-2xl cursor-pointer transition-all bg-blue-500/10 border border-blue-400/30 hover:scale-[1.02]"
       >
         <div className="flex justify-between items-center">
           <div>
