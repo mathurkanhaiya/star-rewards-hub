@@ -92,13 +92,10 @@ export default function HomePage() {
 
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [dailyMessage, setDailyMessage] = useState("");
-
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [adLoading, setAdLoading] = useState(false);
-
   const [dailyCooldown, setDailyCooldown] = useState(0);
   const [coinBurst, setCoinBurst] = useState(false);
-
   const [activeTab, setActiveTab] = useState<"earn" | "history">("earn");
 
   const [lastAdTime, setLastAdTime] = useState<number>(() => {
@@ -122,7 +119,6 @@ export default function HomePage() {
     if (!user) return;
 
     triggerHaptic("success");
-
     await logAdWatch(user.id, "adsgram_reward", 40);
     await refreshBalance();
 
@@ -143,14 +139,11 @@ export default function HomePage() {
     if (!user) return false;
 
     try {
-      if (!(window as any).show_10742752) {
-        throw new Error("Monetag not loaded");
-      }
+      if (!(window as any).show_10742752) throw new Error("Not loaded");
 
       await (window as any).show_10742752();
 
       triggerHaptic("success");
-
       await logAdWatch(user.id, "monetag_reward", 15);
       await refreshBalance();
 
@@ -162,14 +155,13 @@ export default function HomePage() {
       setTimeout(() => setDailyMessage(""), 3000);
 
       return true;
-    } catch (err) {
-      console.error("❌ Monetag failed", err);
+    } catch {
       return false;
     }
   };
 
   /* ===============================
-     🔥 GIGAPUB (NEW)
+     🔥 GIGAPUB
   =================================*/
   const [gigapubReady, setGigapubReady] = useState(false);
   const [gigapubLoading, setGigapubLoading] = useState(false);
@@ -185,8 +177,6 @@ export default function HomePage() {
     script.async = true;
 
     script.onload = () => setGigapubReady(true);
-    script.onerror = () => console.error("Gigapub failed");
-
     document.body.appendChild(script);
   }, []);
 
@@ -204,19 +194,15 @@ export default function HomePage() {
       await (window as any).showGiga();
 
       triggerHaptic("success");
-
       await logAdWatch(user.id, "gigapub_reward", 20);
       await refreshBalance();
 
       setLastAdTime(Date.now());
-
       setCoinBurst(true);
       setDailyMessage("+20 pts 🎬 (Gigapub)");
 
       setTimeout(() => setCoinBurst(false), 1200);
       setTimeout(() => setDailyMessage(""), 3000);
-    } catch (e) {
-      console.error("Gigapub error:", e);
     } finally {
       setGigapubLoading(false);
     }
@@ -246,10 +232,8 @@ export default function HomePage() {
     if (!user) return;
 
     const claim = await getDailyClaim(user.id);
-
     if (claim) {
       const now = new Date();
-
       const midnightUTC = new Date(
         Date.UTC(
           now.getUTCFullYear(),
@@ -277,10 +261,8 @@ export default function HomePage() {
 
     if (result.success) {
       triggerHaptic("success");
-
       setDailyMessage(`+${result.points} pts 🔥`);
       setCoinBurst(true);
-
       await refreshBalance();
     }
 
@@ -292,42 +274,60 @@ export default function HomePage() {
       {/* BALANCE */}
       <div className="rounded-3xl p-6 mb-6 text-center bg-slate-900 border border-yellow-400/20">
         {coinBurst && <div className="text-4xl animate-bounce">💰</div>}
-
         <div className="text-xs text-gray-400 mb-1">Total Balance</div>
-
         <div className="text-5xl font-black text-yellow-400">
           <AnimatedNumber value={balance?.points || 0} />
         </div>
-
-        <div className="text-xs text-gray-500 mt-1">Available Points</div>
       </div>
 
-      {/* EARN TAB */}
-      {activeTab === "earn" && (
-        <div className="space-y-4 mb-6">
+      {/* 🔥 CENTER MAIN AD */}
+      <button
+        onClick={async () => {
+          if (!user) return;
+          if (isAdRunning.current) return;
 
-          <AdsgramTask blockId="task-25198" />
+          if (Date.now() - lastAdTime < COOLDOWN) {
+            alert("⏳ Wait before next ad");
+            return;
+          }
 
-          {/* 🔥 GIGAPUB BOX (RED AREA) */}
-          <div className="bg-slate-900 rounded-2xl p-4 border border-yellow-400/20">
-            <div className="text-sm text-gray-400 mb-2">
-              🎬 Watch Gigapub Ad
-            </div>
+          isAdRunning.current = true;
+          setAdLoading(true);
+          triggerHaptic("impact");
 
-            <button
-              onClick={handleGigapubAd}
-              disabled={!gigapubReady || gigapubLoading}
-              className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-            >
-              {gigapubLoading
-                ? "Loading..."
-                : gigapubReady
-                ? "Watch Ad (+20)"
-                : "Preparing..."}
-            </button>
-          </div>
+          try {
+            await showAdsgramAd();
+          } catch {
+            await showMonetagAd();
+          }
+
+          setAdLoading(false);
+          isAdRunning.current = false;
+        }}
+        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-gradient-to-r from-yellow-400 to-orange-500 text-black"
+      >
+        {adLoading ? "Loading..." : "🎬 Watch Ad (+40)"}
+      </button>
+
+      {/* EARN */}
+      <div className="space-y-4 mb-6">
+        <AdsgramTask blockId="task-25198" />
+
+        {/* 🔥 GIGAPUB (BOTTOM RED BOX) */}
+        <div className="bg-slate-900 rounded-2xl p-4 border border-yellow-400/20">
+          <button
+            onClick={handleGigapubAd}
+            disabled={!gigapubReady || gigapubLoading}
+            className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+          >
+            {gigapubLoading
+              ? "Loading..."
+              : gigapubReady
+              ? "Watch Ad (+20)"
+              : "Preparing..."}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
