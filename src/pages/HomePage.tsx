@@ -102,6 +102,12 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"earn" | "history">("earn");
 
   /* ===============================
+     🔥 GIGAPUB STATES
+  =================================*/
+  const [gigapubReady, setGigapubReady] = useState(false);
+  const [gigapubLoading, setGigapubLoading] = useState(false);
+
+  /* ===============================
      🔥 PERSISTENT AD STATE
   =================================*/
   const [adNetwork, setAdNetwork] = useState<"adsgram" | "monetag">(() => {
@@ -191,11 +197,8 @@ export default function HomePage() {
   };
 
   /* ===============================
-     🔥 GIGAPUB (ONLY ADDITION)
+     🔥 GIGAPUB LOADER + HANDLER
   =================================*/
-  const [gigapubReady, setGigapubReady] = useState(false);
-  const [gigapubLoading, setGigapubLoading] = useState(false);
-
   useEffect(() => {
     if ((window as any).showGiga) {
       setGigapubReady(true);
@@ -207,26 +210,31 @@ export default function HomePage() {
     script.async = true;
 
     script.onload = () => setGigapubReady(true);
-    script.onerror = () => console.error("Gigapub failed");
+    script.onerror = () => console.error("❌ Gigapub failed to load");
 
-    document.body.appendChild(script);
+    document.head.appendChild(script);
   }, []);
 
   const handleGigapubAd = async () => {
     if (!user) return;
 
     if (Date.now() - lastAdTime < COOLDOWN) {
-      alert("⏳ Wait before next ad");
+      alert("⏳ Wait a few seconds before next ad");
+      return;
+    }
+
+    if (!gigapubReady) {
+      alert("Ad network still preparing...");
       return;
     }
 
     try {
       setGigapubLoading(true);
 
+      // Official Gigapub call
       await (window as any).showGiga();
 
       triggerHaptic("success");
-
       await logAdWatch(user.id, "gigapub_reward", 20);
       await refreshBalance();
 
@@ -237,8 +245,11 @@ export default function HomePage() {
 
       setTimeout(() => setCoinBurst(false), 1200);
       setTimeout(() => setDailyMessage(""), 3000);
-    } catch (e) {
-      console.error("Gigapub error:", e);
+    } catch (error) {
+      console.error("Gigapub error:", error);
+      setDailyMessage("❌ No ad available right now");
+      triggerHaptic("error");
+      setTimeout(() => setDailyMessage(""), 3000);
     } finally {
       setGigapubLoading(false);
     }
@@ -254,6 +265,9 @@ export default function HomePage() {
     checkDailyCooldown();
   }, [user]);
 
+  /* ===============================
+     COUNTDOWN FIX
+  =================================*/
   useEffect(() => {
     if (dailyCooldown <= 0) return;
 
@@ -332,26 +346,156 @@ export default function HomePage() {
 
   return (
     <div className="px-4 pb-28 text-white">
-      {/* ALL YOUR ORIGINAL UI UNCHANGED ABOVE */}
+      {/* BALANCE */}
+      <div className="rounded-3xl p-6 mb-6 text-center bg-gradient-to-br from-slate-900 to-slate-800 border border-yellow-400/20">
+        {coinBurst && <div className="text-4xl animate-bounce">💰</div>}
 
-      {/* 🔥 GIGAPUB (BOTTOM ONLY) */}
-      <div className="mt-6 bg-slate-900 rounded-2xl p-4 border border-yellow-400/20">
-        <div className="text-sm text-gray-400 mb-2 text-center">
-          🎬 Extra Ad
+        <div className="text-xs text-gray-400 mb-1">Total Balance</div>
+
+        <div className="text-5xl font-black text-yellow-400">
+          <AnimatedNumber value={balance?.points || 0} />
+        </div>
+
+        <div className="text-xs text-gray-500 mt-1">Available Points</div>
+      </div>
+
+      {/* WATCH AD (Adsgram / Monetag) */}
+      <button
+        onClick={async () => {
+          if (!user) return;
+          if (isAdRunning.current) return;
+
+          if (Date.now() - lastAdTime < COOLDOWN) {
+            alert("⏳ Wait a few seconds before next ad");
+            return;
+          }
+
+          isAdRunning.current = true;
+          triggerHaptic("impact");
+          setAdLoading(true);
+
+          try {
+            if (adNetwork === "adsgram") {
+              await showAdsgramAd();
+            } else {
+              const success = await showMonetagAd();
+              if (!success) await showAdsgramAd();
+            }
+          } catch {
+            try {
+              await showAdsgramAd();
+            } catch {
+              alert("Ad failed. Try again later.");
+            }
+          }
+
+          setAdLoading(false);
+          isAdRunning.current = false;
+        }}
+        disabled={adLoading}
+        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-gradient-to-r from-yellow-400 to-orange-500 text-black shadow-lg active:scale-95"
+      >
+        {adLoading
+          ? "Loading Ad..."
+          : adNetwork === "adsgram"
+          ? "🎬 Watch Adsgram Ad (+40)"
+          : "💰 Watch Monetag Ad (+15)"}
+      </button>
+
+      {/* DAILY */}
+      <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
+        <div>
+          <div className="font-bold">🎁 Daily Reward</div>
+
+          <div className="text-xs text-gray-400">
+            {dailyMessage ||
+              (dailyCooldown > 0
+                ? `⏳ ${formatCountdown(dailyCooldown)}`
+                : `+${settings?.daily_bonus_base || 100} pts`)}
+          </div>
         </div>
 
         <button
-          onClick={handleGigapubAd}
-          disabled={!gigapubReady || gigapubLoading}
-          className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white active:scale-95"
+          onClick={handleDailyClaim}
+          disabled={dailyClaiming || dailyCooldown > 0}
+          className="px-5 py-2 bg-green-500 rounded-xl font-bold"
         >
-          {gigapubLoading
-            ? "Loading..."
-            : gigapubReady
-            ? "Watch Ad (+20)"
-            : "Preparing..."}
+          {dailyCooldown > 0 ? "Locked" : "Claim"}
         </button>
       </div>
+
+      {/* TABS */}
+      <div className="flex mb-4 bg-slate-900 rounded-xl p-1">
+        <button
+          onClick={() => setActiveTab("earn")}
+          className={`flex-1 py-2 rounded-lg font-bold ${
+            activeTab === "earn"
+              ? "bg-yellow-400 text-black"
+              : "text-gray-400"
+          }`}
+        >
+          Earn
+        </button>
+
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`flex-1 py-2 rounded-lg font-bold ${
+            activeTab === "history"
+              ? "bg-yellow-400 text-black"
+              : "text-gray-400"
+          }`}
+        >
+          History
+        </button>
+      </div>
+
+      {/* EARN TAB - GIGAPUB AD PLACED EXACTLY IN RED BOX AREA */}
+      {activeTab === "earn" && (
+        <div className="space-y-4 mb-6">
+          <AdsgramTask blockId="task-25198" />
+
+          {/* 🔥 GIGAPUB AD (Red box area) */}
+          <div className="mt-4 bg-slate-900 rounded-2xl p-5 border border-yellow-400/20">
+            <div className="text-sm text-gray-400 mb-3 text-center">🎬 Extra Ad</div>
+            
+            <button
+              onClick={handleGigapubAd}
+              disabled={!gigapubReady || gigapubLoading}
+              className="w-full py-4 rounded-2xl font-bold text-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white active:scale-95 disabled:opacity-70"
+            >
+              {gigapubLoading
+                ? "Loading..."
+                : gigapubReady
+                ? "Watch Ad (+20)"
+                : "Preparing..."}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY */}
+      {activeTab === "history" && (
+        <div className="space-y-3">
+          {transactions.length === 0 && (
+            <div className="text-gray-400 text-center">
+              No transactions yet
+            </div>
+          )}
+
+          {transactions.map((t) => (
+            <div
+              key={t.id}
+              className="p-4 rounded-xl bg-slate-800 flex justify-between"
+            >
+              <div className="text-sm">{t.type}</div>
+
+              <div className="text-yellow-400 font-bold">
+                +{t.points}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
