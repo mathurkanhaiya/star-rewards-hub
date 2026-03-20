@@ -25,6 +25,7 @@ interface Transaction {
 function triggerHaptic(type: HapticType) {
   if (typeof window !== "undefined" && (window as any).Telegram) {
     const tg = (window as any).Telegram.WebApp;
+
     if (tg?.HapticFeedback) {
       if (type === "impact") tg.HapticFeedback.impactOccurred("medium");
       if (type === "success") tg.HapticFeedback.notificationOccurred("success");
@@ -34,7 +35,7 @@ function triggerHaptic(type: HapticType) {
 }
 
 /* ===============================
-   MAIN
+   MAIN COMPONENT
 ================================ */
 export default function HomePage() {
   const { user, balance, settings, refreshBalance } = useApp();
@@ -46,17 +47,31 @@ export default function HomePage() {
     return localStorage.getItem("autoAds") === "true";
   });
 
+  const [autoAdCount, setAutoAdCount] = useState(() => {
+    return Number(localStorage.getItem("autoAdCount") || 0);
+  });
+
+  const [autoAdLimit, setAutoAdLimit] = useState(() => {
+    const saved = localStorage.getItem("autoAdLimit");
+    if (saved) return Number(saved);
+
+    const randomLimit = 10 + Math.floor(Math.random() * 6);
+    localStorage.setItem("autoAdLimit", String(randomLimit));
+    return randomLimit;
+  });
+
   const [adNetwork, setAdNetwork] = useState<"adsgram" | "monetag">("adsgram");
   const [lastAdTime, setLastAdTime] = useState(0);
 
   const isAdRunning = useRef(false);
-  const autoAdTimer = useRef<any>(null);
 
   const COOLDOWN = 8000;
 
   useEffect(() => {
     localStorage.setItem("autoAds", String(autoAdsEnabled));
-  }, [autoAdsEnabled]);
+    localStorage.setItem("autoAdCount", String(autoAdCount));
+    localStorage.setItem("autoAdLimit", String(autoAdLimit));
+  }, [autoAdsEnabled, autoAdCount, autoAdLimit]);
 
   /* ===============================
      ADSGRAM
@@ -91,7 +106,7 @@ export default function HomePage() {
   };
 
   /* ===============================
-     SHOW AD LOGIC
+     RUN AD (UNCHANGED CORE LOGIC)
   =================================*/
   const runAd = async () => {
     if (!user) return;
@@ -118,28 +133,35 @@ export default function HomePage() {
   };
 
   /* ===============================
-     🔥 AUTO ADS SYSTEM
+     🔥 AUTO ADS (AFTER AD FINISH)
   =================================*/
   useEffect(() => {
-    if (!autoAdsEnabled) return;
+    if (!autoAdsEnabled || !user) return;
 
-    const startLoop = () => {
-      autoAdTimer.current = setTimeout(async () => {
-        await runAd();
+    let stopped = false;
 
-        // next ad after 3–5 sec
-        const nextDelay = 3000 + Math.random() * 2000;
+    const loop = async () => {
+      if (autoAdCount >= autoAdLimit) return;
 
-        autoAdTimer.current = setTimeout(startLoop, nextDelay);
-      }, 15000); // first delay 15 sec
+      await runAd();
+
+      if (stopped) return;
+
+      setAutoAdCount((prev) => prev + 1);
+
+      const delay = 3000 + Math.random() * 2000;
+
+      setTimeout(() => {
+        if (!stopped) loop();
+      }, delay);
     };
 
-    startLoop();
+    loop();
 
     return () => {
-      if (autoAdTimer.current) clearTimeout(autoAdTimer.current);
+      stopped = true;
     };
-  }, [autoAdsEnabled, adNetwork, lastAdTime]);
+  }, [autoAdsEnabled, user, autoAdCount, autoAdLimit]);
 
   /* ===============================
      LOAD
@@ -152,13 +174,13 @@ export default function HomePage() {
   return (
     <div className="px-4 pb-28 text-white">
 
-      {/* 🎮 GAME TAGLINE */}
+      {/* 🎮 TAGLINE */}
       <div className="text-center mb-4">
         <h1 className="text-xl font-bold text-yellow-400">
           🚀 Earn Coins. Watch Ads. Level Up!
         </h1>
         <p className="text-xs text-gray-400">
-          Play smart. Earn faster. Repeat.
+          Play more. Earn more. Win big.
         </p>
       </div>
 
@@ -182,7 +204,12 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* MANUAL AD */}
+      {/* PROGRESS */}
+      <div className="text-center text-sm text-gray-400 mb-3">
+        {autoAdCount}/{autoAdLimit} Auto Ads
+      </div>
+
+      {/* MANUAL AD BUTTON (UNCHANGED) */}
       <button
         onClick={runAd}
         disabled={adLoading}
