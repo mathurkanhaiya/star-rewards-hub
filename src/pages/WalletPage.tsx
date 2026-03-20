@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/integrations/supabase/client';
 import { submitWithdrawal } from '@/lib/api';
+import { TonConnectButton, useTonWallet } from '@tonconnect/ui-react';
 
 const TIERS = [
   { pts: 5000, ton: 0.05 },
@@ -14,21 +15,29 @@ const TIERS = [
 
 const REQUIRED_ADS = 40;
 
-function isValidTon(addr: string) {
-  return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
-}
-
 export default function WalletPage() {
   const { user, balance, refreshBalance } = useApp();
+  const walletData = useTonWallet();
 
   const [adCount, setAdCount] = useState(0);
   const [selectedTier, setSelectedTier] = useState<any>(null);
-  const [wallet, setWallet] = useState('');
   const [message, setMessage] = useState('');
 
   const pts = balance?.points || 0;
+  const walletAddress = walletData?.account?.address || '';
 
-  /* ✅ DAILY ADS */
+  /* 🔐 AUTO SAVE WALLET */
+  useEffect(() => {
+    if (!user || !walletAddress) return;
+
+    supabase
+      .from('users')
+      .update({ ton_wallet: walletAddress })
+      .eq('id', user.id);
+
+  }, [walletAddress, user]);
+
+  /* 📊 DAILY ADS */
   useEffect(() => {
     if (!user) return;
 
@@ -51,8 +60,8 @@ export default function WalletPage() {
   async function handleWithdraw() {
     if (!selectedTier) return;
 
-    if (!isValidTon(wallet)) {
-      setMessage('Invalid TON wallet ❌');
+    if (!walletAddress) {
+      setMessage('Connect wallet first ❗');
       return;
     }
 
@@ -70,13 +79,12 @@ export default function WalletPage() {
       user.id,
       'ton',
       selectedTier.pts,
-      wallet
+      walletAddress
     );
 
     if (res.success) {
       setMessage('✅ Withdrawal successful');
       setSelectedTier(null);
-      setWallet('');
       refreshBalance();
     } else {
       setMessage('Failed');
@@ -86,6 +94,18 @@ export default function WalletPage() {
   return (
     <div className="px-4 pb-24 text-white">
 
+      {/* 🔗 CONNECT WALLET */}
+      <div className="mb-4 flex justify-center">
+        <TonConnectButton />
+      </div>
+
+      {/* WALLET */}
+      {walletAddress && (
+        <div className="text-center text-xs text-green-400 mb-4">
+          Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+        </div>
+      )}
+
       {/* BALANCE */}
       <div className="mb-5 p-5 rounded-2xl bg-[#0f172a] border">
         <div className="text-sm text-gray-400">Balance</div>
@@ -94,32 +114,26 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* GRID */}
+      {/* TIERS */}
       <div className="grid grid-cols-2 gap-3 mb-5">
-        {TIERS.map((t, i) => {
-          const locked = pts < t.pts;
-
-          return (
-            <div
-              key={i}
-              onClick={() => setSelectedTier(t)}
-              className="p-4 rounded-xl text-center cursor-pointer"
-              style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                opacity: locked ? 0.5 : 1,
-              }}
-            >
-              <div className="text-sm">{t.pts} pts</div>
-              <div className="text-blue-400 font-bold">
-                {t.ton} TON
-              </div>
-            </div>
-          );
-        })}
+        {TIERS.map((t, i) => (
+          <div
+            key={i}
+            onClick={() => setSelectedTier(t)}
+            className="p-4 rounded-xl text-center cursor-pointer"
+            style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              opacity: pts < t.pts ? 0.5 : 1,
+            }}
+          >
+            <div className="text-sm">{t.pts} pts</div>
+            <div className="text-blue-400 font-bold">{t.ton} TON</div>
+          </div>
+        ))}
       </div>
 
-      {/* DAILY REQUIREMENT */}
+      {/* ADS */}
       <div className="p-4 rounded-xl bg-[#0f172a] border mb-5">
         {adCount >= REQUIRED_ADS
           ? '✅ Daily requirement completed'
@@ -128,29 +142,19 @@ export default function WalletPage() {
 
       {/* POPUP */}
       {selectedTier && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
           <div className="bg-[#0f172a] p-5 rounded-2xl w-[90%] max-w-sm">
 
             <div className="text-lg font-bold mb-2">
               Withdraw {selectedTier.ton} TON
             </div>
 
-            <input
-              value={wallet}
-              onChange={e => setWallet(e.target.value)}
-              placeholder="Enter TON wallet"
-              className="w-full p-3 rounded bg-black mb-3"
-            />
-
-            <div className="text-xs mb-3 text-gray-400">
-              Ads today: {adCount}/{REQUIRED_ADS}
+            <div className="text-xs text-gray-400 mb-3">
+              Wallet: {walletAddress || 'Not connected'}
             </div>
 
             {message && (
-              <div className="text-sm text-red-400 mb-2">
-                {message}
-              </div>
+              <div className="text-red-400 text-sm mb-2">{message}</div>
             )}
 
             <button
@@ -161,11 +165,8 @@ export default function WalletPage() {
             </button>
 
             <button
-              onClick={() => {
-                setSelectedTier(null);
-                setMessage('');
-              }}
-              className="w-full mt-2 text-sm text-gray-400"
+              onClick={() => setSelectedTier(null)}
+              className="w-full mt-2 text-gray-400 text-sm"
             >
               Cancel
             </button>
