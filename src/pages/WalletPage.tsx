@@ -27,6 +27,7 @@ export default function WalletPage() {
   const [message, setMessage] = useState('');
 
   const pts = balance?.points || 0;
+  const progress = Math.min((adCount / REQUIRED_ADS) * 100, 100);
 
   /* ✅ DAILY ADS */
   useEffect(() => {
@@ -83,17 +84,26 @@ export default function WalletPage() {
   return (
     <div className="px-4 pb-24 text-white">
 
-      {/* 💰 BALANCE */}
-      <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-[#0f172a] to-[#020617] border border-gray-800 shadow-lg">
+      {/* 💰 BALANCE CARD */}
+      <div className="mb-6 p-6 rounded-3xl bg-gradient-to-br from-[#111827] to-[#020617] border border-gray-800 shadow-xl">
         <div className="text-sm text-gray-400">Balance</div>
-        <div className="text-4xl text-yellow-400 font-bold mt-1">
+        <div className="text-4xl text-yellow-400 font-bold mt-1 tracking-wide">
           {pts.toLocaleString()}
         </div>
       </div>
 
-      {/* 🎯 REQUIREMENT */}
-      <div className="mb-6 text-center text-sm text-gray-400">
-        Ads today: {adCount}/{REQUIRED_ADS}
+      {/* 📊 PROGRESS BAR */}
+      <div className="mb-6">
+        <div className="text-xs text-gray-400 mb-1">
+          Ads Progress ({adCount}/{REQUIRED_ADS})
+        </div>
+
+        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
       </div>
 
       {/* 💎 TIERS */}
@@ -105,13 +115,18 @@ export default function WalletPage() {
             <div
               key={i}
               onClick={() => !locked && setSelectedTier(t)}
-              className={`relative p-5 rounded-2xl transition-all
-              ${locked 
+              className={`relative p-5 rounded-2xl transition-all duration-300
+              ${locked
                 ? 'bg-[#0b0f1a] border border-gray-800 opacity-60 cursor-not-allowed'
-                : 'bg-[#111827] border border-gray-700 hover:scale-[1.03] cursor-pointer shadow-md'
+                : 'bg-gradient-to-br from-[#111827] to-[#1f2937] border border-gray-700 hover:scale-[1.05] cursor-pointer shadow-lg'
               }`}
             >
-              {/* 🔒 LOCK ICON */}
+              {/* GLOW */}
+              {!locked && (
+                <div className="absolute inset-0 rounded-2xl bg-blue-500/10 blur-xl opacity-0 hover:opacity-100 transition" />
+              )}
+
+              {/* LOCK */}
               {locked && (
                 <div className="absolute top-2 right-2 text-xs text-gray-400">
                   🔒
@@ -126,7 +141,6 @@ export default function WalletPage() {
                 {t.ton} TON
               </div>
 
-              {/* REQUIREMENT TEXT */}
               {locked && (
                 <div className="text-xs text-red-400 mt-2">
                   {pts < t.pts
@@ -141,9 +155,9 @@ export default function WalletPage() {
 
       {/* 💳 POPUP */}
       {selectedTier && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm">
 
-          <div className="bg-[#0f172a] p-6 rounded-2xl w-[90%] max-w-sm border border-gray-800 shadow-xl">
+          <div className="bg-[#0f172a] p-6 rounded-3xl w-[90%] max-w-sm border border-gray-800 shadow-2xl animate-[fadeIn_0.3s]">
 
             <div className="text-lg font-bold mb-3">
               Withdraw {selectedTier.ton} TON
@@ -153,7 +167,7 @@ export default function WalletPage() {
               value={wallet}
               onChange={e => setWallet(e.target.value)}
               placeholder="Enter TON wallet"
-              className="w-full p-3 rounded bg-black border border-gray-700 mb-3 outline-none"
+              className="w-full p-3 rounded-xl bg-black border border-gray-700 mb-3 outline-none focus:border-blue-500"
             />
 
             <div className="text-xs text-gray-400 mb-3">
@@ -168,7 +182,7 @@ export default function WalletPage() {
 
             <button
               onClick={handleWithdraw}
-              className="w-full py-3 bg-yellow-400 text-black rounded-xl font-bold hover:opacity-90"
+              className="w-full py-3 bg-gradient-to-r from-yellow-400 to-yellow-300 text-black rounded-xl font-bold hover:scale-[1.02] transition"
             >
               Confirm Withdraw
             </button>
