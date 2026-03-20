@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/integrations/supabase/client';
 import { submitWithdrawal } from '@/lib/api';
-import { TonConnectButton, useTonWallet } from '@tonconnect/ui-react';
 
 const TIERS = [
   { pts: 5000, ton: 0.05 },
@@ -15,29 +14,21 @@ const TIERS = [
 
 const REQUIRED_ADS = 40;
 
+function isValidTon(addr: string) {
+  return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
+}
+
 export default function WalletPage() {
   const { user, balance, refreshBalance } = useApp();
-  const walletData = useTonWallet();
 
   const [adCount, setAdCount] = useState(0);
   const [selectedTier, setSelectedTier] = useState<any>(null);
+  const [wallet, setWallet] = useState('');
   const [message, setMessage] = useState('');
 
   const pts = balance?.points || 0;
-  const walletAddress = walletData?.account?.address || '';
 
-  /* 🔐 AUTO SAVE WALLET */
-  useEffect(() => {
-    if (!user || !walletAddress) return;
-
-    supabase
-      .from('users')
-      .update({ ton_wallet: walletAddress })
-      .eq('id', user.id);
-
-  }, [walletAddress, user]);
-
-  /* 📊 DAILY ADS */
+  /* ✅ DAILY ADS */
   useEffect(() => {
     if (!user) return;
 
@@ -60,18 +51,15 @@ export default function WalletPage() {
   async function handleWithdraw() {
     if (!selectedTier) return;
 
-    if (!walletAddress) {
-      setMessage('Connect wallet first ❗');
+    if (!isValidTon(wallet)) {
+      setMessage('Invalid TON wallet ❌');
       return;
     }
 
-    if (adCount < REQUIRED_ADS) {
-      setMessage(`Watch ${REQUIRED_ADS - adCount} more ads`);
-      return;
-    }
+    const locked = pts < selectedTier.pts || adCount < REQUIRED_ADS;
 
-    if (pts < selectedTier.pts) {
-      setMessage('Not enough balance');
+    if (locked) {
+      setMessage('Requirements not met ❗');
       return;
     }
 
@@ -79,12 +67,13 @@ export default function WalletPage() {
       user.id,
       'ton',
       selectedTier.pts,
-      walletAddress
+      wallet
     );
 
     if (res.success) {
       setMessage('✅ Withdrawal successful');
       setSelectedTier(null);
+      setWallet('');
       refreshBalance();
     } else {
       setMessage('Failed');
@@ -94,79 +83,102 @@ export default function WalletPage() {
   return (
     <div className="px-4 pb-24 text-white">
 
-      {/* 🔗 CONNECT WALLET */}
-      <div className="mb-4 flex justify-center">
-        <TonConnectButton />
-      </div>
-
-      {/* WALLET */}
-      {walletAddress && (
-        <div className="text-center text-xs text-green-400 mb-4">
-          Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-        </div>
-      )}
-
-      {/* BALANCE */}
-      <div className="mb-5 p-5 rounded-2xl bg-[#0f172a] border">
+      {/* 💰 BALANCE */}
+      <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-[#0f172a] to-[#020617] border border-gray-800 shadow-lg">
         <div className="text-sm text-gray-400">Balance</div>
-        <div className="text-3xl text-yellow-400 font-bold">
-          {pts.toLocaleString()} pts
+        <div className="text-4xl text-yellow-400 font-bold mt-1">
+          {pts.toLocaleString()}
         </div>
       </div>
 
-      {/* TIERS */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        {TIERS.map((t, i) => (
-          <div
-            key={i}
-            onClick={() => setSelectedTier(t)}
-            className="p-4 rounded-xl text-center cursor-pointer"
-            style={{
-              background: '#0f172a',
-              border: '1px solid #1e293b',
-              opacity: pts < t.pts ? 0.5 : 1,
-            }}
-          >
-            <div className="text-sm">{t.pts} pts</div>
-            <div className="text-blue-400 font-bold">{t.ton} TON</div>
-          </div>
-        ))}
+      {/* 🎯 REQUIREMENT */}
+      <div className="mb-6 text-center text-sm text-gray-400">
+        Ads today: {adCount}/{REQUIRED_ADS}
       </div>
 
-      {/* ADS */}
-      <div className="p-4 rounded-xl bg-[#0f172a] border mb-5">
-        {adCount >= REQUIRED_ADS
-          ? '✅ Daily requirement completed'
-          : `🔒 Watch ${REQUIRED_ADS - adCount} more ads today`}
+      {/* 💎 TIERS */}
+      <div className="grid grid-cols-2 gap-4">
+        {TIERS.map((t, i) => {
+          const locked = pts < t.pts || adCount < REQUIRED_ADS;
+
+          return (
+            <div
+              key={i}
+              onClick={() => !locked && setSelectedTier(t)}
+              className={`relative p-5 rounded-2xl transition-all
+              ${locked 
+                ? 'bg-[#0b0f1a] border border-gray-800 opacity-60 cursor-not-allowed'
+                : 'bg-[#111827] border border-gray-700 hover:scale-[1.03] cursor-pointer shadow-md'
+              }`}
+            >
+              {/* 🔒 LOCK ICON */}
+              {locked && (
+                <div className="absolute top-2 right-2 text-xs text-gray-400">
+                  🔒
+                </div>
+              )}
+
+              <div className="text-sm text-gray-400">
+                {t.pts.toLocaleString()} pts
+              </div>
+
+              <div className="text-xl font-bold text-blue-400 mt-1">
+                {t.ton} TON
+              </div>
+
+              {/* REQUIREMENT TEXT */}
+              {locked && (
+                <div className="text-xs text-red-400 mt-2">
+                  {pts < t.pts
+                    ? 'Not enough points'
+                    : 'Complete ads'}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* POPUP */}
+      {/* 💳 POPUP */}
       {selectedTier && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
-          <div className="bg-[#0f172a] p-5 rounded-2xl w-[90%] max-w-sm">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
 
-            <div className="text-lg font-bold mb-2">
+          <div className="bg-[#0f172a] p-6 rounded-2xl w-[90%] max-w-sm border border-gray-800 shadow-xl">
+
+            <div className="text-lg font-bold mb-3">
               Withdraw {selectedTier.ton} TON
             </div>
 
+            <input
+              value={wallet}
+              onChange={e => setWallet(e.target.value)}
+              placeholder="Enter TON wallet"
+              className="w-full p-3 rounded bg-black border border-gray-700 mb-3 outline-none"
+            />
+
             <div className="text-xs text-gray-400 mb-3">
-              Wallet: {walletAddress || 'Not connected'}
+              Ads: {adCount}/{REQUIRED_ADS}
             </div>
 
             {message && (
-              <div className="text-red-400 text-sm mb-2">{message}</div>
+              <div className="text-sm text-red-400 mb-2">
+                {message}
+              </div>
             )}
 
             <button
               onClick={handleWithdraw}
-              className="w-full py-3 bg-yellow-400 text-black rounded-xl font-bold"
+              className="w-full py-3 bg-yellow-400 text-black rounded-xl font-bold hover:opacity-90"
             >
               Confirm Withdraw
             </button>
 
             <button
-              onClick={() => setSelectedTier(null)}
-              className="w-full mt-2 text-gray-400 text-sm"
+              onClick={() => {
+                setSelectedTier(null);
+                setMessage('');
+              }}
+              className="w-full mt-3 text-sm text-gray-400"
             >
               Cancel
             </button>
