@@ -101,19 +101,6 @@ export default function HomePage() {
 
   const [activeTab, setActiveTab] = useState<"earn" | "history">("earn");
 
-  /* ===============================
-     🔥 PERSISTENT AD STATE
-  =================================*/
-  const [adNetwork, setAdNetwork] = useState<"adsgram" | "monetag">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("adNetwork");
-      if (saved === "adsgram" || saved === "monetag") {
-        return saved;
-      }
-    }
-    return "adsgram";
-  });
-
   const [lastAdTime, setLastAdTime] = useState<number>(() => {
     if (typeof window !== "undefined") {
       return Number(localStorage.getItem("lastAdTime") || 0);
@@ -125,15 +112,11 @@ export default function HomePage() {
   const isAdRunning = useRef(false);
 
   useEffect(() => {
-    localStorage.setItem("adNetwork", adNetwork);
-  }, [adNetwork]);
-
-  useEffect(() => {
     localStorage.setItem("lastAdTime", lastAdTime.toString());
   }, [lastAdTime]);
 
   /* ===============================
-     ADSGRAM REWARD
+     ADSGRAM
   =================================*/
   const onAdsgramReward = useCallback(async () => {
     if (!user) return;
@@ -143,15 +126,12 @@ export default function HomePage() {
     await logAdWatch(user.id, "adsgram_reward", 40);
     await refreshBalance();
 
-    setLastAdTime(Date.now()); // ✅ FIX
-
+    setLastAdTime(Date.now());
     setCoinBurst(true);
     setDailyMessage("+40 pts 🎬 (Adsgram)");
 
     setTimeout(() => setCoinBurst(false), 1200);
     setTimeout(() => setDailyMessage(""), 3000);
-
-    setAdNetwork("monetag");
   }, [user, refreshBalance]);
 
   const { showAd: showAdsgramAd } = useRewardedAd(onAdsgramReward);
@@ -174,19 +154,71 @@ export default function HomePage() {
       await logAdWatch(user.id, "monetag_reward", 15);
       await refreshBalance();
 
-      setLastAdTime(Date.now()); // ✅ FIX
-
+      setLastAdTime(Date.now());
       setCoinBurst(true);
       setDailyMessage("+15 pts 💰 (Monetag)");
 
       setTimeout(() => setCoinBurst(false), 1200);
       setTimeout(() => setDailyMessage(""), 3000);
 
-      setAdNetwork("adsgram");
       return true;
     } catch (err) {
       console.error("❌ Monetag failed", err);
       return false;
+    }
+  };
+
+  /* ===============================
+     🔥 GIGAPUB (NEW)
+  =================================*/
+  const [gigapubReady, setGigapubReady] = useState(false);
+  const [gigapubLoading, setGigapubLoading] = useState(false);
+
+  useEffect(() => {
+    if ((window as any).showGiga) {
+      setGigapubReady(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://ad.gigapub.tech/script?id=5935";
+    script.async = true;
+
+    script.onload = () => setGigapubReady(true);
+    script.onerror = () => console.error("Gigapub failed");
+
+    document.body.appendChild(script);
+  }, []);
+
+  const handleGigapubAd = async () => {
+    if (!user) return;
+
+    if (Date.now() - lastAdTime < COOLDOWN) {
+      alert("⏳ Wait before next ad");
+      return;
+    }
+
+    try {
+      setGigapubLoading(true);
+
+      await (window as any).showGiga();
+
+      triggerHaptic("success");
+
+      await logAdWatch(user.id, "gigapub_reward", 20);
+      await refreshBalance();
+
+      setLastAdTime(Date.now());
+
+      setCoinBurst(true);
+      setDailyMessage("+20 pts 🎬 (Gigapub)");
+
+      setTimeout(() => setCoinBurst(false), 1200);
+      setTimeout(() => setDailyMessage(""), 3000);
+    } catch (e) {
+      console.error("Gigapub error:", e);
+    } finally {
+      setGigapubLoading(false);
     }
   };
 
@@ -200,9 +232,6 @@ export default function HomePage() {
     checkDailyCooldown();
   }, [user]);
 
-  /* ===============================
-     COUNTDOWN FIX
-  =================================*/
   useEffect(() => {
     if (dailyCooldown <= 0) return;
 
@@ -252,37 +281,16 @@ export default function HomePage() {
       setDailyMessage(`+${result.points} pts 🔥`);
       setCoinBurst(true);
 
-      const now = new Date();
-
-      const midnightUTC = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() + 1
-        )
-      );
-
-      setDailyCooldown(
-        Math.floor((midnightUTC.getTime() - now.getTime()) / 1000)
-      );
-
       await refreshBalance();
-
-      setTimeout(() => setCoinBurst(false), 1200);
-    } else {
-      triggerHaptic("error");
-      setDailyMessage(result.message || "Already claimed!");
-      await checkDailyCooldown();
     }
 
     setDailyClaiming(false);
-    setTimeout(() => setDailyMessage(""), 3000);
   }
 
   return (
     <div className="px-4 pb-28 text-white">
       {/* BALANCE */}
-      <div className="rounded-3xl p-6 mb-6 text-center bg-gradient-to-br from-slate-900 to-slate-800 border border-yellow-400/20">
+      <div className="rounded-3xl p-6 mb-6 text-center bg-slate-900 border border-yellow-400/20">
         {coinBurst && <div className="text-4xl animate-bounce">💰</div>}
 
         <div className="text-xs text-gray-400 mb-1">Total Balance</div>
@@ -294,124 +302,30 @@ export default function HomePage() {
         <div className="text-xs text-gray-500 mt-1">Available Points</div>
       </div>
 
-      {/* WATCH AD */}
-      <button
-        onClick={async () => {
-          if (!user) return;
-          if (isAdRunning.current) return;
-
-          if (Date.now() - lastAdTime < COOLDOWN) {
-            alert("⏳ Wait a few seconds before next ad");
-            return;
-          }
-
-          isAdRunning.current = true;
-          triggerHaptic("impact");
-          setAdLoading(true);
-
-          try {
-            if (adNetwork === "adsgram") {
-              await showAdsgramAd();
-            } else {
-              const success = await showMonetagAd();
-              if (!success) await showAdsgramAd();
-            }
-          } catch {
-            try {
-              await showAdsgramAd();
-            } catch {
-              alert("Ad failed. Try again later.");
-            }
-          }
-
-          setAdLoading(false);
-          isAdRunning.current = false;
-        }}
-        disabled={adLoading}
-        className="w-full rounded-3xl p-6 mb-6 font-bold text-lg bg-gradient-to-r from-yellow-400 to-orange-500 text-black shadow-lg active:scale-95"
-      >
-        {adLoading
-          ? "Loading Ad..."
-          : adNetwork === "adsgram"
-          ? "🎬 Watch Adsgram Ad (+40)"
-          : "💰 Watch Monetag Ad (+15)"}
-      </button>
-
-      {/* DAILY */}
-      <div className="p-5 mb-6 flex justify-between bg-slate-800 rounded-2xl">
-        <div>
-          <div className="font-bold">🎁 Daily Reward</div>
-
-          <div className="text-xs text-gray-400">
-            {dailyMessage ||
-              (dailyCooldown > 0
-                ? `⏳ ${formatCountdown(dailyCooldown)}`
-                : `+${settings?.daily_bonus_base || 100} pts`)}
-          </div>
-        </div>
-
-        <button
-          onClick={handleDailyClaim}
-          disabled={dailyClaiming || dailyCooldown > 0}
-          className="px-5 py-2 bg-green-500 rounded-xl font-bold"
-        >
-          {dailyCooldown > 0 ? "Locked" : "Claim"}
-        </button>
-      </div>
-
-      {/* TABS */}
-      <div className="flex mb-4 bg-slate-900 rounded-xl p-1">
-        <button
-          onClick={() => setActiveTab("earn")}
-          className={`flex-1 py-2 rounded-lg font-bold ${
-            activeTab === "earn"
-              ? "bg-yellow-400 text-black"
-              : "text-gray-400"
-          }`}
-        >
-          Earn
-        </button>
-
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`flex-1 py-2 rounded-lg font-bold ${
-            activeTab === "history"
-              ? "bg-yellow-400 text-black"
-              : "text-gray-400"
-          }`}
-        >
-          History
-        </button>
-      </div>
-
-      {/* EARN */}
+      {/* EARN TAB */}
       {activeTab === "earn" && (
         <div className="space-y-4 mb-6">
+
           <AdsgramTask blockId="task-25198" />
-        </div>
-      )}
 
-      {/* HISTORY */}
-      {activeTab === "history" && (
-        <div className="space-y-3">
-          {transactions.length === 0 && (
-            <div className="text-gray-400 text-center">
-              No transactions yet
+          {/* 🔥 GIGAPUB BOX (RED AREA) */}
+          <div className="bg-slate-900 rounded-2xl p-4 border border-yellow-400/20">
+            <div className="text-sm text-gray-400 mb-2">
+              🎬 Watch Gigapub Ad
             </div>
-          )}
 
-          {transactions.map((t) => (
-            <div
-              key={t.id}
-              className="p-4 rounded-xl bg-slate-800 flex justify-between"
+            <button
+              onClick={handleGigapubAd}
+              disabled={!gigapubReady || gigapubLoading}
+              className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white"
             >
-              <div className="text-sm">{t.type}</div>
-
-              <div className="text-yellow-400 font-bold">
-                +{t.points}
-              </div>
-            </div>
-          ))}
+              {gigapubLoading
+                ? "Loading..."
+                : gigapubReady
+                ? "Watch Ad (+20)"
+                : "Preparing..."}
+            </button>
+          </div>
         </div>
       )}
     </div>
