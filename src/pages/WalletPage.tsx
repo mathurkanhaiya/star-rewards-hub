@@ -12,7 +12,7 @@ const TIERS = [
   { pts: 30000, ton: 0.30 },
 ];
 
-const REQUIRED_ADS = 40;
+const REQUIRED_ADS = 25;
 
 function isValidTon(addr: string) {
   return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
