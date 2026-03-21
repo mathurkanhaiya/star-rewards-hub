@@ -18,6 +18,15 @@ async function sendTelegramMessage(chatId: number, text: string) {
   } catch (e) { console.error('TG send error:', e); }
 }
 
+const conversionTiers: Record<number, number> = {
+  5000: 0.08,
+  10000: 0.16,
+  15000: 0.24,
+  20000: 0.32,
+  25000: 0.4,
+  30000: 0.48,
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -35,33 +44,27 @@ serve(async (req) => {
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => { settingsMap[s.key] = s.value; });
 
-    const minPoints = parseInt(settingsMap.min_withdrawal_points || '5000'); // adjust min to 5000 if needed
+    const minPoints = parseInt(settingsMap.min_withdrawal_points || '5000'); 
     if (points < minPoints) {
       return new Response(JSON.stringify({ success: false, message: `Minimum withdrawal is ${minPoints.toLocaleString()} points` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // ===== FIXED: Tier-based withdrawal amount =====
-    const TIERS: Record<number, number> = {
-      5000: 0.08,
-      10000: 0.16,
-      15000: 0.24,
-      20000: 0.32,
-      25000: 0.40,
-      30000: 0.48,
-    };
+    // ===== Tiered conversion logic =====
+    const eligibleTiers = Object.keys(conversionTiers)
+      .map(Number)
+      .filter(t => t <= points)
+      .sort((a, b) => b - a);
 
-    const amount = TIERS[points];
-
-    if (!amount) {
-      return new Response(JSON.stringify({
-        success: false,
-        message: 'Invalid withdrawal tier'
-      }), {
+    if (eligibleTiers.length === 0) {
+      return new Response(JSON.stringify({ success: false, message: 'No eligible conversion tier for your points' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    const tier = eligibleTiers[0];
+    const amount = conversionTiers[tier];
 
     // Check balance
     const { data: balance } = await supabase.from('balances').select('points, total_withdrawn').eq('user_id', userId).single();
