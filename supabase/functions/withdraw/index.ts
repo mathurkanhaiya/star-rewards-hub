@@ -35,16 +35,33 @@ serve(async (req) => {
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => { settingsMap[s.key] = s.value; });
 
-    const minPoints = parseInt(settingsMap.min_withdrawal_points || '10000');
+    const minPoints = parseInt(settingsMap.min_withdrawal_points || '5000'); // adjust min to 5000 if needed
     if (points < minPoints) {
       return new Response(JSON.stringify({ success: false, message: `Minimum withdrawal is ${minPoints.toLocaleString()} points` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const rateKey = `${method}_conversion_rate`;
-    const rate = parseInt(settingsMap[rateKey] || '1000');
-    const amount = points / rate;
+    // ===== FIXED: Tier-based withdrawal amount =====
+    const TIERS: Record<number, number> = {
+      5000: 0.08,
+      10000: 0.16,
+      15000: 0.24,
+      20000: 0.32,
+      25000: 0.40,
+      30000: 0.48,
+    };
+
+    const amount = TIERS[points];
+
+    if (!amount) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Invalid withdrawal tier'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     // Check balance
     const { data: balance } = await supabase.from('balances').select('points, total_withdrawn').eq('user_id', userId).single();
