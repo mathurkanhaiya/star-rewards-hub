@@ -1,191 +1,102 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
 
-/* ── Edge function base URL ── */
 const EDGE_FN = `https://utfkqzmrcdfbnjdkjais.supabase.co/functions/v1`;
 
-/* ── Auth header helper ── */
-function edgeHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-  };
-}
-
-/* ── Safe edge function caller ── */
-async function callEdge<T = any>(
-  fn: string,
-  body: Record<string, unknown>
-): Promise<T & { success: boolean; message?: string }> {
+export async function initUser(telegramUser: {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+}, referralCode?: string): Promise<AppUser | null> {
   try {
-    const res = await fetch(`${EDGE_FN}/${fn}`, {
+    const response = await fetch(`${EDGE_FN}/telegram-auth`, {
       method: 'POST',
-      headers: edgeHeaders(),
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ telegramUser, referralCode }),
     });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`[${fn}] HTTP ${res.status}:`, text);
-      return { success: false, message: `HTTP ${res.status}: ${text}` } as any;
-    }
-    return await res.json();
-  } catch (err: any) {
-    console.error(`[${fn}] Error:`, err);
-    return { success: false, message: err?.message || 'Network error' } as any;
+    const data = await response.json();
+    return data.user || null;
+  } catch (err) {
+    console.error('initUser error:', err);
+    return null;
   }
 }
 
-/* ════════════════════════════════════
-   USER
-════════════════════════════════════ */
-
-export async function initUser(
-  telegramUser: {
-    id: number;
-    first_name: string;
-    last_name?: string;
-    username?: string;
-    photo_url?: string;
-  },
-  referralCode?: string
-): Promise<AppUser | null> {
-  const data = await callEdge('telegram-auth', { telegramUser, referralCode });
-  return data?.user || null;
-}
-
 export async function getUser(telegramId: number): Promise<AppUser | null> {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('users')
     .select('*')
     .eq('telegram_id', telegramId)
     .single();
-  if (error) { console.error('getUser error:', error); return null; }
   return data as AppUser | null;
 }
 
 export async function getUserBalance(userId: string): Promise<UserBalance | null> {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('balances')
     .select('*')
     .eq('user_id', userId)
     .single();
-  if (error) { console.error('getUserBalance error:', error); return null; }
   return data as UserBalance | null;
 }
 
-export async function updateUserProfile(
-  userId: string,
-  updates: { first_name?: string; username?: string; photo_url?: string }
-) {
-  const { error } = await supabase.from('users').update(updates).eq('id', userId);
-  return { success: !error };
-}
-
-/* ════════════════════════════════════
-   TASKS
-════════════════════════════════════ */
-
 export async function getTasks(): Promise<Task[]> {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('tasks')
     .select('*')
     .eq('is_active', true)
     .order('display_order');
-  if (error) { console.error('getTasks error:', error); return []; }
   return (data as Task[]) || [];
 }
 
 export async function getUserTasks(userId: string) {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('user_tasks')
     .select('task_id, completed_at, next_available_at')
     .eq('user_id', userId);
-  if (error) { console.error('getUserTasks error:', error); return []; }
   return data || [];
 }
 
-export async function completeTask(
-  userId: string,
-  taskId: string
-): Promise<{ success: boolean; points?: number; message?: string }> {
-  return callEdge('complete-task', { userId, taskId });
+export async function completeTask(userId: string, taskId: string): Promise<{ success: boolean; points?: number; message?: string }> {
+  try {
+    const response = await fetch(`${EDGE_FN}/complete-task`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ userId, taskId }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error completing task' };
+  }
 }
 
-/* ════════════════════════════════════
-   DAILY REWARD
-════════════════════════════════════ */
-
-export async function claimDailyReward(
-  userId: string
-): Promise<{ success: boolean; points?: number; streak?: number; message?: string }> {
-  return callEdge('daily-reward', { userId });
+export async function claimDailyReward(userId: string): Promise<{ success: boolean; points?: number; streak?: number; message?: string }> {
+  try {
+    const response = await fetch(`${EDGE_FN}/daily-reward`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ userId }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error claiming daily reward' };
+  }
 }
 
-export async function getDailyClaim(userId: string) {
-  const today = new Date().toISOString().split('T')[0];
-  const { data, error } = await supabase
-    .from('daily_claims')
-    .select('claimed_at, streak')
-    .eq('user_id', userId)
-    .eq('claim_date', today)
-    .maybeSingle();
-  if (error) { console.error('getDailyClaim error:', error); return null; }
-  return data;
+export async function spinWheel(userId: string): Promise<{ success: boolean; result?: string; points?: number; stars?: number; message?: string }> {
+  try {
+    const response = await fetch(`${EDGE_FN}/spin-wheel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ userId }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error spinning wheel' };
+  }
 }
-
-/* ════════════════════════════════════
-   SPIN WHEEL
-════════════════════════════════════ */
-
-export async function spinWheel(
-  userId: string
-): Promise<{ success: boolean; result?: string; points?: number; stars?: number; message?: string }> {
-  return callEdge('spin-wheel', { userId });
-}
-
-export async function getSpinCount(userId: string) {
-  const { data, error } = await supabase
-    .from('spin_results')
-    .select('spun_at')
-    .eq('user_id', userId)
-    .order('spun_at', { ascending: false })
-    .limit(10);
-  if (error) { console.error('getSpinCount error:', error); return []; }
-  return data || [];
-}
-
-/* ════════════════════════════════════
-   ADS
-════════════════════════════════════ */
-
-export async function logAdWatch(
-  userId: string,
-  adType: string,
-  rewardGiven: number
-): Promise<{ success: boolean }> {
-  return callEdge('log-ad', { userId, adType, rewardGiven });
-}
-
-export async function getAdWatchCount(userId: string, since?: string): Promise<number> {
-  let query = supabase
-    .from('ad_logs')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId);
-  if (since) query = query.gte('created_at', since);
-  const { count } = await query;
-  return count || 0;
-}
-
-export async function getTodayAdCount(userId: string): Promise<number> {
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  return getAdWatchCount(userId, startOfDay.toISOString());
-}
-
-/* ════════════════════════════════════
-   WITHDRAWALS
-════════════════════════════════════ */
 
 export async function submitWithdrawal(
   userId: string,
@@ -193,155 +104,69 @@ export async function submitWithdrawal(
   points: number,
   walletAddress?: string
 ): Promise<{ success: boolean; message?: string }> {
-  return callEdge('withdraw', { userId, method, points, walletAddress });
+  try {
+    const response = await fetch(`${EDGE_FN}/withdraw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ userId, method, points, walletAddress }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error submitting withdrawal' };
+  }
 }
 
 export async function getWithdrawals(userId: string): Promise<Withdrawal[]> {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('withdrawals')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
-  if (error) { console.error('getWithdrawals error:', error); return []; }
   return (data as Withdrawal[]) || [];
 }
 
-/* ════════════════════════════════════
-   LEADERBOARD
-════════════════════════════════════ */
-
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
-  /* Direct balances query — most reliable */
-  const { data: balances, error } = await supabase
-    .from('balances')
-    .select('user_id, points, total_earned')
-    .order('points', { ascending: false })
+  const { data } = await supabase
+    .from('leaderboard')
+    .select('*')
     .limit(50);
-
-  if (error || !balances || balances.length === 0) {
-    /* Fallback to leaderboard view if it exists */
-    const { data: lbData } = await supabase
-      .from('leaderboard')
-      .select('*')
-      .limit(50);
-    return (lbData as LeaderboardEntry[]) || [];
-  }
-
-  const userIds = balances.map(b => b.user_id);
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, first_name, username, telegram_id, photo_url, level')
-    .in('id', userIds);
-
-  const userMap: Record<string, any> = {};
-  (users || []).forEach(u => { userMap[u.id] = u; });
-
-  return balances.map((b, i) => ({
-    id:           b.user_id,
-    user_id:      b.user_id,
-    telegram_id:  userMap[b.user_id]?.telegram_id  || 0,
-    first_name:   userMap[b.user_id]?.first_name   || 'User',
-    username:     userMap[b.user_id]?.username      || '',
-    photo_url:    userMap[b.user_id]?.photo_url     || null,
-    level:        userMap[b.user_id]?.level         || 1,
-    total_points: b.points,
-    points:       b.points,
-    total_earned: b.total_earned,
-    rank:         i + 1,
-  })) as LeaderboardEntry[];
+  return (data as LeaderboardEntry[]) || [];
 }
 
-/* ════════════════════════════════════
-   REFERRALS
-════════════════════════════════════ */
-
 export async function getReferrals(userId: string) {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('referrals')
     .select('*')
     .eq('referrer_id', userId)
     .order('created_at', { ascending: false });
-  if (error) { console.error('getReferrals error:', error); return []; }
   return data || [];
 }
 
-export async function getReferralStats(userId: string) {
-  const { data, error } = await supabase
-    .from('referrals')
-    .select('is_verified, points_earned')
-    .eq('referrer_id', userId);
-  if (error) return { total: 0, verified: 0, totalEarned: 0 };
-  return {
-    total:       (data || []).length,
-    verified:    (data || []).filter(r => r.is_verified).length,
-    totalEarned: (data || []).reduce((s, r) => s + (r.points_earned || 0), 0),
-  };
-}
-
-/* ════════════════════════════════════
-   TRANSACTIONS
-════════════════════════════════════ */
-
-export async function getTransactions(userId: string, limit = 50) {
-  const { data, error } = await supabase
+export async function getTransactions(userId: string) {
+  const { data } = await supabase
     .from('transactions')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(limit);
-  if (error) { console.error('getTransactions error:', error); return []; }
+    .limit(50);
   return data || [];
 }
 
-/* ════════════════════════════════════
-   NOTIFICATIONS
-════════════════════════════════════ */
-
-export async function getNotifications(userId: string) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(30);
-  if (error) { console.error('getNotifications error:', error); return []; }
-  return data || [];
+export async function logAdWatch(userId: string, adType: string, rewardGiven: number) {
+  try {
+    const response = await fetch(`${EDGE_FN}/log-ad`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ userId, adType, rewardGiven }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false };
+  }
 }
-
-export async function markNotificationRead(notifId: string) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('id', notifId);
-  return { success: !error };
-}
-
-export async function markAllNotificationsRead(userId: string) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('user_id', userId)
-    .eq('is_read', false);
-  return { success: !error };
-}
-
-export async function getUnreadNotifCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_read', false);
-  if (error) return 0;
-  return count || 0;
-}
-
-/* ════════════════════════════════════
-   SETTINGS
-════════════════════════════════════ */
 
 export async function getSettings(): Promise<Record<string, string>> {
-  const { data, error } = await supabase.from('settings').select('key, value');
-  if (error) { console.error('getSettings error:', error); return {}; }
+  const { data } = await supabase.from('settings').select('key, value');
   const settings: Record<string, string> = {};
   (data || []).forEach((s: { key: string; value: string }) => {
     settings[s.key] = s.value;
@@ -349,208 +174,121 @@ export async function getSettings(): Promise<Record<string, string>> {
   return settings;
 }
 
-export async function getSetting(key: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', key)
-    .single();
-  if (error) return null;
-  return data?.value || null;
-}
-
-/* ════════════════════════════════════
-   CONTESTS
-════════════════════════════════════ */
-
-export async function getActiveContests() {
-  const { data, error } = await supabase
-    .from('contests')
-    .select('*')
-    .eq('is_active', true)
-    .eq('rewards_distributed', false)
-    .gte('ends_at', new Date().toISOString())
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getActiveContests error:', error); return []; }
-  return data || [];
-}
-
-export async function getContestById(contestId: string) {
-  const { data, error } = await supabase
-    .from('contests')
-    .select('*')
-    .eq('id', contestId)
-    .single();
-  if (error) { console.error('getContestById error:', error); return null; }
+export async function getDailyClaim(userId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('daily_claims')
+    .select('claimed_at')
+    .eq('user_id', userId)
+    .eq('claim_date', today)
+    .maybeSingle();
   return data;
 }
 
-export async function getContestLeaderboard(contestId: string) {
-  const { data, error } = await supabase
-    .from('contest_entries')
-    .select('user_id, score, updated_at')
-    .eq('contest_id', contestId)
-    .order('score', { ascending: false })
-    .limit(50);
-
-  if (error || !data || data.length === 0) return [];
-
-  const userIds = data.map(d => d.user_id);
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, first_name, username, photo_url, telegram_id')
-    .in('id', userIds);
-
-  const userMap: Record<string, any> = {};
-  (users || []).forEach(u => { userMap[u.id] = u; });
-
-  return data.map((d, i) => ({
-    rank:       i + 1,
-    user_id:    d.user_id,
-    score:      d.score,
-    first_name: userMap[d.user_id]?.first_name  || 'User',
-    username:   userMap[d.user_id]?.username     || '',
-    photo_url:  userMap[d.user_id]?.photo_url    || null,
-    telegram_id: userMap[d.user_id]?.telegram_id || 0,
-  }));
+export async function getSpinCount(userId: string) {
+  const { data } = await supabase
+    .from('spin_results')
+    .select('spun_at')
+    .eq('user_id', userId)
+    .order('spun_at', { ascending: false })
+    .limit(10);
+  return data || [];
 }
 
-/* ── Compute ad-watch leaderboard for a contest window ── */
-export async function getAdContestLeaderboard(contest: {
-  ends_at: string;
-  duration_hours?: number;
-}, limit = 50) {
-  const dh = contest.duration_hours || 24;
-  const startISO = new Date(
-    new Date(contest.ends_at).getTime() - dh * 3600000
-  ).toISOString();
-
-  const { data: logs, error } = await supabase
-    .from('ad_logs')
-    .select('user_id, created_at')
-    .gte('created_at', startISO)
-    .lt('created_at', contest.ends_at);
-
-  if (error || !logs || logs.length === 0) return [];
-
-  const counts: Record<string, number> = {};
-  logs.forEach((l: any) => { counts[l.user_id] = (counts[l.user_id] || 0) + 1; });
-
-  const sorted = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-
-  const userIds = sorted.map(([uid]) => uid);
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, first_name, username, photo_url, telegram_id')
-    .in('id', userIds);
-
-  const userMap: Record<string, any> = {};
-  (users || []).forEach(u => { userMap[u.id] = u; });
-
-  return sorted.map(([uid, cnt], i) => ({
-    rank:        i + 1,
-    user_id:     uid,
-    ad_count:    cnt,
-    first_name:  userMap[uid]?.first_name  || 'User',
-    username:    userMap[uid]?.username     || '',
-    photo_url:   userMap[uid]?.photo_url    || null,
-    telegram_id: userMap[uid]?.telegram_id  || 0,
-  }));
+export async function getNotifications(userId: string) {
+  const { data } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  return data || [];
 }
 
-/* ── Compute referral leaderboard for a contest window ── */
-export async function getReferralContestLeaderboard(contest: {
-  ends_at: string;
-  duration_hours?: number;
-}, limit = 50) {
-  const dh = contest.duration_hours || 24;
-  const startISO = new Date(
-    new Date(contest.ends_at).getTime() - dh * 3600000
-  ).toISOString();
-
-  const { data: refs, error } = await supabase
-    .from('referrals')
-    .select('referrer_id, is_verified, points_earned, created_at')
-    .gte('created_at', startISO)
-    .lt('created_at', contest.ends_at);
-
-  if (error || !refs || refs.length === 0) return [];
-
-  const agg: Record<string, { total: number; verified: number; points: number }> = {};
-  refs.forEach((r: any) => {
-    if (!agg[r.referrer_id]) agg[r.referrer_id] = { total: 0, verified: 0, points: 0 };
-    agg[r.referrer_id].total++;
-    if (r.is_verified) agg[r.referrer_id].verified++;
-    agg[r.referrer_id].points += r.points_earned || 0;
-  });
-
-  const sorted = Object.entries(agg)
-    .sort((a, b) => b[1].verified - a[1].verified || b[1].total - a[1].total)
-    .slice(0, limit);
-
-  const userIds = sorted.map(([uid]) => uid);
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, first_name, username, photo_url, telegram_id')
-    .in('id', userIds);
-
-  const userMap: Record<string, any> = {};
-  (users || []).forEach(u => { userMap[u.id] = u; });
-
-  return sorted.map(([uid, data], i) => ({
-    rank:            i + 1,
-    user_id:         uid,
-    referral_count:  data.total,
-    verified_count:  data.verified,
-    points_earned:   data.points,
-    first_name:      userMap[uid]?.first_name  || 'User',
-    username:        userMap[uid]?.username     || '',
-    photo_url:       userMap[uid]?.photo_url    || null,
-    telegram_id:     userMap[uid]?.telegram_id  || 0,
-  }));
+export async function markNotificationRead(notifId: string) {
+  await supabase.from('notifications').update({ is_read: true }).eq('id', notifId);
 }
 
-/* ════════════════════════════════════
-   ADMIN — STATS
-════════════════════════════════════ */
+export async function getUnreadNotifCount(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact' })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+  return count || 0;
+}
+
+// ==================== Admin Functions ====================
 
 export async function adminGetStats() {
-  const [usersRes, withdrawalsRes, transactionsRes, adLogsRes, activeContestsRes] =
-    await Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('withdrawals').select('id, status', { count: 'exact' }),
-      supabase.from('transactions').select('id', { count: 'exact', head: true }),
-      supabase.from('ad_logs').select('id', { count: 'exact', head: true }),
-      supabase.from('contests').select('id', { count: 'exact', head: true })
-        .eq('is_active', true).eq('rewards_distributed', false),
-    ]);
-
-  const pendingWithdrawals = (withdrawalsRes.data || [])
-    .filter((w: { status: string }) => w.status === 'pending').length;
-
+  const [usersRes, withdrawalsRes, transactionsRes, adLogsRes] = await Promise.all([
+    supabase.from('users').select('id', { count: 'exact' }),
+    supabase.from('withdrawals').select('id, status', { count: 'exact' }),
+    supabase.from('transactions').select('id', { count: 'exact' }),
+    supabase.from('ad_logs').select('id', { count: 'exact' }),
+  ]);
   return {
-    totalUsers:          usersRes.count          || 0,
-    totalWithdrawals:    withdrawalsRes.count     || 0,
-    pendingWithdrawals,
-    totalTransactions:   transactionsRes.count    || 0,
-    totalAdViews:        adLogsRes.count          || 0,
-    activeContests:      activeContestsRes.count  || 0,
+    totalUsers: usersRes.count || 0,
+    totalWithdrawals: withdrawalsRes.count || 0,
+    pendingWithdrawals: (withdrawalsRes.data || []).filter((w: { status: string }) => w.status === 'pending').length,
+    totalTransactions: transactionsRes.count || 0,
+    totalAdViews: adLogsRes.count || 0,
   };
 }
 
-/* ════════════════════════════════════
-   ADMIN — USERS
-════════════════════════════════════ */
-
 export async function adminGetUsers() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('users')
     .select('*, balances(*)')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('adminGetUsers error:', error); return []; }
+    .order('created_at', { ascending: false })
+    .range(0, 9999999);
+
   return data || [];
+}
+
+export async function adminGetWithdrawals() {
+  const { data } = await supabase
+    .from('withdrawals')
+    .select('*, users(first_name, username, telegram_id, photo_url)')
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string) {
+  try {
+    const response = await fetch(`${EDGE_FN}/admin-withdrawal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ withdrawalId, status, adminNote }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error updating withdrawal' };
+  }
+}
+
+export async function adminUpdateSetting(key: string, value: string) {
+  // Check if setting exists
+  const { data: existing } = await supabase
+    .from('settings')
+    .select('id')
+    .eq('key', key)
+    .single();
+
+  if (existing) {
+    const { error } = await supabase
+      .from('settings')
+      .update({ value, updated_at: new Date().toISOString() })
+      .eq('key', key);
+    console.log(`Setting "${key}" updated to "${value}"`, error ? `ERROR: ${error.message}` : '✓');
+    return { success: !error };
+  } else {
+    const { error } = await supabase
+      .from('settings')
+      .insert({ key, value, updated_at: new Date().toISOString() });
+    console.log(`Setting "${key}" inserted as "${value}"`, error ? `ERROR: ${error.message}` : '✓');
+    return { success: !error };
+  }
 }
 
 export async function adminBanUser(userId: string, banned: boolean) {
@@ -562,76 +300,21 @@ export async function adminBanUser(userId: string, banned: boolean) {
 }
 
 export async function adminAdjustBalance(userId: string, points: number, reason: string) {
-  const { data: balance, error: balErr } = await supabase
-    .from('balances')
-    .select('points, total_earned')
-    .eq('user_id', userId)
-    .single();
-
-  if (balErr || !balance) return { success: false, message: 'Balance not found' };
-
-  const newPoints     = Math.max(0, balance.points + points);
-  const newTotalEarned = points > 0 ? balance.total_earned + points : balance.total_earned;
-
-  const { error } = await supabase
-    .from('balances')
-    .update({ points: newPoints, total_earned: newTotalEarned })
-    .eq('user_id', userId);
-
-  if (error) return { success: false, message: error.message };
-
+  const { data: balance } = await supabase.from('balances').select('points').eq('user_id', userId).single();
+  if (!balance) return { success: false };
+  
+  const newPoints = Math.max(0, balance.points + points);
+  const { error } = await supabase.from('balances').update({ points: newPoints }).eq('user_id', userId);
+  if (error) return { success: false };
+  
   await supabase.from('transactions').insert({
-    user_id:     userId,
-    type:        points >= 0 ? 'admin_credit' : 'admin_debit',
+    user_id: userId,
+    type: points >= 0 ? 'admin_credit' : 'admin_debit',
     points,
     description: `🛡️ Admin: ${reason}`,
   });
-
   return { success: true };
 }
-
-export async function adminDeleteUser(userId: string) {
-  try {
-    // Clean up related data first
-    await Promise.all([
-      supabase.from('transactions').delete().eq('user_id', userId),
-      supabase.from('notifications').delete().eq('user_id', userId),
-      supabase.from('user_tasks').delete().eq('user_id', userId),
-      supabase.from('ad_logs').delete().eq('user_id', userId),
-      supabase.from('referrals').delete().eq('referrer_id', userId),
-      supabase.from('balances').delete().eq('user_id', userId),
-    ]);
-    const { error } = await supabase.from('users').delete().eq('id', userId);
-    return { success: !error, message: error?.message };
-  } catch (err: any) {
-    return { success: false, message: err?.message };
-  }
-}
-
-/* ════════════════════════════════════
-   ADMIN — WITHDRAWALS
-════════════════════════════════════ */
-
-export async function adminGetWithdrawals() {
-  const { data, error } = await supabase
-    .from('withdrawals')
-    .select('*, users(first_name, username, telegram_id, photo_url)')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('adminGetWithdrawals error:', error); return []; }
-  return data || [];
-}
-
-export async function adminUpdateWithdrawal(
-  withdrawalId: string,
-  status: string,
-  adminNote?: string
-): Promise<{ success: boolean; message?: string }> {
-  return callEdge('admin-withdrawal', { withdrawalId, status, adminNote });
-}
-
-/* ════════════════════════════════════
-   ADMIN — TASKS
-════════════════════════════════════ */
 
 export async function adminCreateTask(task: Omit<Task, 'id'>) {
   const { data, error } = await supabase
@@ -639,8 +322,7 @@ export async function adminCreateTask(task: Omit<Task, 'id'>) {
     .insert([task])
     .select()
     .single();
-  if (error) { console.error('adminCreateTask error:', error); }
-  return { success: !error, data, message: error?.message };
+  return { success: !error, data };
 }
 
 export async function adminToggleTask(taskId: string, isActive: boolean) {
@@ -657,246 +339,156 @@ export async function adminDeleteTask(taskId: string) {
   return { success: !error };
 }
 
-/* ════════════════════════════════════
-   ADMIN — SETTINGS
-════════════════════════════════════ */
-
-export async function adminUpdateSetting(key: string, value: string) {
-  const { data: existing } = await supabase
-    .from('settings')
-    .select('id')
-    .eq('key', key)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from('settings')
-      .update({ value, updated_at: new Date().toISOString() })
-      .eq('key', key);
-    return { success: !error, message: error?.message };
-  } else {
-    const { error } = await supabase
-      .from('settings')
-      .insert({ key, value, updated_at: new Date().toISOString() });
-    return { success: !error, message: error?.message };
-  }
-}
-
-/* ════════════════════════════════════
-   ADMIN — CONTESTS
-════════════════════════════════════ */
-
+// Contest functions
 export async function adminGetContests() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('contests')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) { console.error('adminGetContests error:', error); return []; }
   return data || [];
 }
 
-export async function adminCreateContest(contest: any) {
-  try {
-    const insertData: any = {
-      title:               contest.title?.trim(),
-      contest_type:        contest.contest_type,
-      ends_at:             contest.ends_at,
-      is_active:           true,
-      rewards_distributed: false,
-      reward_1st:          Number(contest.reward_1st) || 0,
-      reward_2nd:          Number(contest.reward_2nd) || 0,
-      reward_3rd:          Number(contest.reward_3rd) || 0,
-      reward_4th:          Number(contest.reward_4th) || 0,
-      reward_5th:          Number(contest.reward_5th) || 0,
-    };
-
-    /* Extended fields — only insert if column exists in your schema */
-    if (contest.description)    insertData.description    = contest.description;
-    if (contest.reward_method)  insertData.reward_method  = contest.reward_method;
-    if (contest.banner_emoji)   insertData.banner_emoji   = contest.banner_emoji;
-    if (contest.winner_count)   insertData.winner_count   = Number(contest.winner_count);
-    if (contest.duration_hours) insertData.duration_hours = Number(contest.duration_hours);
-
-    const { data, error } = await supabase
-      .from('contests')
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('adminCreateContest error:', error);
-      return { success: false, message: error.message };
-    }
-
-    return { success: true, data };
-  } catch (err: any) {
-    console.error('adminCreateContest exception:', err);
-    return { success: false, message: err?.message || 'Unknown error' };
-  }
+export async function adminCreateContest(contest: {
+  title: string;
+  contest_type: string;
+  ends_at: string;
+  reward_1st: number;
+  reward_2nd: number;
+  reward_3rd: number;
+  reward_4th: number;
+  reward_5th: number;
+}) {
+  const { data, error } = await supabase
+    .from('contests')
+    .insert([contest])
+    .select()
+    .single();
+  return { success: !error, data };
 }
 
 export async function adminEndContest(contestId: string) {
-  return callEdge('distribute-contest', { contestId });
+  try {
+    const response = await fetch(`${EDGE_FN}/distribute-contest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ contestId }),
+    });
+    return await response.json();
+  } catch {
+    return { success: false, message: 'Error distributing rewards' };
+  }
 }
 
-export async function adminCancelContest(contestId: string) {
-  const { error } = await supabase
+export async function getContestLeaderboard(contestId: string) {
+  const { data } = await supabase
+    .from('contest_entries')
+    .select('user_id, score, updated_at')
+    .eq('contest_id', contestId)
+    .order('score', { ascending: false })
+    .limit(20);
+  
+  if (!data || data.length === 0) return [];
+  
+  // Fetch user info separately since no FK relation
+  const userIds = data.map(d => d.user_id);
+  const { data: usersData } = await supabase
+    .from('users')
+    .select('id, first_name, username, photo_url, telegram_id')
+    .in('id', userIds);
+  
+  const userMap: Record<string, { first_name: string; username: string; photo_url: string | null; telegram_id: number }> = {};
+  (usersData || []).forEach((u: { id: string; first_name: string | null; username: string | null; photo_url: string | null; telegram_id: number }) => {
+    userMap[u.id] = { first_name: u.first_name || '', username: u.username || '', photo_url: u.photo_url, telegram_id: u.telegram_id };
+  });
+  
+  return data.map(d => ({
+    user_id: d.user_id,
+    score: d.score,
+    users: userMap[d.user_id] || null,
+  }));
+}
+
+export async function getActiveContests() {
+  const { data } = await supabase
     .from('contests')
-    .update({ is_active: false })
-    .eq('id', contestId);
-  return { success: !error, message: error?.message };
-}
-
-export async function adminDeleteContest(contestId: string) {
-  try {
-    /* Silently clean up related tables if they exist */
-    try { await supabase.from('contest_entries').delete().eq('contest_id', contestId); } catch (_) {}
-    try { await supabase.from('contest_rewards').delete().eq('contest_id', contestId); } catch (_) {}
-
-    const { error } = await supabase
-      .from('contests')
-      .delete()
-      .eq('id', contestId);
-
-    if (error) return { success: false, message: error.message };
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Unknown error' };
-  }
-}
-
-/* ════════════════════════════════════
-   ADMIN — BROADCAST
-════════════════════════════════════ */
-
-export async function adminSendBroadcast(message: string, adminTelegramId: number) {
-  try {
-    /* Log broadcast */
-    const { error: broadcastErr } = await supabase
-      .from('broadcasts')
-      .insert({ message, sent_by: adminTelegramId });
-
-    if (broadcastErr) {
-      console.warn('broadcasts table insert failed:', broadcastErr.message);
-      /* Continue anyway — table might not exist */
-    }
-
-    /* Fetch all non-banned users */
-    const { data: users, error: usersErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('is_banned', false);
-
-    if (usersErr || !users) return { success: false, message: 'Failed to fetch users' };
-
-    /* Insert notifications in batches of 100 */
-    const notifs = users.map((u: { id: string }) => ({
-      user_id: u.id,
-      title:   '📢 Announcement',
-      message,
-      type:    'info',
-      is_read: false,
-    }));
-
-    for (let i = 0; i < notifs.length; i += 100) {
-      await supabase.from('notifications').insert(notifs.slice(i, i + 100));
-    }
-
-    return { success: true, sent: notifs.length };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Unknown error' };
-  }
-}
-
-/* ════════════════════════════════════
-   ADMIN — PROMOS
-════════════════════════════════════ */
-
-export async function adminGetPromos() {
-  const { data, error } = await supabase
-    .from('promos')
     .select('*')
-    .order('created_at', { ascending: false });
-  if (error) return [];
+    .eq('is_active', true)
+    .gte('ends_at', new Date().toISOString())
+    .order('ends_at');
   return data || [];
 }
 
-export async function adminCreatePromo(promo: {
-  code: string;
-  points: number;
-  max_uses: number;
-  expires_at?: string;
-}) {
-  const { data, error } = await supabase
-    .from('promos')
-    .insert({ ...promo, uses: 0, is_active: true })
-    .select()
-    .single();
-  return { success: !error, data, message: error?.message };
-}
-
-export async function adminDeletePromo(promoId: string) {
-  const { error } = await supabase.from('promos').delete().eq('id', promoId);
-  return { success: !error };
-}
-
-export async function claimPromo(
-  userId: string,
-  code: string
-): Promise<{ success: boolean; points?: number; message?: string }> {
-  try {
-    /* Find promo */
-    const { data: promo, error: promoErr } = await supabase
-      .from('promos')
-      .select('*')
-      .eq('code', code.trim().toUpperCase())
-      .eq('is_active', true)
-      .single();
-
-    if (promoErr || !promo) return { success: false, message: 'Invalid promo code' };
-    if (promo.uses >= promo.max_uses) return { success: false, message: 'Promo code expired' };
-    if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-      return { success: false, message: 'Promo code has expired' };
+// Broadcast
+export async function adminSendBroadcast(message: string, adminTelegramId: number) {
+  const { error } = await supabase.from('broadcasts').insert({
+    message,
+    sent_by: adminTelegramId,
+  });
+  if (error) return { success: false };
+  
+  // Create notifications for all users
+  const { data: users } = await supabase.from('users').select('id');
+  if (users && users.length > 0) {
+    const notifs = users.map((u: { id: string }) => ({
+      user_id: u.id,
+      title: '📢 Announcement',
+      message,
+      type: 'info',
+    }));
+    // Insert in batches of 100
+    for (let i = 0; i < notifs.length; i += 100) {
+      await supabase.from('notifications').insert(notifs.slice(i, i + 100));
     }
-
-    /* Check if user already claimed */
-    const { data: existing } = await supabase
-      .from('promo_claims')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('promo_id', promo.id)
-      .maybeSingle();
-
-    if (existing) return { success: false, message: 'Already claimed this promo' };
-
-    /* Credit balance */
-    const { data: balance } = await supabase
-      .from('balances')
-      .select('points, total_earned')
-      .eq('user_id', userId)
-      .single();
-
-    if (balance) {
-      await supabase.from('balances').update({
-        points:       balance.points + promo.points,
-        total_earned: balance.total_earned + promo.points,
-      }).eq('user_id', userId);
-    }
-
-    /* Log transaction */
-    await supabase.from('transactions').insert({
-      user_id:     userId,
-      type:        'promo',
-      points:      promo.points,
-      description: `🎁 Promo: ${code.toUpperCase()}`,
-    });
-
-    /* Record claim + increment uses */
-    await supabase.from('promo_claims').insert({ user_id: userId, promo_id: promo.id });
-    await supabase.from('promos').update({ uses: promo.uses + 1 }).eq('id', promo.id);
-
-    return { success: true, points: promo.points };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Unknown error' };
   }
+  return { success: true };
+}
+
+// Ad stats for leaderboard
+export async function getAdWatchLeaderboard(contestId?: string) {
+  if (contestId) {
+    return getContestLeaderboard(contestId);
+  }
+  // Fallback: top ad watchers all time
+  const { data } = await supabase
+    .from('ad_logs')
+    .select('user_id, users:user_id(first_name, username, photo_url)')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  
+  if (!data) return [];
+  
+  // Aggregate by user
+  const counts: Record<string, { user_id: string; count: number; user: unknown }> = {};
+  for (const log of data as Array<{ user_id: string; users: unknown }>) {
+    if (!counts[log.user_id]) {
+      counts[log.user_id] = { user_id: log.user_id, count: 0, user: log.users };
+    }
+    counts[log.user_id].count++;
+  }
+  
+  return Object.values(counts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
+export async function getReferralLeaderboard() {
+  const { data } = await supabase
+    .from('referrals')
+    .select('referrer_id, users:referrer_id(first_name, username, photo_url)')
+    .eq('is_verified', true)
+    .limit(500);
+  
+  if (!data) return [];
+  
+  const counts: Record<string, { user_id: string; count: number; user: unknown }> = {};
+  for (const ref of data as Array<{ referrer_id: string; users: unknown }>) {
+    if (!counts[ref.referrer_id]) {
+      counts[ref.referrer_id] = { user_id: ref.referrer_id, count: 0, user: ref.users };
+    }
+    counts[ref.referrer_id].count++;
+  }
+  
+  return Object.values(counts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 }
