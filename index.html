@@ -2,235 +2,66 @@
 <html lang="en">
 <head>
 
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#06080f" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="format-detection" content="telephone=no" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
-  <title>ADS Rewards — Watch, Earn & Win TON</title>
-  <meta name="description" content="Watch ads, tap to earn, complete tasks & win real TON crypto rewards in Telegram!" />
+<title>ADS Rewards - Earn & Withdraw</title>
 
-  <!-- OG / Social -->
-  <meta property="og:title"       content="ADS Rewards — Earn TON Crypto" />
-  <meta property="og:description" content="Watch ads, tap to earn, complete tasks & win real TON crypto rewards!" />
-  <meta property="og:type"        content="website" />
-  <meta property="og:image"       content="https://i.ibb.co/hJxry1hZ/53-AB4888-9018-455-D-B962-232-FAA620823.png" />
-  <meta name="twitter:card"       content="summary_large_image" />
-  <meta name="twitter:title"      content="ADS Rewards — Earn TON Crypto" />
-  <meta name="twitter:description" content="Watch ads, tap to earn, complete tasks & win real TON!" />
-  <meta name="twitter:image"      content="https://i.ibb.co/hJxry1hZ/53-AB4888-9018-455-D-B962-232-FAA620823.png" />
+<meta name="description" content="Complete tasks, invite friends, spin the wheel & earn crypto rewards!" />
 
-  <!-- Fonts preload -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap"
-    rel="stylesheet"
-  />
-
-  <!-- Telegram Web App — must be first -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Ad SDKs -->
-  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-  <script src="//libtl.com/sdk.js" data-zone="10742752" data-sdk="show_10742752"></script>
-  <script src="https://ad.gigapub.tech/script?id=5935"></script>
-
-  <!-- Telegram Analytics -->
-  <script
-    async
-    src="https://tganalytics.xyz/index.js"
-    onload="initAnalytics()"
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<script src='//libtl.com/sdk.js' data-zone='10742752' data-sdk='show_10742752'></script>
+<script src="https://ad.gigapub.tech/script?id=5935"></script>
+<!-- Add Telegram Analytics script to HTML head -->
+<script 
+    async 
+    src="https://tganalytics.xyz/index.js" 
+    onload="initAnalytics()" 
     type="text/javascript"
-  ></script>
+></script>
+<meta property="og:title" content="ADS Rewards Mini App" />
+<meta property="og:description" content="Earn crypto by completing tasks and inviting friends!" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
 
-  <style>
-    /* Prevent flash of white before React mounts */
-    *, *::before, *::after { box-sizing: border-box; }
+<style>
+body{
+  margin:0;
+  font-family:system-ui;
+}
+</style>
 
-    html, body {
-      margin: 0; padding: 0;
-      background: #06080f;
-      color: #fff;
-      font-family: 'Rajdhani', system-ui, sans-serif;
-      overscroll-behavior: none;
-      -webkit-overflow-scrolling: touch;
-      overflow-x: hidden;
-      height: 100%;
-    }
+<script>
+window.addEventListener("DOMContentLoaded", function () {
 
-    #root {
-      min-height: 100vh;
-      background: #06080f;
-    }
+  const tg = window.Telegram?.WebApp;
 
-    /* Splash screen shown before React loads */
-    #splash {
-      position: fixed; inset: 0;
-      background: #06080f;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 9999;
-      gap: 0;
-      transition: opacity 0.3s ease;
-    }
-    #splash.hide { opacity: 0; pointer-events: none; }
+  const isTelegramMiniApp =
+    tg &&
+    tg.platform &&
+    tg.initDataUnsafe &&
+    tg.initDataUnsafe.user;
 
-    #splash-grid {
-      position: absolute; inset: 0; pointer-events: none;
-      background-image:
-        linear-gradient(rgba(255,190,0,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,190,0,0.02) 1px, transparent 1px);
-      background-size: 32px 32px;
-    }
-    #splash-orb {
-      position: absolute; width: 300px; height: 300px; border-radius: 50%;
-      top: -60px; left: 50%; transform: translateX(-50%);
-      background: radial-gradient(circle, rgba(255,190,0,0.07) 0%, transparent 70%);
-      pointer-events: none;
-    }
+  if (!isTelegramMiniApp) {
+    document.body.innerHTML =
+      "<h2 style='text-align:center;margin-top:40vh'>Open this Mini App inside Telegram</h2>";
+    return;
+  }
 
-    #splash-logo-wrap {
-      position: relative; width: 110px; height: 110px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 28px;
-      animation: splashFadeUp 0.5s ease both;
-    }
-    #splash-ring1 {
-      position: absolute; inset: 0; border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: #ffbe00;
-      border-right-color: rgba(255,190,0,0.2);
-      animation: splashSpin 1.2s linear infinite;
-    }
-    #splash-ring2 {
-      position: absolute; inset: 8px; border-radius: 50%;
-      border: 1px solid transparent;
-      border-bottom-color: rgba(255,190,0,0.35);
-      animation: splashSpin 2s linear infinite reverse;
-    }
-    #splash-img {
-      width: 76px; height: 76px; border-radius: 50%; object-fit: cover;
-      position: relative; z-index: 1;
-      animation: splashFloat 3s ease-in-out infinite, splashGlow 2s ease-in-out infinite;
-    }
+  tg.expand();
+  tg.ready();
 
-    #splash-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 22px; font-weight: 900; letter-spacing: 4px;
-      color: #ffbe00;
-      text-shadow: 0 0 24px rgba(255,190,0,0.4);
-      margin-bottom: 4px;
-      animation: splashFadeUp 0.5s 0.1s ease both;
-    }
-    #splash-sub {
-      font-family: 'Orbitron', monospace;
-      font-size: 9px; letter-spacing: 4px;
-      color: rgba(255,255,255,0.2); text-transform: uppercase;
-      margin-bottom: 28px;
-      animation: splashFadeUp 0.5s 0.2s ease both;
-    }
-    #splash-bar-track {
-      width: 180px; height: 3px;
-      background: rgba(255,255,255,0.06); border-radius: 2px;
-      overflow: hidden; margin-bottom: 16px;
-      animation: splashFadeUp 0.5s 0.3s ease both;
-    }
-    #splash-bar-fill {
-      height: 100%; border-radius: 2px;
-      background: linear-gradient(90deg, #ffbe00, #f59e0b);
-      box-shadow: 0 0 8px rgba(255,190,0,0.5);
-      animation: splashBar 2.5s ease-out forwards;
-    }
-    #splash-dots {
-      display: flex; gap: 6px;
-      animation: splashFadeUp 0.5s 0.4s ease both;
-    }
-    #splash-dots span {
-      width: 6px; height: 6px; border-radius: 50%; background: #ffbe00;
-      animation: splashDot 1.2s ease-in-out infinite;
-    }
-    #splash-dots span:nth-child(2) { animation-delay: 0.2s; }
-    #splash-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes splashSpin    { to { transform: rotate(360deg); } }
-    @keyframes splashFloat   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-    @keyframes splashGlow    { 0%,100%{box-shadow:0 0 20px rgba(255,190,0,0.25)} 50%{box-shadow:0 0 40px rgba(255,190,0,0.55)} }
-    @keyframes splashFadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes splashBar     { 0%{width:0%} 100%{width:90%} }
-    @keyframes splashDot     { 0%,80%,100%{transform:scale(0.5);opacity:0.3} 40%{transform:scale(1.1);opacity:1} }
-
-    /* Disable text selection & callout globally */
-    * { -webkit-tap-highlight-color: transparent; }
-    img, button { -webkit-user-drag: none; user-select: none; }
-  </style>
-
-  <script>
-    // Telegram WebApp init — runs before React
-    (function () {
-      const tg = window.Telegram?.WebApp;
-
-      // Not in Telegram — React handles this too, but do a quick pre-check
-      const isTG = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-      if (!isTG) return; // React will show the not-in-telegram screen
-
-      // Expand & ready immediately
-      tg.expand();
-      tg.ready();
-
-      // Set Telegram header color to match app
-      try {
-        tg.setHeaderColor('#06080f');
-        tg.setBackgroundColor('#06080f');
-      } catch (e) {}
-
-      // Disable vertical swipe-to-close
-      try { tg.disableVerticalSwipes?.(); } catch (e) {}
-
-      // Hide splash once React has mounted
-      window.__hideSplash = function () {
-        const splash = document.getElementById('splash');
-        if (splash) {
-          splash.classList.add('hide');
-          setTimeout(() => splash.remove(), 350);
-        }
-      };
-    })();
-  </script>
+});
+</script>
 
 </head>
 
 <body>
 
-  <!-- Splash shown before React hydrates -->
-  <div id="splash">
-    <div id="splash-grid"></div>
-    <div id="splash-orb"></div>
-    <div id="splash-logo-wrap">
-      <div id="splash-ring1"></div>
-      <div id="splash-ring2"></div>
-      <img
-        id="splash-img"
-        src="https://i.ibb.co/hJxry1hZ/53-AB4888-9018-455-D-B962-232-FAA620823.png"
-        alt="ADS Rewards"
-      />
-    </div>
-    <div id="splash-title">ADS REWARDS</div>
-    <div id="splash-sub">Watch · Earn · Win</div>
-    <div id="splash-bar-track">
-      <div id="splash-bar-fill"></div>
-    </div>
-    <div id="splash-dots">
-      <span></span><span></span><span></span>
-    </div>
-  </div>
+<div id="root"></div>
 
-  <div id="root"></div>
-
-  <script type="module" src="/src/main.tsx"></script>
+<script type="module" src="/src/main.tsx"></script>
 
 </body>
 </html>
