@@ -5,12 +5,8 @@ import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
 
 type HapticType = "impact" | "success" | "error";
-
-interface Transaction {
-  id: string;
-  type: string;
-  points: number;
-}
+interface Transaction { id: string; type: string; points: number; }
+interface FloatPt { id: number; x: number; y: number; val: number; }
 
 function triggerHaptic(type: HapticType) {
   if (typeof window !== "undefined" && (window as any).Telegram) {
@@ -29,12 +25,9 @@ function AnimatedNumber({ value = 0 }: { value: number }) {
   useEffect(() => {
     let start = prev.current;
     const diff = value - start;
-    const steps = 30;
-    const inc = diff / steps;
-    let step = 0;
+    const steps = 30; const inc = diff / steps; let step = 0;
     const timer = setInterval(() => {
-      step++;
-      start += inc;
+      step++; start += inc;
       if (step >= steps) { setDisplay(value); clearInterval(timer); }
       else setDisplay(Math.floor(start));
     }, 20);
@@ -46,271 +39,201 @@ function AnimatedNumber({ value = 0 }: { value: number }) {
 
 function txLabel(type: string): string {
   const map: Record<string, string> = {
-    tap_earn: "Tap Earn", farm_claim: "Farm Reward",
-    ad_watch: "Ad Watch", adsgram_reward: "Adsgram Ad",
-    tower_climb: "Tower Climb", lucky_box: "Lucky Box",
-    dice_roll: "Dice Roll", card_flip: "Card Flip",
-    number_guess: "Number Guess", daily_reward: "Daily Reward",
+    tap_earn: "Tap Earn", farm_claim: "Farm Reward", ad_watch: "Ad Watch",
+    adsgram_reward: "Adsgram Ad", tower_climb: "Tower Climb", lucky_box: "Lucky Box",
+    dice_roll: "Dice Roll", card_flip: "Card Flip", number_guess: "Number Guess",
+    daily_reward: "Daily Reward", daily_drop: "Daily Drop",
     referral_bonus: "Referral Bonus", task_complete: "Task Complete",
   };
   return map[type] || type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
-
 function txIcon(type: string): string {
   const map: Record<string, string> = {
-    tap_earn: "👆", farm_claim: "🌾", ad_watch: "🎬",
-    adsgram_reward: "🎬", tower_climb: "🏗️", lucky_box: "🎁",
-    dice_roll: "🎲", card_flip: "🃏", number_guess: "🎯",
-    daily_reward: "🔥", referral_bonus: "👥", task_complete: "✅",
+    tap_earn: "👆", farm_claim: "🌾", ad_watch: "🎬", adsgram_reward: "🎬",
+    tower_climb: "🏗️", lucky_box: "🎁", dice_roll: "🎲", card_flip: "🃏",
+    number_guess: "🎯", daily_reward: "🔥", daily_drop: "🎁",
+    referral_bonus: "👥", task_complete: "✅",
   };
   return map[type] || "💰";
 }
 
 /* ── Constants ── */
-const MAX_ENERGY       = 50;
-const REGEN_PER_SEC    = 50 / 3600;        // fills in 60 min
-const FAST_REGEN_MULT  = 5;                // 5x faster when boosted
-const BOOST_DURATION   = 5 * 60;          // 5 min in seconds
-const FARM_DURATION_MS = 15 * 60 * 1000;
-const FARM_REWARD      = 15;
-const AD_MAX_PER_DAY   = 15;
-const AD_REWARD        = 30;
-const AD_COOLDOWN_SEC  = 10;
+const MAX_ENERGY        = 50;
+const REGEN_PER_SEC     = 50 / 3600;
+const X2_DURATION_SEC   = 10;
+const FAST_DURATION_SEC = 60;
+const FAST_REGEN_MULT   = 2;
+const FARM_DURATION_MS  = 15 * 60 * 1000;
+const FARM_REWARD       = 15;
+const AD_MAX_PER_DAY    = 15;
+const AD_REWARD         = 30;
+const AD_COOLDOWN_SEC   = 10;
+
+/* Daily Drop config */
+const DAILY_DROP = [
+  { day: 1, pts: 5,  color: '#4ade80', label: 'D1' },
+  { day: 2, pts: 10, color: '#4ade80', label: 'D2' },
+  { day: 3, pts: 15, color: '#ffbe00', label: 'D3' },
+  { day: 4, pts: 20, color: '#ffbe00', label: 'D4' },
+  { day: 5, pts: 25, color: '#22d3ee', label: 'D5' },
+  { day: 6, pts: 35, color: '#22d3ee', label: 'D6' },
+  { day: 7, pts: 50, color: '#a78bfa', label: 'D7' },
+];
+
+/* ── localStorage helpers ── */
+function saveBoost(key: string, expiresAt: number) {
+  localStorage.setItem(key, String(expiresAt));
+}
+function loadBoost(key: string): number {
+  const v = localStorage.getItem(key);
+  if (!v) return 0;
+  const exp = Number(v);
+  const secsLeft = Math.max(0, Math.floor((exp - Date.now()) / 1000));
+  return secsLeft;
+}
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap');
 
-@keyframes hpShine   { 0%{left:-100%} 40%,100%{left:150%} }
-@keyframes hpDot     { 0%,80%,100%{transform:scale(0.5);opacity:0.4} 40%{transform:scale(1);opacity:1} }
-@keyframes hpFadeIn  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-@keyframes hpBounce  { from{transform:scale(0.3) translateY(10px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
-@keyframes hpMsgIn   { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
-@keyframes hpFloat   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-@keyframes hpRipple  { 0%{transform:scale(0.9);opacity:0.6} 100%{transform:scale(2);opacity:0} }
-@keyframes hpTapPop  { 0%{transform:scale(1)} 30%{transform:scale(0.91)} 100%{transform:scale(1)} }
-@keyframes hpGoldGlow{ 0%,100%{box-shadow:0 0 28px rgba(255,190,0,0.35),0 0 0 3px rgba(255,190,0,0.15)} 50%{box-shadow:0 0 52px rgba(255,190,0,0.65),0 0 0 3px rgba(255,190,0,0.3)} }
-@keyframes hpX2Glow  { 0%,100%{box-shadow:0 0 20px rgba(251,191,36,0.3)} 50%{box-shadow:0 0 40px rgba(251,191,36,0.7)} }
-@keyframes hpFastGlow{ 0%,100%{box-shadow:0 0 20px rgba(34,211,238,0.3)} 50%{box-shadow:0 0 40px rgba(34,211,238,0.7)} }
-@keyframes hpFarmPulse{0%,100%{border-color:rgba(74,222,128,0.2)} 50%{border-color:rgba(74,222,128,0.5)} }
-@keyframes hpCdFlash { 0%,100%{opacity:0.5} 50%{opacity:1} }
-@keyframes hpFloatPts{ 0%{opacity:1;transform:translateY(0) scale(1.1)} 100%{opacity:0;transform:translateY(-70px) scale(0.7)} }
-@keyframes hpEnergyPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+@keyframes hpShine     { 0%{left:-100%} 40%,100%{left:150%} }
+@keyframes hpDot       { 0%,80%,100%{transform:scale(0.5);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+@keyframes hpFadeIn    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes hpMsgIn     { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+@keyframes hpFloat     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes hpRipple    { 0%{transform:scale(0.9);opacity:0.5} 100%{transform:scale(2.1);opacity:0} }
+@keyframes hpTapPop    { 0%{transform:scale(1)} 30%{transform:scale(0.91)} 100%{transform:scale(1)} }
+@keyframes hpGoldGlow  { 0%,100%{box-shadow:0 0 24px rgba(255,190,0,0.3),0 0 0 2px rgba(255,190,0,0.12)} 50%{box-shadow:0 0 44px rgba(255,190,0,0.6),0 0 0 2px rgba(255,190,0,0.28)} }
+@keyframes hpX2Glow    { 0%,100%{box-shadow:0 0 14px rgba(251,191,36,0.25)} 50%{box-shadow:0 0 28px rgba(251,191,36,0.6)} }
+@keyframes hpFastGlow  { 0%,100%{box-shadow:0 0 14px rgba(34,211,238,0.25)} 50%{box-shadow:0 0 28px rgba(34,211,238,0.6)} }
+@keyframes hpFarmPulse { 0%,100%{border-color:rgba(74,222,128,0.2)} 50%{border-color:rgba(74,222,128,0.5)} }
+@keyframes hpCdFlash   { 0%,100%{opacity:0.5} 50%{opacity:1} }
+@keyframes hpFloatPts  { 0%{opacity:1;transform:translateY(0) scale(1.1)} 100%{opacity:0;transform:translateY(-70px) scale(0.7)} }
+@keyframes hpEPulse    { 0%,100%{opacity:0.6} 50%{opacity:1} }
+@keyframes ddPop       { from{transform:scale(0.85);opacity:0} to{transform:scale(1);opacity:1} }
 
 .hp-root {
   font-family: 'Rajdhani', sans-serif;
   padding: 0 16px 112px;
-  color: #fff;
-  min-height: 100vh;
+  color: #fff; min-height: 100vh;
 }
 
-/* ── Msg banner ── */
-.hp-msg-banner {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 16px; border-radius: 14px; margin-bottom: 14px;
-  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2);
-  font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
-  color: #4ade80; letter-spacing: 1px;
-  animation: hpMsgIn 0.3s ease, hpFadeIn 0.3s ease;
-}
+/* Message */
+.hp-msg { display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; border-radius:13px; margin-bottom:12px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#4ade80; letter-spacing:1px; animation:hpMsgIn 0.3s ease; }
 
-/* ══════ TAP CARD ══════ */
-.hp-tap-card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,190,0,0.15);
-  border-radius: 24px; padding: 20px 16px 18px;
-  margin-bottom: 14px; position: relative; overflow: hidden;
-  animation: hpFadeIn 0.4s ease;
-}
-.hp-tap-card::before {
-  content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,190,0,0.45),transparent);
-}
-.hp-tap-card::after {
-  content:''; position:absolute; inset:0;
-  background-image: linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px);
-  background-size:28px 28px; pointer-events:none; border-radius:24px;
-}
+/* ══ TAP CARD ══ */
+.hp-tap-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px 16px 14px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s ease; }
+.hp-tap-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.45),transparent); }
+.hp-tap-card::after  { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px); background-size:28px 28px; pointer-events:none; border-radius:22px; }
 
-/* Header row */
-.hp-tap-header {
-  display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:18px; position:relative; z-index:1;
-}
-.hp-tap-title { font-family:'Orbitron',monospace; font-size:12px; font-weight:900; letter-spacing:2px; color:#fff; }
+.hp-tap-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; position:relative; z-index:1; }
+.hp-tap-title  { font-family:'Orbitron',monospace; font-size:12px; font-weight:900; letter-spacing:2px; color:#fff; }
 .hp-tap-title span { color:#ffbe00; }
-.hp-energy-pill {
-  display:flex; align-items:center; gap:5px;
-  padding:4px 12px; border-radius:20px;
-  background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2);
-  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00;
-}
-.hp-energy-pill.recharging { animation: hpEnergyPulse 1.5s ease-in-out infinite; }
+.hp-energy-pill { display:flex; align-items:center; gap:4px; padding:3px 10px; border-radius:20px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00; }
+.hp-energy-pill.regen { animation:hpEPulse 1.5s ease-in-out infinite; }
 
-/* Tap button area */
-.hp-tap-center {
-  display:flex; flex-direction:column; align-items:center;
-  gap:16px; position:relative; z-index:1;
-}
+.hp-tap-center { display:flex; flex-direction:column; align-items:center; gap:12px; position:relative; z-index:1; }
 
-.hp-tap-btn-wrap {
-  position:relative; width:150px; height:150px;
-  display:flex; align-items:center; justify-content:center;
-}
-.hp-tap-ripple {
-  position:absolute; inset:0; border-radius:50%;
-  border:2px solid rgba(255,190,0,0.4);
-  animation: hpRipple 1.8s ease-out infinite;
-  pointer-events:none;
-}
-.hp-tap-ripple:nth-child(2) { animation-delay:0.6s; }
-.hp-tap-ripple:nth-child(3) { animation-delay:1.2s; }
-
-.hp-tap-btn {
-  width:130px; height:130px; border-radius:50%; border:none;
-  background: radial-gradient(circle at 38% 33%, rgba(255,255,255,0.1) 0%, rgba(255,190,0,0.04) 60%);
-  border:2.5px solid rgba(255,190,0,0.5);
-  cursor:pointer; position:relative; z-index:1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-  animation: hpGoldGlow 2.5s ease-in-out infinite;
-  -webkit-tap-highlight-color: transparent; user-select:none;
-  transition: opacity 0.2s;
-}
-.hp-tap-btn:active { animation: hpTapPop 0.15s ease, hpGoldGlow 2.5s ease-in-out infinite; }
+.hp-tap-btn-wrap { position:relative; width:130px; height:130px; display:flex; align-items:center; justify-content:center; }
+.hp-tap-ripple { position:absolute; inset:0; border-radius:50%; border:2px solid rgba(255,190,0,0.35); animation:hpRipple 1.8s ease-out infinite; pointer-events:none; }
+.hp-tap-ripple:nth-child(2){animation-delay:0.6s} .hp-tap-ripple:nth-child(3){animation-delay:1.2s}
+.hp-tap-btn { width:112px; height:112px; border-radius:50%; border:2.5px solid rgba(255,190,0,0.5); background:radial-gradient(circle at 38% 33%,rgba(255,255,255,0.1),rgba(255,190,0,0.04) 60%); cursor:pointer; position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; animation:hpGoldGlow 2.5s ease-in-out infinite; -webkit-tap-highlight-color:transparent; user-select:none; transition:opacity 0.2s; }
+.hp-tap-btn:active { animation:hpTapPop 0.15s ease; }
 .hp-tap-btn:disabled { opacity:0.3; cursor:not-allowed; animation:none; box-shadow:none; }
-.hp-tap-btn-emoji { font-size:52px; line-height:1; pointer-events:none; animation:hpFloat 3s ease-in-out infinite; }
-.hp-tap-btn-sub { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; color:rgba(255,190,0,0.7); letter-spacing:1px; pointer-events:none; }
+.hp-tap-btn-emoji { font-size:46px; line-height:1; pointer-events:none; animation:hpFloat 3s ease-in-out infinite; }
+.hp-tap-btn-sub   { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; color:rgba(255,190,0,0.7); letter-spacing:1px; pointer-events:none; }
 
-/* Floating pts */
-.hp-float-pts {
-  position:absolute; font-family:'Orbitron',monospace;
-  font-size:18px; font-weight:900; color:#ffbe00;
-  pointer-events:none; z-index:99; white-space:nowrap;
-  text-shadow:0 0 12px rgba(255,190,0,0.9);
-  animation: hpFloatPts 0.9s ease-out forwards;
-}
+.hp-float-pts { position:absolute; font-family:'Orbitron',monospace; font-size:17px; font-weight:900; color:#ffbe00; pointer-events:none; z-index:99; text-shadow:0 0 12px rgba(255,190,0,0.9); animation:hpFloatPts 0.9s ease-out forwards; }
 
 /* Energy bar */
 .hp-energy-wrap { width:100%; }
-.hp-energy-labels {
-  display:flex; justify-content:space-between;
-  font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px;
-  color:rgba(255,255,255,0.2); margin-bottom:6px;
-}
-.hp-energy-track {
-  height:8px; border-radius:4px; background:rgba(255,255,255,0.06);
-  overflow:hidden; position:relative;
-}
-.hp-energy-fill {
-  height:100%; border-radius:4px;
-  transition: width 0.5s ease;
-}
-.hp-energy-segments {
-  position:absolute; inset:0;
-  display:flex; gap:2px; padding:0 2px;
-  pointer-events:none;
-}
+.hp-energy-labels { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
+.hp-energy-track  { height:7px; border-radius:4px; background:rgba(255,255,255,0.06); overflow:hidden; position:relative; }
+.hp-energy-fill   { height:100%; border-radius:4px; transition:width 0.5s ease; }
+.hp-energy-segments { position:absolute; inset:0; display:flex; gap:2px; padding:0 2px; pointer-events:none; }
 .hp-energy-seg { flex:1; border-right:1px solid rgba(6,8,15,0.4); }
+.hp-regen-label { text-align:center; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; margin-top:5px; animation:hpCdFlash 1.5s ease-in-out infinite; color:#ef4444; }
 
-/* Recharge label */
-.hp-recharge-label {
-  text-align:center; font-family:'Orbitron',monospace;
-  font-size:9px; letter-spacing:2px; margin-top:6px;
-  animation: hpCdFlash 1.5s ease-in-out infinite;
-}
-
-/* ── Boost buttons row ── */
-.hp-boost-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; position:relative; z-index:1; }
-.hp-boost-btn {
-  padding:11px 10px; border-radius:14px; border:none;
-  cursor:pointer; transition:transform 0.12s; text-align:center;
-  position:relative; overflow:hidden;
-}
+/* Boost buttons — SMALLER */
+.hp-boost-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:10px; position:relative; z-index:1; }
+.hp-boost-btn { padding:8px 6px; border-radius:12px; border:none; cursor:pointer; transition:transform 0.12s; text-align:center; position:relative; overflow:hidden; }
 .hp-boost-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); animation:hpShine 3s ease-in-out infinite; }
-.hp-boost-btn:active { transform:scale(0.95); }
-.hp-boost-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.hp-boost-btn:active  { transform:scale(0.95); }
+.hp-boost-btn:disabled{ opacity:0.4; cursor:not-allowed; }
 .hp-boost-btn:disabled::after { display:none; }
+.hp-boost-btn.x2   { background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); color:#fbbf24; }
+.hp-boost-btn.x2.on{ animation:hpX2Glow 1.5s ease-in-out infinite; border-color:rgba(251,191,36,0.55); background:rgba(251,191,36,0.14); }
+.hp-boost-btn.fast { background:rgba(34,211,238,0.06); border:1px solid rgba(34,211,238,0.22); color:#22d3ee; }
+.hp-boost-btn.fast.on{ animation:hpFastGlow 1.5s ease-in-out infinite; border-color:rgba(34,211,238,0.55); background:rgba(34,211,238,0.12); }
+.hp-boost-row-inner { display:flex; align-items:center; justify-content:center; gap:5px; }
+.hp-boost-icon  { font-size:16px; }
+.hp-boost-label { font-family:'Orbitron',monospace; font-size:8px; font-weight:700; letter-spacing:1px; }
+.hp-boost-sub   { font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; margin-top:1px; }
+.hp-boost-timer { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; margin-top:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
-.hp-boost-btn.x2 {
-  background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); color:#fbbf24;
-}
-.hp-boost-btn.x2.active-boost { animation:hpX2Glow 1.5s ease-in-out infinite; border-color:rgba(251,191,36,0.6); background:rgba(251,191,36,0.18); }
-.hp-boost-btn.fast {
-  background:rgba(34,211,238,0.08); border:1px solid rgba(34,211,238,0.25); color:#22d3ee;
-}
-.hp-boost-btn.fast.active-boost { animation:hpFastGlow 1.5s ease-in-out infinite; border-color:rgba(34,211,238,0.6); background:rgba(34,211,238,0.15); }
+/* ══ DAILY DROP ══ */
+.hp-drop-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.05s ease both; }
+.hp-drop-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
 
-.hp-boost-icon  { font-size:20px; margin-bottom:4px; }
-.hp-boost-label { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; letter-spacing:1px; margin-bottom:2px; }
-.hp-boost-sub   { font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
-.hp-boost-timer { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; margin-top:3px; animation:hpCdFlash 1s ease-in-out infinite; }
+.hp-drop-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.hp-drop-title-row { display:flex; align-items:center; gap:8px; }
+.hp-drop-title { font-family:'Orbitron',monospace; font-size:13px; font-weight:900; letter-spacing:1.5px; color:#fff; }
+.hp-drop-streak { display:flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00; letter-spacing:1px; }
 
-/* ══════ FARM CARD ══════ */
-.hp-farm-card {
-  background:rgba(255,255,255,0.02); border:1px solid rgba(74,222,128,0.15);
-  border-radius:22px; padding:18px 16px; margin-bottom:14px;
-  position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.1s ease both;
-}
-.hp-farm-card::before {
-  content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(74,222,128,0.4),transparent);
-}
+/* Day tiles */
+.hp-drop-days { display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.hp-drop-days::-webkit-scrollbar { display:none; }
+.hp-drop-day { flex:1; min-width:44px; border-radius:14px; padding:10px 4px 8px; text-align:center; border:2px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); transition:all 0.2s; position:relative; }
+.hp-drop-day.claimed { background:rgba(74,222,128,0.1); border-color:rgba(74,222,128,0.5); }
+.hp-drop-day.current { border-width:2px; }
+.hp-drop-day.locked  { opacity:0.45; }
+.hp-drop-day.jackpot { background:rgba(167,139,250,0.08); }
+.hp-drop-pts  { font-family:'Orbitron',monospace; font-size:14px; font-weight:900; line-height:1; margin-bottom:4px; }
+.hp-drop-dlabel { font-family:'Orbitron',monospace; font-size:8px; letter-spacing:1px; color:rgba(255,255,255,0.3); }
+.hp-drop-day.claimed .hp-drop-dlabel { color:rgba(74,222,128,0.6); }
+.hp-drop-check { position:absolute; top:-5px; right:-5px; width:16px; height:16px; border-radius:50%; background:#4ade80; display:flex; align-items:center; justify-content:center; font-size:9px; border:2px solid #06080f; }
+
+/* Drop claim button */
+.hp-drop-btn { width:100%; padding:12px; border-radius:14px; border:none; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:transform 0.12s; position:relative; overflow:hidden; }
+.hp-drop-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent); animation:hpShine 3s ease-in-out infinite; }
+.hp-drop-btn:active { transform:scale(0.97); }
+.hp-drop-btn.claim   { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 16px rgba(74,222,128,0.3); }
+.hp-drop-btn.claimed { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.3); cursor:not-allowed; }
+.hp-drop-btn.claimed::after { display:none; }
+
+/* ══ FARM CARD ══ */
+.hp-farm-card { background:rgba(255,255,255,0.02); border:1px solid rgba(74,222,128,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.1s ease both; }
+.hp-farm-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(74,222,128,0.4),transparent); }
 .hp-farm-card.farming { animation:hpFarmPulse 2.5s ease-in-out infinite; }
-
-.hp-farm-top { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-.hp-farm-icon { width:44px; height:44px; border-radius:13px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-.hp-farm-info { flex:1; min-width:0; }
+.hp-farm-top   { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.hp-farm-icon  { width:42px; height:42px; border-radius:13px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.hp-farm-info  { flex:1; min-width:0; }
 .hp-farm-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:2px; }
-.hp-farm-sub { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
+.hp-farm-sub   { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
 .hp-farm-sub.live { color:#4ade80; }
-.hp-farm-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#4ade80; padding:4px 10px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:20px; flex-shrink:0; }
-
+.hp-farm-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#4ade80; padding:3px 10px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:20px; flex-shrink:0; }
 .hp-farm-prog-labels { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
-.hp-farm-track { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:12px; }
+.hp-farm-track { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:11px; }
 .hp-farm-fill  { height:100%; border-radius:3px; transition:width 0.5s ease; }
-
-.hp-farm-btn {
-  width:100%; padding:13px; border-radius:14px; border:none;
-  font-family:'Orbitron',monospace; font-size:12px; font-weight:700;
-  letter-spacing:2px; cursor:pointer; transition:transform 0.12s;
-  position:relative; overflow:hidden;
-}
+.hp-farm-btn { width:100%; padding:12px; border-radius:14px; border:none; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:transform 0.12s; position:relative; overflow:hidden; }
 .hp-farm-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent); animation:hpShine 3s ease-in-out infinite; }
 .hp-farm-btn:active { transform:scale(0.97); }
-.hp-farm-btn.start { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 18px rgba(74,222,128,0.3); }
-.hp-farm-btn.claim { background:linear-gradient(135deg,#ffbe00,#f59e0b); color:#1a0800; box-shadow:0 4px 18px rgba(255,190,0,0.3); }
-.hp-farm-btn.wait  { background:rgba(255,255,255,0.03); border:1px solid rgba(74,222,128,0.15); color:rgba(74,222,128,0.4); cursor:not-allowed; }
+.hp-farm-btn.start { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 16px rgba(74,222,128,0.3); }
+.hp-farm-btn.claim { background:linear-gradient(135deg,#ffbe00,#f59e0b); color:#1a0800; box-shadow:0 4px 16px rgba(255,190,0,0.3); }
+.hp-farm-btn.wait  { background:rgba(255,255,255,0.03); border:1px solid rgba(74,222,128,0.12); color:rgba(74,222,128,0.35); cursor:not-allowed; }
 .hp-farm-btn.wait::after { display:none; }
 
-/* ══════ AD CARD ══════ */
-.hp-ad-card {
-  background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15);
-  border-radius:22px; padding:18px 16px; margin-bottom:14px;
-  position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.2s ease both;
-}
-.hp-ad-card::before {
-  content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent);
-}
-.hp-ad-top { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-.hp-ad-icon { width:44px; height:44px; border-radius:13px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-.hp-ad-info { flex:1; min-width:0; }
+/* ══ AD CARD ══ */
+.hp-ad-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.15s ease both; }
+.hp-ad-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
+.hp-ad-top   { display:flex; align-items:center; gap:12px; margin-bottom:11px; }
+.hp-ad-icon  { width:42px; height:42px; border-radius:13px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.hp-ad-info  { flex:1; min-width:0; }
 .hp-ad-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:2px; }
-.hp-ad-sub { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
-.hp-ad-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#ffbe00; padding:4px 10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2); border-radius:20px; flex-shrink:0; }
-
-.hp-ad-prog-track { height:4px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:12px; }
+.hp-ad-sub   { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
+.hp-ad-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#ffbe00; padding:3px 10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2); border-radius:20px; flex-shrink:0; }
+.hp-ad-prog-track { height:4px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:11px; }
 .hp-ad-prog-fill  { height:100%; border-radius:2px; background:linear-gradient(90deg,#ffbe00,#f59e0b); transition:width 0.4s; }
-
-.hp-ad-btn {
-  width:100%; padding:14px; border-radius:14px; border:none;
-  background:linear-gradient(135deg,#ffbe00,#f59e0b,#d97706);
-  color:#1a0800; font-family:'Orbitron',monospace; font-size:13px;
-  font-weight:700; letter-spacing:2px; cursor:pointer;
-  transition:transform 0.12s, opacity 0.2s;
-  box-shadow:0 6px 24px rgba(255,190,0,0.35);
-  position:relative; overflow:hidden;
-}
+.hp-ad-btn { width:100%; padding:13px; border-radius:14px; border:none; background:linear-gradient(135deg,#ffbe00,#f59e0b,#d97706); color:#1a0800; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:transform 0.12s,opacity 0.2s; box-shadow:0 5px 20px rgba(255,190,0,0.3); position:relative; overflow:hidden; }
 .hp-ad-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); animation:hpShine 3s ease-in-out infinite; }
 .hp-ad-btn:active { transform:scale(0.97); }
 .hp-ad-btn:disabled { opacity:0.5; cursor:not-allowed; }
@@ -318,25 +241,23 @@ const CSS = `
 .hp-ad-btn.ghost::after { display:none; }
 .hp-cd-txt { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
-/* ── Tabs ── */
-.hp-tabs { display:flex; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:4px; gap:4px; margin-bottom:14px; }
-.hp-tab { flex:1; padding:9px; border-radius:10px; border:none; background:none; font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.2s,color 0.2s; }
+/* Tabs */
+.hp-tabs { display:flex; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:4px; gap:4px; margin-bottom:12px; }
+.hp-tab  { flex:1; padding:8px; border-radius:10px; border:none; background:none; font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.2s,color 0.2s; }
 .hp-tab.active { background:#ffbe00; color:#1a0800; box-shadow:0 2px 12px rgba(255,190,0,0.3); }
 
-/* ── History ── */
-.hp-tx-empty { text-align:center; padding:32px 0; font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
-.hp-tx { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:14px; padding:12px 14px; margin-bottom:8px; }
+/* History */
+.hp-tx-empty { text-align:center; padding:28px 0; font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
+.hp-tx { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:14px; padding:11px 14px; margin-bottom:7px; }
 .hp-tx-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.15); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
 .hp-tx-body { flex:1; min-width:0; }
 .hp-tx-label { font-size:13px; font-weight:600; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hp-tx-sub { font-size:10px; color:rgba(255,255,255,0.2); letter-spacing:1px; margin-top:1px; }
-.hp-tx-pts { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:#ffbe00; flex-shrink:0; }
+.hp-tx-sub   { font-size:10px; color:rgba(255,255,255,0.2); letter-spacing:1px; margin-top:1px; }
+.hp-tx-pts   { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:#ffbe00; flex-shrink:0; }
 
 .hp-dots span { display:inline-block; width:5px; height:5px; border-radius:50%; background:currentColor; margin:0 2px; animation:hpDot 1.2s ease-in-out infinite; }
 .hp-dots span:nth-child(2){animation-delay:0.2s} .hp-dots span:nth-child(3){animation-delay:0.4s}
 `;
-
-interface FloatPt { id: number; x: number; y: number; val: number; }
 
 export default function HomePage() {
   const { user, balance, refreshBalance } = useApp();
@@ -348,48 +269,52 @@ export default function HomePage() {
   /* ── Energy ── */
   const [energy, setEnergy] = useState<number>(() => {
     const s = localStorage.getItem("energy");
-    return s !== null ? Math.min(MAX_ENERGY, parseFloat(s)) : MAX_ENERGY;
+    if (s !== null) {
+      // Restore regen from time away
+      const saved     = parseFloat(s);
+      const lastTime  = Number(localStorage.getItem("lastEnergyTime") || Date.now());
+      const elapsed   = (Date.now() - lastTime) / 1000;
+      return Math.min(MAX_ENERGY, saved + elapsed * REGEN_PER_SEC);
+    }
+    return MAX_ENERGY;
   });
-  const [lastEnergyTime, setLastEnergyTime] = useState<number>(() => {
-    return Number(localStorage.getItem("lastEnergyTime") || Date.now());
-  });
-  const energyRef = useRef(energy);
-  energyRef.current = energy;
 
-  /* ── Boosts ── */
-  const [x2Active, setX2Active]       = useState(false);
-  const [x2SecsLeft, setX2SecsLeft]   = useState(0);
-  const [fastActive, setFastActive]   = useState(false);
-  const [fastSecsLeft, setFastSecsLeft] = useState(0);
+  /* ── Boosts — persist in localStorage ── */
+  const [x2SecsLeft,   setX2SecsLeft]   = useState(() => loadBoost("boostX2Exp"));
+  const [fastSecsLeft, setFastSecsLeft] = useState(() => loadBoost("boostFastExp"));
+  const x2Active   = x2SecsLeft   > 0;
+  const fastActive = fastSecsLeft > 0;
 
   /* ── Float pts ── */
   const [floatPts, setFloatPts] = useState<FloatPt[]>([]);
 
   /* ── Farm ── */
-  const [farmStart, setFarmStart]     = useState<number | null>(() => {
+  const [farmStart, setFarmStart]       = useState<number | null>(() => {
     const s = localStorage.getItem("farmStart");
     return s ? Number(s) : null;
   });
   const [farmProgress, setFarmProgress] = useState(0);
-  const [farmReady, setFarmReady]     = useState(false);
+  const [farmReady, setFarmReady]       = useState(false);
   const [farmTimeLeft, setFarmTimeLeft] = useState("");
   const [farmClaiming, setFarmClaiming] = useState(false);
 
+  /* ── Daily Drop ── */
+  const [dropStreak, setDropStreak]     = useState(0);
+  const [dropClaimedToday, setDropClaimedToday] = useState(false);
+  const [dropClaiming, setDropClaiming] = useState(false);
+
   /* ── Ads ── */
-  const [adsToday, setAdsToday]       = useState(0);
-  const [adCooldown, setAdCooldown]   = useState(0);
-  const [adLoading, setAdLoading]     = useState(false);
+  const [adsToday, setAdsToday]   = useState(0);
+  const [adCooldown, setAdCooldown] = useState(0);
+  const [adLoading, setAdLoading]   = useState(false);
   const isAdRunning = useRef(false);
 
-  /* ── Load data ── */
+  /* ── Load ── */
   useEffect(() => {
     if (!user) return;
     getTransactions(user.id).then(setTransactions);
     loadTodayAds();
-    // Restore energy from elapsed time
-    const elapsed = (Date.now() - lastEnergyTime) / 1000;
-    const regained = elapsed * REGEN_PER_SEC;
-    setEnergy(prev => Math.min(MAX_ENERGY, prev + regained));
+    loadDropState();
   }, [user]);
 
   async function loadTodayAds() {
@@ -401,7 +326,32 @@ export default function HomePage() {
     setAdsToday(count || 0);
   }
 
-  /* ── Energy regen ticker ── */
+  async function loadDropState() {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    // Check today's claim
+    const { data: todayClaim } = await supabase
+      .from('daily_claims').select('id')
+      .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
+    setDropClaimedToday(!!todayClaim);
+
+    // Count streak (consecutive days)
+    const { data: claims } = await supabase
+      .from('daily_claims').select('claim_date')
+      .eq('user_id', user.id).order('claim_date', { ascending: false }).limit(7);
+    if (!claims || claims.length === 0) { setDropStreak(0); return; }
+    let streak = 0;
+    const now = new Date(); now.setUTCHours(0,0,0,0);
+    for (let i = 0; i < claims.length; i++) {
+      const claimDate = new Date(claims[i].claim_date);
+      const expected = new Date(now); expected.setUTCDate(now.getUTCDate() - i);
+      if (claimDate.toISOString().split('T')[0] === expected.toISOString().split('T')[0]) streak++;
+      else break;
+    }
+    setDropStreak(streak);
+  }
+
+  /* ── Energy regen ── */
   useEffect(() => {
     const t = setInterval(() => {
       setEnergy(prev => {
@@ -418,26 +368,20 @@ export default function HomePage() {
 
   /* ── Boost timers ── */
   useEffect(() => {
-    if (!x2Active) return;
     const t = setInterval(() => {
       setX2SecsLeft(p => {
-        if (p <= 1) { setX2Active(false); clearInterval(t); return 0; }
-        return p - 1;
+        const next = Math.max(0, p - 1);
+        if (next === 0) localStorage.removeItem("boostX2Exp");
+        return next;
       });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [x2Active]);
-
-  useEffect(() => {
-    if (!fastActive) return;
-    const t = setInterval(() => {
       setFastSecsLeft(p => {
-        if (p <= 1) { setFastActive(false); clearInterval(t); return 0; }
-        return p - 1;
+        const next = Math.max(0, p - 1);
+        if (next === 0) localStorage.removeItem("boostFastExp");
+        return next;
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [fastActive]);
+  }, []);
 
   /* ── Farm ticker ── */
   useEffect(() => {
@@ -459,79 +403,108 @@ export default function HomePage() {
   /* ── Ad cooldown ── */
   useEffect(() => {
     if (adCooldown <= 0) return;
-    const t = setInterval(() => setAdCooldown(p => Math.max(0, p - 1)), 1000);
+    const t = setInterval(() => setAdCooldown(p => Math.max(0, p-1)), 1000);
     return () => clearInterval(t);
   }, [adCooldown]);
 
   function showMsg(text: string) {
     setMessage(text); setTimeout(() => setMessage(""), 2500);
   }
-
-  function fmtBoostTime(s: number) {
-    return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+  function fmtBoost(s: number) {
+    return s >= 60 ? `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}` : `${s}s`;
   }
 
   /* ══ TAP ══ */
   async function handleTap(e: React.MouseEvent<HTMLButtonElement>) {
     if (!user || energy < 1) return;
     triggerHaptic("impact");
-
-    const ptsPerTap = x2Active ? 2 : 1;
+    const pts = x2Active ? 2 : 1;
     const newEnergy = Math.max(0, energy - 1);
     setEnergy(newEnergy);
     localStorage.setItem("energy", String(newEnergy));
     localStorage.setItem("lastEnergyTime", String(Date.now()));
 
-    // Floating number
     const rect = tapBtnRef.current?.getBoundingClientRect();
     const id = Date.now() + Math.random();
     const x = rect ? e.clientX - rect.left - 14 : 50;
     const y = rect ? e.clientY - rect.top - 30 : 20;
-    setFloatPts(p => [...p, { id, x, y, val: ptsPerTap }]);
+    setFloatPts(p => [...p, { id, x, y, val: pts }]);
     setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 900);
 
-    // Credit Supabase
     const { data: bal } = await supabase
       .from('balances').select('points,total_earned').eq('user_id', user.id).single();
     if (bal) {
       await supabase.from('balances').update({
-        points: bal.points + ptsPerTap,
-        total_earned: bal.total_earned + ptsPerTap,
+        points: bal.points + pts, total_earned: bal.total_earned + pts,
       }).eq('user_id', user.id);
       await supabase.from('transactions').insert({
-        user_id: user.id, type: 'tap_earn', points: ptsPerTap,
-        description: `👆 Tap Earn${x2Active ? ' (2x)' : ''}`,
+        user_id: user.id, type: 'tap_earn', points: pts,
+        description: `👆 Tap${x2Active ? ' (2x)' : ''}`,
       });
       refreshBalance();
     }
   }
 
-  /* ══ BOOST: X2 per tap ══ */
+  /* ══ BOOSTS ══ */
   const onX2Reward = useCallback(() => {
-    setX2Active(true); setX2SecsLeft(BOOST_DURATION);
-    triggerHaptic("success"); showMsg("⚡ 2x Tap active for 5 min!");
+    const exp = Date.now() + X2_DURATION_SEC * 1000;
+    saveBoost("boostX2Exp", exp);
+    setX2SecsLeft(X2_DURATION_SEC);
+    triggerHaptic("success"); showMsg("⚡ 2x active for 10s!");
   }, []);
   const { showAd: showX2Ad } = useRewardedAd(onX2Reward);
 
-  /* ══ BOOST: Fast regen ══ */
   const onFastReward = useCallback(() => {
-    setFastActive(true); setFastSecsLeft(BOOST_DURATION);
-    triggerHaptic("success"); showMsg("⚡ Fast charge active for 5 min!");
+    const exp = Date.now() + FAST_DURATION_SEC * 1000;
+    saveBoost("boostFastExp", exp);
+    setFastSecsLeft(FAST_DURATION_SEC);
+    triggerHaptic("success"); showMsg("🔋 Fast charge for 1 min!");
   }, []);
   const { showAd: showFastAd } = useRewardedAd(onFastReward);
 
+  /* ══ DAILY DROP ══ */
+  async function handleClaimDrop() {
+    if (!user || dropClaimedToday || dropClaiming) return;
+    triggerHaptic("success"); setDropClaiming(true);
+    const today = new Date().toISOString().split('T')[0];
+    const dayIndex = Math.min(dropStreak, 6); // 0-6
+    const reward = DAILY_DROP[dayIndex].pts;
+
+    const { data: bal } = await supabase
+      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
+    if (bal) {
+      await supabase.from('balances').update({
+        points: bal.points + reward, total_earned: bal.total_earned + reward,
+      }).eq('user_id', user.id);
+      await supabase.from('transactions').insert({
+        user_id: user.id, type: 'daily_drop', points: reward,
+        description: `🎁 Daily Drop Day ${dayIndex+1}: +${reward} pts`,
+      });
+    }
+    await supabase.from('daily_claims').upsert({
+      user_id: user.id, claim_date: today, claimed_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,claim_date' });
+
+    await refreshBalance();
+    setDropClaimedToday(true);
+    setDropStreak(p => Math.min(p + 1, 7));
+    setDropClaiming(false);
+    showMsg(`+${reward} pts 🎁 Day ${dayIndex+1}!`);
+    getTransactions(user.id).then(setTransactions);
+  }
+
   /* ══ FARM ══ */
-  function handleStartFarm() {
-    if (farmStart) return;
+  const onFarmStartReward = useCallback(() => {
     const now = Date.now();
     setFarmStart(now); setFarmProgress(0); setFarmReady(false);
     localStorage.setItem("farmStart", String(now));
     triggerHaptic("impact"); showMsg("🌾 Farming started!");
-  }
+  }, []);
+  const { showAd: showFarmStartAd } = useRewardedAd(onFarmStartReward);
 
-  async function handleClaimFarm() {
-    if (!user || farmClaiming || !farmReady) return;
-    triggerHaptic("success"); setFarmClaiming(true);
+  const onFarmClaimReward = useCallback(async () => {
+    if (!user) return;
+    triggerHaptic("success");
     const { data: bal } = await supabase
       .from('balances').select('points,total_earned').eq('user_id', user.id).single();
     if (bal) {
@@ -540,14 +513,28 @@ export default function HomePage() {
       }).eq('user_id', user.id);
       await supabase.from('transactions').insert({
         user_id: user.id, type: 'farm_claim', points: FARM_REWARD,
-        description: `🌾 Farm Reward: +${FARM_REWARD} pts`,
+        description: `🌾 Farm: +${FARM_REWARD} pts`,
       });
       await refreshBalance();
     }
     setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
-    setFarmClaiming(false); localStorage.removeItem("farmStart");
+    localStorage.removeItem("farmStart");
     showMsg(`+${FARM_REWARD} pts 🌾`);
     getTransactions(user.id).then(setTransactions);
+  }, [user, refreshBalance]);
+  const { showAd: showFarmClaimAd } = useRewardedAd(onFarmClaimReward);
+
+  async function handleFarmStart() {
+    if (farmStart) return;
+    setFarmClaiming(true);
+    try { await showFarmStartAd(); } catch { showMsg("Ad failed."); }
+    setFarmClaiming(false);
+  }
+  async function handleFarmClaim() {
+    if (!farmReady || farmClaiming) return;
+    setFarmClaiming(true);
+    try { await showFarmClaimAd(); } catch { showMsg("Ad failed."); }
+    setFarmClaiming(false);
   }
 
   /* ══ AD WATCH ══ */
@@ -572,7 +559,6 @@ export default function HomePage() {
     showMsg(`+${AD_REWARD} pts 🎬`);
     getTransactions(user.id).then(setTransactions);
   }, [user, refreshBalance]);
-
   const { showAd: showMainAd } = useRewardedAd(onAdReward);
 
   async function handleWatchAd() {
@@ -584,121 +570,146 @@ export default function HomePage() {
   }
 
   const energyPct   = (energy / MAX_ENERGY) * 100;
-  const isFarming   = !!farmStart && !farmReady;
   const energyColor = energyPct > 50 ? '#ffbe00' : energyPct > 20 ? '#f97316' : '#ef4444';
+  const isFarming   = !!farmStart && !farmReady;
+  const todayDayIdx = Math.min(dropStreak, 6); // which reward they'll get
 
   return (
     <>
       <style>{CSS}</style>
       <div className="hp-root">
 
-        {/* Message */}
-        {message && (
-          <div className="hp-msg-banner">✦ {message}</div>
-        )}
+        {message && <div className="hp-msg">✦ {message}</div>}
 
-        {/* ══════ TAP TO EARN ══════ */}
+        {/* ══ TAP TO EARN ══ */}
         <div className="hp-tap-card">
           <div className="hp-tap-header">
             <div className="hp-tap-title">⚡ TAP <span>TO EARN</span></div>
-            <div className={`hp-energy-pill ${energy < MAX_ENERGY ? 'recharging' : ''}`}>
+            <div className={`hp-energy-pill ${energy < MAX_ENERGY ? 'regen' : ''}`}>
               ⚡ {Math.floor(energy)}/{MAX_ENERGY}
             </div>
           </div>
 
           <div className="hp-tap-center">
-            {/* Tap button */}
             <div className="hp-tap-btn-wrap">
-              <div className="hp-tap-ripple"/>
-              <div className="hp-tap-ripple"/>
-              <div className="hp-tap-ripple"/>
-              <button
-                ref={tapBtnRef}
-                className="hp-tap-btn"
-                onClick={handleTap}
-                disabled={energy < 1}
-              >
+              <div className="hp-tap-ripple"/><div className="hp-tap-ripple"/><div className="hp-tap-ripple"/>
+              <button ref={tapBtnRef} className="hp-tap-btn" onClick={handleTap} disabled={energy < 1}>
                 <span className="hp-tap-btn-emoji">🪙</span>
-                <span className="hp-tap-btn-sub">
-                  {x2Active ? '+2 PTS' : '+1 PT'}
-                </span>
+                <span className="hp-tap-btn-sub">{x2Active ? '+2 PTS' : '+1 PT'}</span>
               </button>
               {floatPts.map(f => (
-                <div key={f.id} className="hp-float-pts"
-                  style={{ left: f.x, top: f.y }}>
+                <div key={f.id} className="hp-float-pts" style={{ left: f.x, top: f.y }}>
                   +{f.val}
                 </div>
               ))}
             </div>
 
-            {/* Energy bar */}
             <div className="hp-energy-wrap">
               <div className="hp-energy-labels">
                 <span>ENERGY</span>
                 <span style={{ color: energyColor }}>
-                  {energy >= MAX_ENERGY ? '⚡ FULL' : fastActive ? `⚡ FAST CHARGE` : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
+                  {energy >= MAX_ENERGY ? '⚡ FULL'
+                    : fastActive ? '⚡ FAST ×2'
+                    : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
                 </span>
               </div>
               <div className="hp-energy-track">
                 <div className="hp-energy-fill" style={{
                   width: `${energyPct}%`,
-                  background: `linear-gradient(90deg, ${energyColor}80, ${energyColor})`,
-                  boxShadow: `0 0 8px ${energyColor}60`,
+                  background: `linear-gradient(90deg,${energyColor}80,${energyColor})`,
+                  boxShadow: `0 0 7px ${energyColor}50`,
                 }}/>
-                {/* Segment ticks every 10 */}
                 <div className="hp-energy-segments">
-                  {Array.from({length: 9}).map((_, i) => (
-                    <div key={i} className="hp-energy-seg"/>
-                  ))}
+                  {Array.from({length:9}).map((_,i)=><div key={i} className="hp-energy-seg"/>)}
                 </div>
               </div>
-              {energy < 1 && (
-                <div className="hp-recharge-label" style={{ color: '#ef4444' }}>
-                  ⏳ Recharging...
-                </div>
-              )}
+              {energy < 1 && <div className="hp-regen-label">⏳ Recharging...</div>}
             </div>
           </div>
 
           {/* Boost buttons */}
           <div className="hp-boost-row">
-            {/* x2 tap */}
             <button
-              className={`hp-boost-btn x2 ${x2Active ? 'active-boost' : ''}`}
+              className={`hp-boost-btn x2 ${x2Active ? 'on' : ''}`}
               onClick={() => { if (!x2Active) showX2Ad(); }}
               disabled={x2Active}
             >
-              <div className="hp-boost-icon">⚡</div>
-              <div className="hp-boost-label">2× PER TAP</div>
-              {x2Active ? (
-                <div className="hp-boost-timer" style={{ color:'#fbbf24' }}>
-                  {fmtBoostTime(x2SecsLeft)}
-                </div>
-              ) : (
-                <div className="hp-boost-sub">Watch ad</div>
-              )}
+              <div className="hp-boost-row-inner">
+                <span className="hp-boost-icon">⚡</span>
+                <span className="hp-boost-label">2× TAP</span>
+              </div>
+              {x2Active
+                ? <div className="hp-boost-timer" style={{color:'#fbbf24'}}>{fmtBoost(x2SecsLeft)}</div>
+                : <div className="hp-boost-sub">Watch ad • 10s</div>}
             </button>
 
-            {/* Fast regen */}
             <button
-              className={`hp-boost-btn fast ${fastActive ? 'active-boost' : ''}`}
+              className={`hp-boost-btn fast ${fastActive ? 'on' : ''}`}
               onClick={() => { if (!fastActive) showFastAd(); }}
               disabled={fastActive}
             >
-              <div className="hp-boost-icon">🔋</div>
-              <div className="hp-boost-label">FAST CHARGE</div>
-              {fastActive ? (
-                <div className="hp-boost-timer" style={{ color:'#22d3ee' }}>
-                  {fmtBoostTime(fastSecsLeft)}
-                </div>
-              ) : (
-                <div className="hp-boost-sub">Watch ad</div>
-              )}
+              <div className="hp-boost-row-inner">
+                <span className="hp-boost-icon">🔋</span>
+                <span className="hp-boost-label">FAST ×2</span>
+              </div>
+              {fastActive
+                ? <div className="hp-boost-timer" style={{color:'#22d3ee'}}>{fmtBoost(fastSecsLeft)}</div>
+                : <div className="hp-boost-sub">Watch ad • 1min</div>}
             </button>
           </div>
         </div>
 
-        {/* ══════ FARM ══════ */}
+        {/* ══ DAILY DROP ══ */}
+        <div className="hp-drop-card">
+          <div className="hp-drop-header">
+            <div className="hp-drop-title-row">
+              <span style={{fontSize:18}}>🎁</span>
+              <span className="hp-drop-title">Daily Drop</span>
+            </div>
+            <div className="hp-drop-streak">
+              🔥 {dropStreak > 0 ? `${dropStreak} Day${dropStreak > 1 ? 's' : ''}` : 'New'}
+            </div>
+          </div>
+
+          {/* Day tiles */}
+          <div className="hp-drop-days">
+            {DAILY_DROP.map((d, i) => {
+              const claimed = i < dropStreak;
+              const current = i === todayDayIdx && !dropClaimedToday;
+              const locked  = i > todayDayIdx;
+              const isJackpot = i === 6;
+              return (
+                <div
+                  key={d.day}
+                  className={`hp-drop-day ${claimed ? 'claimed' : ''} ${current ? 'current' : ''} ${locked ? 'locked' : ''} ${isJackpot ? 'jackpot' : ''}`}
+                  style={current ? { borderColor: d.color, boxShadow: `0 0 12px ${d.color}30` }
+                    : isJackpot && !locked ? { borderColor: '#a78bfa50' } : {}}
+                >
+                  {claimed && <div className="hp-drop-check">✓</div>}
+                  <div className="hp-drop-pts" style={{ color: claimed ? '#4ade80' : locked ? 'rgba(255,255,255,0.25)' : d.color }}>
+                    {d.pts}
+                  </div>
+                  <div className="hp-drop-dlabel">{d.label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Claim button */}
+          <button
+            className={`hp-drop-btn ${dropClaimedToday ? 'claimed' : 'claim'}`}
+            onClick={handleClaimDrop}
+            disabled={dropClaimedToday || dropClaiming}
+          >
+            {dropClaiming
+              ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
+              : dropClaimedToday
+              ? '✅  Claimed Today!'
+              : `🎁  CLAIM +${DAILY_DROP[todayDayIdx].pts} PTS`}
+          </button>
+        </div>
+
+        {/* ══ FARM ══ */}
         <div className={`hp-farm-card ${isFarming ? 'farming' : ''}`}>
           <div className="hp-farm-top">
             <div className="hp-farm-icon">🌾</div>
@@ -707,7 +718,7 @@ export default function HomePage() {
               <div className={`hp-farm-sub ${isFarming || farmReady ? 'live' : ''}`}>
                 {farmReady ? '✦ Ready to claim!'
                   : isFarming ? `⏱ ${farmTimeLeft} remaining`
-                  : '15 min → +15 pts'}
+                  : 'Watch ad → 15 min → +15 pts'}
               </div>
             </div>
             <div className="hp-farm-badge">+{FARM_REWARD} PTS</div>
@@ -715,9 +726,7 @@ export default function HomePage() {
 
           <div className="hp-farm-prog-labels">
             <span>{farmReady ? 'Complete!' : isFarming ? 'Farming...' : 'Idle'}</span>
-            <span style={{ color: farmReady ? '#ffbe00' : '#4ade80' }}>
-              {Math.round(farmProgress)}%
-            </span>
+            <span style={{color: farmReady ? '#ffbe00' : '#4ade80'}}>{Math.round(farmProgress)}%</span>
           </div>
           <div className="hp-farm-track">
             <div className="hp-farm-fill" style={{
@@ -730,46 +739,41 @@ export default function HomePage() {
           </div>
 
           {farmReady ? (
-            <button className="hp-farm-btn claim" onClick={handleClaimFarm} disabled={farmClaiming}>
+            <button className="hp-farm-btn claim" onClick={handleFarmClaim} disabled={farmClaiming}>
               {farmClaiming
                 ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
-                : '🎁 CLAIM +15 PTS'}
+                : '🎬  WATCH AD & CLAIM'}
             </button>
           ) : isFarming ? (
             <button className="hp-farm-btn wait" disabled>
               🌾 FARMING... {farmTimeLeft}
             </button>
           ) : (
-            <button className="hp-farm-btn start" onClick={handleStartFarm}>
-              🚀 START FARMING
+            <button className="hp-farm-btn start" onClick={handleFarmStart} disabled={farmClaiming}>
+              {farmClaiming
+                ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
+                : '🎬  WATCH AD & FARM'}
             </button>
           )}
         </div>
 
-        {/* ══════ WATCH ADS ══════ */}
+        {/* ══ WATCH ADS ══ */}
         <div className="hp-ad-card">
           <div className="hp-ad-top">
             <div className="hp-ad-icon">🎬</div>
             <div className="hp-ad-info">
               <div className="hp-ad-title">WATCH ADS</div>
               <div className="hp-ad-sub">
-                {adsToday >= AD_MAX_PER_DAY
-                  ? '✅ Daily limit reached'
-                  : `${adsToday} / ${AD_MAX_PER_DAY} today`}
+                {adsToday >= AD_MAX_PER_DAY ? '✅ Daily limit reached' : `${adsToday} / ${AD_MAX_PER_DAY} today`}
               </div>
             </div>
             <div className="hp-ad-badge">+{AD_REWARD} PTS</div>
           </div>
-
           <div className="hp-ad-prog-track">
-            <div className="hp-ad-prog-fill"
-              style={{ width: `${(adsToday / AD_MAX_PER_DAY) * 100}%` }}/>
+            <div className="hp-ad-prog-fill" style={{width:`${(adsToday/AD_MAX_PER_DAY)*100}%`}}/>
           </div>
-
           <button
-            className={`hp-ad-btn ${
-              adsToday >= AD_MAX_PER_DAY || adCooldown > 0 ? 'ghost' : ''
-            }`}
+            className={`hp-ad-btn ${adsToday >= AD_MAX_PER_DAY || adCooldown > 0 ? 'ghost' : ''}`}
             onClick={handleWatchAd}
             disabled={adLoading || adCooldown > 0 || adsToday >= AD_MAX_PER_DAY}
           >
@@ -792,8 +796,8 @@ export default function HomePage() {
         </div>
 
         {activeTab === "earn" && (
-          <div style={{textAlign:'center',padding:'20px 0',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.12)',textTransform:'uppercase'}}>
-            ✦ Tap · Farm · Watch Ads to earn ✦
+          <div style={{textAlign:'center',padding:'18px 0',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.1)',textTransform:'uppercase'}}>
+            ✦ Tap · Drop · Farm · Watch ✦
           </div>
         )}
 
