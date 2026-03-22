@@ -86,4 +86,335 @@ const CSS = `
   animation: awFadeIn 0.3s ease both;
 }
 .aw-card-beam {
-  position: absolute; top: 0; left: 10%; right: 10%; height: 1px; pointer​​​​​​​​​​​​​​​​
+  position: absolute; top: 0; left: 10%; right: 10%; height: 1px; pointer-events: none;
+}
+
+.aw-card-body { padding: 14px 16px; }
+
+/* User row */
+.aw-user-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.aw-avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  overflow: hidden; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-family: 'Orbitron', monospace;
+  font-weight: 700;
+}
+.aw-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.aw-user-info { flex: 1; min-width: 0; }
+.aw-user-name {
+  font-size: 14px; font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.aw-username { color: rgba(255,255,255,0.3); font-weight: 500; font-size: 13px; }
+.aw-user-meta {
+  font-size: 10px; color: rgba(255,255,255,0.2);
+  letter-spacing: 0.5px; margin-top: 2px;
+}
+
+.aw-status-badge {
+  font-family: 'Orbitron', monospace; font-size: 8px;
+  font-weight: 700; letter-spacing: 2px;
+  padding: 4px 10px; border-radius: 20px; flex-shrink: 0;
+}
+
+/* Amount row */
+.aw-amount-row {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px; padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.aw-pts {
+  font-family: 'Orbitron', monospace; font-size: 14px;
+  font-weight: 700; color: rgba(255,255,255,0.5);
+}
+.aw-arrow { color: rgba(255,255,255,0.2); font-size: 14px; }
+.aw-ton {
+  font-family: 'Orbitron', monospace; font-size: 18px;
+  font-weight: 900; letter-spacing: 1px;
+}
+.aw-method-tag {
+  margin-left: auto; font-family: 'Orbitron', monospace;
+  font-size: 8px; font-weight: 700; letter-spacing: 2px;
+  padding: 3px 8px; border-radius: 6px;
+  background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.2);
+  color: #22d3ee;
+}
+
+/* Wallet */
+.aw-wallet {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px; padding: 8px 12px; margin-bottom: 10px;
+}
+.aw-wallet-icon { font-size: 14px; flex-shrink: 0; }
+.aw-wallet-addr {
+  font-family: 'Rajdhani', sans-serif; font-size: 11px;
+  color: rgba(255,255,255,0.35); letter-spacing: 0.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.aw-copy-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; color: rgba(255,255,255,0.3);
+  padding: 0; transition: color 0.2s; flex-shrink: 0;
+}
+.aw-copy-btn:hover { color: #22d3ee; }
+
+/* Note */
+.aw-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 10px; padding: 8px 12px; margin-bottom: 10px;
+  font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.4;
+}
+
+/* Time */
+.aw-time {
+  font-family: 'Orbitron', monospace; font-size: 9px;
+  letter-spacing: 1px; color: rgba(255,255,255,0.15);
+  margin-bottom: 10px;
+}
+
+/* Action buttons */
+.aw-actions { display: flex; gap: 8px; }
+.aw-btn {
+  flex: 1; padding: 12px; border-radius: 12px; border: none;
+  font-family: 'Orbitron', monospace; font-size: 11px;
+  font-weight: 700; letter-spacing: 1px; cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.2s;
+  position: relative; overflow: hidden;
+}
+.aw-btn::after {
+  content: ''; position: absolute;
+  top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: awShine 3s ease-in-out infinite;
+}
+.aw-btn:active { transform: scale(0.97); }
+
+.aw-btn-approve {
+  background: linear-gradient(135deg, #4ade80, #16a34a);
+  color: #001a0a; box-shadow: 0 4px 16px rgba(74,222,128,0.3);
+}
+.aw-btn-reject {
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+  color: #ef4444;
+}
+.aw-btn-reject::after { display: none; }
+
+/* Empty */
+.aw-empty {
+  text-align: center; padding: 48px 0;
+  font-family: 'Orbitron', monospace; font-size: 9px;
+  letter-spacing: 3px; color: rgba(255,255,255,0.1); text-transform: uppercase;
+}
+`;
+
+export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }: Props) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const counts = useMemo(() => ({
+    pending:  withdrawals.filter(w => w.status === 'pending').length,
+    approved: withdrawals.filter(w => w.status === 'approved').length,
+    rejected: withdrawals.filter(w => w.status === 'rejected').length,
+  }), [withdrawals]);
+
+  const filtered = useMemo(() =>
+    filter === 'all' ? withdrawals : withdrawals.filter(w => w.status === filter),
+    [withdrawals, filter]
+  );
+
+  const totalTon = useMemo(() =>
+    withdrawals.filter(w => w.status === 'approved')
+      .reduce((sum, w) => sum + Number(w.amount), 0),
+    [withdrawals]
+  );
+
+  function copyWallet(addr: string) {
+    navigator.clipboard.writeText(addr);
+    setCopied(addr);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <div className="aw-root">
+
+        {/* Summary tiles */}
+        <div className="aw-summary">
+          {(Object.entries(STATUS_CONFIG) as [string, typeof STATUS_CONFIG['pending']][]).map(([key, sc]) => (
+            <div
+              key={key}
+              className="aw-summary-tile"
+              style={{ background: sc.bg, border: `1px solid ${sc.border}` }}
+            >
+              <div
+                className="aw-summary-tile"
+                style={{
+                  position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px',
+                  background: `linear-gradient(90deg, transparent, ${sc.color}50, transparent)`,
+                  padding: 0, margin: 0, border: 'none', borderRadius: 0,
+                }}
+              />
+              <div className="aw-summary-val" style={{ color: sc.color }}>
+                {counts[key as keyof typeof counts]}
+              </div>
+              <div className="aw-summary-label">{sc.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Total approved banner */}
+        {totalTon > 0 && (
+          <div style={{
+            background: 'rgba(34,211,238,0.05)', border: '1px solid rgba(34,211,238,0.15)',
+            borderRadius: '14px', padding: '10px 16px', marginBottom: '14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ fontFamily: "'Orbitron', monospace", fontSize: 9, letterSpacing: '2px', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>
+              Total Approved
+            </div>
+            <div style={{ fontFamily: "'Orbitron', monospace", fontSize: 16, fontWeight: 700, color: '#22d3ee', letterSpacing: '1px' }}>
+              {totalTon.toFixed(2)} TON
+            </div>
+          </div>
+        )}
+
+        {/* Filter strip */}
+        <div className="aw-filters">
+          {(['all', 'pending', 'approved', 'rejected'] as const).map(f => {
+            const sc = f === 'all' ? null : STATUS_CONFIG[f];
+            const isActive = filter === f;
+            return (
+              <button
+                key={f}
+                className="aw-filter-btn"
+                onClick={() => setFilter(f)}
+                style={isActive ? {
+                  background: sc ? sc.bg : 'rgba(255,255,255,0.06)',
+                  borderColor: sc ? sc.border : 'rgba(255,255,255,0.2)',
+                  color: sc ? sc.color : '#fff',
+                  boxShadow: sc ? `0 0 12px ${sc.glow}20` : 'none',
+                } : {}}
+              >
+                {f === 'all' ? `ALL (${withdrawals.length})` : `${f.toUpperCase()} (${counts[f]})`}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Empty */}
+        {filtered.length === 0 && (
+          <div className="aw-empty">✦ No withdrawals found ✦</div>
+        )}
+
+        {/* Cards */}
+        {filtered.map((w, idx) => {
+          const sc = STATUS_CONFIG[w.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+
+          return (
+            <div
+              key={w.id}
+              className="aw-card"
+              style={{ border: `1px solid ${sc.color}15`, animationDelay: `${idx * 0.04}s` }}
+            >
+              {/* Top beam */}
+              <div className="aw-card-beam"
+                style={{ background: `linear-gradient(90deg, transparent, ${sc.color}30, transparent)` }} />
+
+              <div className="aw-card-body">
+                {/* User row */}
+                <div className="aw-user-row">
+                  <div
+                    className="aw-avatar"
+                    style={{ background: `${sc.color}12`, border: `2px solid ${sc.color}30` }}
+                  >
+                    {w.users?.photo_url
+                      ? <img src={w.users.photo_url} alt="" />
+                      : <span style={{ color: sc.color }}>{w.users?.first_name?.[0] || '?'}</span>}
+                  </div>
+                  <div className="aw-user-info">
+                    <div className="aw-user-name">
+                      {w.users?.first_name || 'User'}
+                      {w.users?.username && <span className="aw-username">@{w.users.username}</span>}
+                    </div>
+                    <div className="aw-user-meta">
+                      TG: {w.users?.telegram_id || '—'}
+                    </div>
+                  </div>
+                  <div
+                    className="aw-status-badge"
+                    style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color }}
+                  >
+                    {sc.label}
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div className="aw-amount-row">
+                  <div className="aw-pts">{w.points_spent.toLocaleString()} PTS</div>
+                  <div className="aw-arrow">→</div>
+                  <div className="aw-ton" style={{ color: sc.color }}>
+                    {Number(w.amount).toFixed(2)}
+                  </div>
+                  <div className="aw-method-tag">{w.method.toUpperCase()}</div>
+                </div>
+
+                {/* Wallet */}
+                {w.wallet_address && (
+                  <div className="aw-wallet">
+                    <span className="aw-wallet-icon">💳</span>
+                    <span className="aw-wallet-addr">{w.wallet_address}</span>
+                    <button
+                      className="aw-copy-btn"
+                      onClick={() => copyWallet(w.wallet_address!)}
+                      title="Copy address"
+                    >
+                      {copied === w.wallet_address ? '✓' : '📋'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Admin note */}
+                {w.admin_note && (
+                  <div className="aw-note">
+                    <span>⚠️</span>
+                    <span>{w.admin_note}</span>
+                  </div>
+                )}
+
+                {/* Time */}
+                <div className="aw-time">
+                  📅 {new Date(w.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  &nbsp;·&nbsp;{timeAgo(w.created_at)}
+                </div>
+
+                {/* Actions */}
+                {w.status === 'pending' && (
+                  <div className="aw-actions">
+                    <button className="aw-btn aw-btn-approve" onClick={() => onApprove(w.id)}>
+                      ✓ APPROVE
+                    </button>
+                    <button className="aw-btn aw-btn-reject" onClick={() => onReject(w.id)}>
+                      ✗ REJECT
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+      </div>
+    </>
+  );
+}
