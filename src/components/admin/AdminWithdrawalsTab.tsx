@@ -33,6 +33,7 @@ const STATUS_CONFIG = {
   rejected: { color: '#ef4444', glow: 'rgba(239,68,68,0.4)',  bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.25)',  label: 'REJECTED' },
 };
 
+/* Convert TON to nanotons for Tonkeeper URL */
 function toNanoton(amount: number): string {
   return Math.round(amount * 1e9).toString();
 }
@@ -46,14 +47,15 @@ const CSS = `
 
 @keyframes awFadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 @keyframes awShine  { 0%{left:-100%} 40%,100%{left:150%} }
+@keyframes awPulse  { 0%,100%{opacity:0.7} 50%{opacity:1} }
 
 .aw-root { font-family:'Rajdhani',sans-serif; color:#fff; }
 
 /* Summary */
 .aw-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
 .aw-summary-tile { border-radius:16px; padding:14px 10px; text-align:center; position:relative; overflow:hidden; }
-.aw-summary-val  { font-family:'Orbitron',monospace; font-size:26px; font-weight:900; line-height:1; margin-bottom:3px; }
-.aw-summary-label{ font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; }
+.aw-summary-val   { font-family:'Orbitron',monospace; font-size:26px; font-weight:900; line-height:1; margin-bottom:3px; }
+.aw-summary-label { font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; }
 
 /* Filter */
 .aw-filters { display:flex; gap:6px; margin-bottom:14px; }
@@ -76,9 +78,9 @@ const CSS = `
 
 /* Amount */
 .aw-amount-row { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:10px 14px; margin-bottom:10px; }
-.aw-pts    { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:rgba(255,255,255,0.5); }
-.aw-arrow  { color:rgba(255,255,255,0.2); font-size:14px; }
-.aw-ton    { font-family:'Orbitron',monospace; font-size:18px; font-weight:900; letter-spacing:1px; }
+.aw-pts   { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:rgba(255,255,255,0.5); }
+.aw-arrow { color:rgba(255,255,255,0.2); font-size:14px; }
+.aw-ton   { font-family:'Orbitron',monospace; font-size:18px; font-weight:900; letter-spacing:1px; }
 .aw-method-tag { margin-left:auto; font-family:'Orbitron',monospace; font-size:8px; font-weight:700; letter-spacing:2px; padding:3px 8px; border-radius:6px; background:rgba(34,211,238,0.1); border:1px solid rgba(34,211,238,0.2); color:#22d3ee; }
 
 /* Wallet */
@@ -95,39 +97,71 @@ const CSS = `
 .aw-time { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:1px; color:rgba(255,255,255,0.15); margin-bottom:10px; }
 
 /* Actions */
-.aw-actions     { display:flex; flex-direction:column; gap:8px; }
+.aw-actions { display:flex; flex-direction:column; gap:8px; }
 .aw-actions-row { display:flex; gap:8px; }
 
-.aw-btn { flex:1; padding:12px; border-radius:12px; border:none; font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:transform 0.12s,box-shadow 0.2s; position:relative; overflow:hidden; }
-.aw-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); animation:awShine 3s ease-in-out infinite; }
-.aw-btn:active { transform:scale(0.97); }
-.aw-btn-approve { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 16px rgba(74,222,128,0.3); }
-.aw-btn-reject  { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#ef4444; }
-.aw-btn-reject::after { display:none; }
-
-/* Tonkeeper button */
-.aw-btn-tonkeeper {
-  width:100%; padding:14px 16px; border-radius:14px; border:none;
-  background:linear-gradient(135deg,#0098ea,#006bcc);
-  color:#fff; font-family:'Orbitron',monospace;
-  font-size:12px; font-weight:700; letter-spacing:1.5px;
-  cursor:pointer; transition:transform 0.12s,box-shadow 0.2s;
-  box-shadow:0 4px 20px rgba(0,152,234,0.35);
-  display:flex; align-items:center; justify-content:center; gap:8px;
+.aw-btn {
+  flex:1; padding:12px; border-radius:12px; border:none;
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700;
+  letter-spacing:1px; cursor:pointer; transition:transform 0.12s,box-shadow 0.2s;
   position:relative; overflow:hidden;
 }
-.aw-btn-tonkeeper::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent); animation:awShine 3s ease-in-out infinite; }
-.aw-btn-tonkeeper:active { transform:scale(0.97); }
-.aw-btn-tonkeeper-icon   { font-size:18px; line-height:1; }
-.aw-btn-tonkeeper-amount { font-size:10px; opacity:0.75; letter-spacing:1px; margin-left:2px; }
+.aw-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); animation:awShine 3s ease-in-out infinite; }
+.aw-btn:active { transform:scale(0.97); }
+
+.aw-btn-approve {
+  background:linear-gradient(135deg,#4ade80,#16a34a);
+  color:#001a0a; box-shadow:0 4px 16px rgba(74,222,128,0.3);
+}
+.aw-btn-reject {
+  background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#ef4444;
+}
+.aw-btn-reject::after { display:none; }
+
+/* ── Tonkeeper pay button ── */
+.aw-btn-tonkeeper {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px; border: none;
+  background: linear-gradient(135deg, #0098ea, #006bcc);
+  color: #fff;
+  font-family: 'Orbitron', monospace;
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(0,152,234,0.35);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  text-decoration: none;
+  position: relative; overflow: hidden;
+}
+.aw-btn-tonkeeper::after {
+  content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: awShine 3s ease-in-out infinite;
+}
+.aw-btn-tonkeeper:active { transform: scale(0.97); }
+.aw-btn-tonkeeper-icon { font-size: 18px; line-height: 1; }
+.aw-btn-tonkeeper-amount {
+  font-size: 10px; opacity: 0.75; letter-spacing: 1px;
+  margin-left: 2px;
+}
+
+/* Approved pay indicator */
+.aw-paid-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 12px;
+  background: rgba(0,152,234,0.08); border: 1px solid rgba(0,152,234,0.2);
+  font-family: 'Orbitron', monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: 2px; color: #0098ea;
+}
 
 /* Empty */
 .aw-empty { text-align:center; padding:48px 0; font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.1); text-transform:uppercase; }
 `;
 
 export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }: Props) {
-  const [filter, setFilter] = useState<'all'|'pending'|'approved'|'rejected'>('all');
-  const [copied, setCopied] = useState<string | null>(null);
+  const [filter, setFilter]   = useState<'all'|'pending'|'approved'|'rejected'>('all');
+  const [copied, setCopied]   = useState<string | null>(null);
 
   const counts = useMemo(() => ({
     pending:  withdrawals.filter(w => w.status === 'pending').length,
@@ -161,6 +195,7 @@ export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }
 
   function openTonkeeper(wallet: string, amount: number) {
     const url = buildTonkeeperUrl(wallet, amount);
+    /* Open in Telegram WebApp browser or fallback */
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.openLink) {
       tg.openLink(url);
@@ -230,12 +265,10 @@ export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }
           <div className="aw-empty">✦ No withdrawals found ✦</div>
         )}
 
-        {/* Cards */}
         {filtered.map((w, idx) => {
           const sc = STATUS_CONFIG[w.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
-          const isTon    = w.method?.toLowerCase() === 'ton';
+          const isTon = w.method?.toLowerCase() === 'ton';
           const hasWallet = !!w.wallet_address;
-          const isPending = w.status === 'pending';
 
           return (
             <div key={w.id} className="aw-card"
@@ -250,7 +283,7 @@ export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }
                   <div className="aw-avatar"
                     style={{ background:`${sc.color}12`, border:`2px solid ${sc.color}30` }}>
                     {w.users?.photo_url
-                      ? <img src={w.users.photo_url} alt="" />
+                      ? <img src={w.users.photo_url} alt="" className="clickable"/>
                       : <span style={{ color: sc.color }}>{w.users?.first_name?.[0] || '?'}</span>}
                   </div>
                   <div className="aw-user-info">
@@ -305,37 +338,56 @@ export default function AdminWithdrawalsTab({ withdrawals, onApprove, onReject }
                   &nbsp;·&nbsp;{timeAgo(w.created_at)}
                 </div>
 
-                {/* ── ACTIONS — only for pending ── */}
-                {isPending && (
-                  <div className="aw-actions">
+                {/* ── ACTIONS ── */}
+                <div className="aw-actions">
 
-                    {/* Tonkeeper — only TON + wallet + pending */}
-                    {isTon && hasWallet && (
+                  {/* Pending — show Tonkeeper + approve + reject */}
+                  {w.status === 'pending' && (
+                    <>
+                      {/* Tonkeeper pay button — only for TON with wallet */}
+                      {isTon && hasWallet && (
+                        <button
+                          className="aw-btn-tonkeeper"
+                          onClick={() => openTonkeeper(w.wallet_address!, Number(w.amount))}
+                        >
+                          <span className="aw-btn-tonkeeper-icon">💎</span>
+                          PAY WITH TONKEEPER
+                          <span className="aw-btn-tonkeeper-amount">
+                            {Number(w.amount).toFixed(2)} TON
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Approve + Reject */}
+                      <div className="aw-actions-row">
+                        <button className="aw-btn aw-btn-approve" onClick={() => onApprove(w.id)}>
+                          ✓ APPROVE
+                        </button>
+                        <button className="aw-btn aw-btn-reject" onClick={() => onReject(w.id)}>
+                          ✗ REJECT
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Approved — show Tonkeeper as a pay-again reference */}
+                  {w.status === 'approved' && isTon && hasWallet && (
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <div className="aw-paid-badge">
+                        ✓ PAYMENT APPROVED
+                      </div>
                       <button
                         className="aw-btn-tonkeeper"
+                        style={{ flex:1, padding:'10px 12px', fontSize:10 }}
                         onClick={() => openTonkeeper(w.wallet_address!, Number(w.amount))}
                       >
                         <span className="aw-btn-tonkeeper-icon">💎</span>
-                        PAY WITH TONKEEPER
-                        <span className="aw-btn-tonkeeper-amount">
-                          {Number(w.amount).toFixed(2)} TON
-                        </span>
-                      </button>
-                    )}
-
-                    {/* Approve + Reject */}
-                    <div className="aw-actions-row">
-                      <button className="aw-btn aw-btn-approve" onClick={() => onApprove(w.id)}>
-                        ✓ APPROVE
-                      </button>
-                      <button className="aw-btn aw-btn-reject" onClick={() => onReject(w.id)}>
-                        ✗ REJECT
+                        OPEN TONKEEPER
                       </button>
                     </div>
+                  )}
 
-                  </div>
-                )}
-
+                </div>
               </div>
             </div>
           );
