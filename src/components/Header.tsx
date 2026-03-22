@@ -1,5 +1,6 @@
 import React from "react";
 import { useApp } from "@/context/AppContext";
+import TgEmoji from "@/components/TgEmoji";
 
 function getLevelInfo(level: number) {
   const levels = [
@@ -25,6 +26,8 @@ const CSS = `
   position: relative;
   overflow: hidden;
 }
+
+/* Subtle top beam */
 .hdr-root::before {
   content: '';
   position: absolute;
@@ -33,6 +36,8 @@ const CSS = `
   background: linear-gradient(90deg, transparent, rgba(255,190,0,0.3), transparent);
   pointer-events: none;
 }
+
+/* Grid bg */
 .hdr-root::after {
   content: '';
   position: absolute;
@@ -45,8 +50,12 @@ const CSS = `
   z-index: 0;
 }
 
-.hdr-inner { position: relative; z-index: 1; }
+.hdr-inner {
+  position: relative;
+  z-index: 1;
+}
 
+/* ── Row 1: avatar + name + points ── */
 .hdr-row {
   display: flex;
   align-items: center;
@@ -55,41 +64,62 @@ const CSS = `
 }
 
 /* Avatar */
-.hdr-avatar-wrap { position: relative; flex-shrink: 0; }
+.hdr-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
 .hdr-avatar {
-  width: 46px; height: 46px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: 'Orbitron', monospace;
-  font-size: 16px; font-weight: 700;
-  overflow: hidden; position: relative;
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+  position: relative;
   transition: box-shadow 0.3s;
 }
 .hdr-avatar img {
-  width: 100%; height: 100%;
-  object-fit: cover; border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 .hdr-level-badge {
   position: absolute;
-  bottom: -3px; right: -3px;
-  width: 20px; height: 20px;
+  bottom: -3px;
+  right: -3px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: 'Orbitron', monospace;
-  font-size: 8px; font-weight: 700; color: #000;
+  font-size: 8px;
+  font-weight: 700;
+  color: #000;
   border: 2px solid #06080f;
   line-height: 1;
 }
 
 /* Name block */
 .hdr-name-block {
-  flex: 1; margin-left: 10px; min-width: 0;
+  flex: 1;
+  margin-left: 10px;
+  min-width: 0;
 }
 .hdr-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px; font-weight: 600;
+  font-size: 15px;
+  font-weight: 600;
   color: rgba(255,255,255,0.9);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.2;
 }
 .hdr-username {
@@ -98,33 +128,42 @@ const CSS = `
   font-size: 13px;
 }
 .hdr-level-label {
-  display: flex; align-items: center; gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-family: 'Orbitron', monospace;
-  font-size: 9px; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
   margin-top: 1px;
 }
-.hdr-level-icon { font-size: 12px; line-height: 1; }
 
 /* Points pill */
 .hdr-points {
-  display: flex; align-items: center; gap: 5px;
-  padding: 7px 12px; border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 12px;
   background: rgba(255,190,0,0.08);
   border: 1px solid rgba(255,190,0,0.25);
   flex-shrink: 0;
 }
-.hdr-points-icon { font-size: 15px; line-height: 1; }
 .hdr-points-val {
   font-family: 'Orbitron', monospace;
-  font-size: 13px; font-weight: 700;
-  color: #ffbe00; letter-spacing: 0.5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffbe00;
+  letter-spacing: 0.5px;
 }
 
-/* Title bar */
+/* ── Title bar ── */
 .hdr-title-bar {
-  display: flex; align-items: center;
-  justify-content: center; gap: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 8px 0 2px;
   border-top: 1px solid rgba(255,255,255,0.05);
   position: relative;
@@ -132,7 +171,8 @@ const CSS = `
 .hdr-title-bar::before,
 .hdr-title-bar::after {
   content: '';
-  flex: 1; height: 1px;
+  flex: 1;
+  height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,190,0,0.15));
 }
 .hdr-title-bar::after {
@@ -140,9 +180,12 @@ const CSS = `
 }
 .hdr-title {
   font-family: 'Orbitron', monospace;
-  font-size: 13px; font-weight: 900;
-  letter-spacing: 4px; color: rgba(255,255,255,0.5);
-  text-transform: uppercase; white-space: nowrap;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .hdr-title span {
   color: #ffbe00;
@@ -150,23 +193,13 @@ const CSS = `
 }
 `;
 
-/* Level icon using plain emoji — no custom emoji needed */
-function levelIcon(name: string): string {
-  const map: Record<string, string> = {
-    Beginner: '🌱', Rookie: '⚡', Iron: '🔩',
-    Bronze: '🥉', Silver: '🥈', Gold: '🥇',
-    Platinum: '💎', Diamond: '💠', Master: '👑', Legend: '🔥',
-  };
-  return map[name] || '⭐';
-}
-
 export default function Header() {
   const { user, balance, telegramUser } = useApp();
 
-  const level      = user?.level || 1;
-  const levelInfo  = getLevelInfo(level);
+  const level = user?.level || 1;
+  const levelInfo = getLevelInfo(level);
   const displayName = user?.first_name || telegramUser?.first_name || "User";
-  const points     = balance?.points || 0;
+  const points = balance?.points || 0;
 
   return (
     <>
@@ -190,17 +223,12 @@ export default function Header() {
                 {user?.photo_url ? (
                   <img src={user.photo_url} alt={displayName} />
                 ) : (
-                  <span style={{ color: levelInfo.color }}>
-                    {displayName[0]?.toUpperCase()}
-                  </span>
+                  <span style={{ color: levelInfo.color }}>{displayName[0]?.toUpperCase()}</span>
                 )}
               </div>
               <div
                 className="hdr-level-badge"
-                style={{
-                  background: levelInfo.color,
-                  boxShadow: `0 0 8px ${levelInfo.glow}`,
-                }}
+                style={{ background: levelInfo.color, boxShadow: `0 0 8px ${levelInfo.glow}` }}
               >
                 {level}
               </div>
@@ -215,14 +243,14 @@ export default function Header() {
                 )}
               </div>
               <div className="hdr-level-label" style={{ color: levelInfo.color }}>
-                <span className="hdr-level-icon">{levelIcon(levelInfo.name)}</span>
+                <TgEmoji id="5325547803936572038" size={14} fallback="⭐" />
                 {levelInfo.name}
               </div>
             </div>
 
             {/* Points */}
             <div className="hdr-points">
-              <span className="hdr-points-icon">🪙</span>
+              <TgEmoji id="5249381781622247862" size={16} fallback="🪙" />
               <span className="hdr-points-val">{points.toLocaleString()}</span>
             </div>
 
