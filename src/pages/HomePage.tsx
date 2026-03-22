@@ -743,7 +743,7 @@ export default function HomePage() {
             <button className="hp-farm-btn claim" onClick={handleFarmClaim} disabled={farmClaiming}>
               {farmClaiming
                 ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
-                : '🚜 Claim Now'}
+                : '🚜 CLAIM NOW'}
             </button>
           ) : isFarming ? (
             <button className="hp-farm-btn wait" disabled>
@@ -753,7 +753,7 @@ export default function HomePage() {
             <button className="hp-farm-btn start" onClick={handleFarmStart} disabled={farmClaiming}>
               {farmClaiming
                 ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
-                : '🌾 Start Farming'}
+                : '🌾 START FARMING'}
             </button>
           )}
         </div>
