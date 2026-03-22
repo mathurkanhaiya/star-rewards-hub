@@ -719,7 +719,7 @@ export default function HomePage() {
               <div className={`hp-farm-sub ${isFarming || farmReady ? 'live' : ''}`}>
                 {farmReady ? '✦ Ready to claim!'
                   : isFarming ? `⏱ ${farmTimeLeft} remaining`
-                  : 'Watch ad → 15 min → +15 pts'}
+                  : 'Start Farming → 15 min → +50 pts'}
               </div>
             </div>
             <div className="hp-farm-badge">+{FARM_REWARD} PTS</div>
@@ -743,7 +743,7 @@ export default function HomePage() {
             <button className="hp-farm-btn claim" onClick={handleFarmClaim} disabled={farmClaiming}>
               {farmClaiming
                 ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
-                : '🎬  WATCH AD & CLAIM'}
+                : '🚜 Claim Now'}
             </button>
           ) : isFarming ? (
             <button className="hp-farm-btn wait" disabled>
@@ -753,7 +753,7 @@ export default function HomePage() {
             <button className="hp-farm-btn start" onClick={handleFarmStart} disabled={farmClaiming}>
               {farmClaiming
                 ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
-                : '🎬  WATCH AD & FARM'}
+                : '🌾 Start Farming'}
             </button>
           )}
         </div>
