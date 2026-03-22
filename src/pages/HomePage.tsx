@@ -58,7 +58,6 @@ function txIcon(type: string): string {
   return map[type] || "💰";
 }
 
-/* ── Constants ── */
 const MAX_ENERGY        = 50;
 const REGEN_PER_SEC     = 50 / 3600;
 const X2_DURATION_SEC   = 10;
@@ -69,10 +68,10 @@ const FARM_REWARD       = 50;
 const AD_MAX_PER_DAY    = 15;
 const AD_REWARD         = 30;
 const AD_COOLDOWN_SEC   = 10;
+const DROP_COOLDOWN_SEC = 5;
 
-/* Daily Drop config */
 const DAILY_DROP = [
-  { day: 1, pts: 100,  color: '#4ade80', label: 'D1' },
+  { day: 1, pts: 100, color: '#4ade80', label: 'D1' },
   { day: 2, pts: 120, color: '#4ade80', label: 'D2' },
   { day: 3, pts: 130, color: '#ffbe00', label: 'D3' },
   { day: 4, pts: 140, color: '#ffbe00', label: 'D4' },
@@ -81,16 +80,13 @@ const DAILY_DROP = [
   { day: 7, pts: 170, color: '#a78bfa', label: 'D7' },
 ];
 
-/* ── localStorage helpers ── */
 function saveBoost(key: string, expiresAt: number) {
   localStorage.setItem(key, String(expiresAt));
 }
 function loadBoost(key: string): number {
   const v = localStorage.getItem(key);
   if (!v) return 0;
-  const exp = Number(v);
-  const secsLeft = Math.max(0, Math.floor((exp - Date.now()) / 1000));
-  return secsLeft;
+  return Math.max(0, Math.floor((Number(v) - Date.now()) / 1000));
 }
 
 const CSS = `
@@ -110,30 +106,22 @@ const CSS = `
 @keyframes hpCdFlash   { 0%,100%{opacity:0.5} 50%{opacity:1} }
 @keyframes hpFloatPts  { 0%{opacity:1;transform:translateY(0) scale(1.1)} 100%{opacity:0;transform:translateY(-70px) scale(0.7)} }
 @keyframes hpEPulse    { 0%,100%{opacity:0.6} 50%{opacity:1} }
-@keyframes ddPop       { from{transform:scale(0.85);opacity:0} to{transform:scale(1);opacity:1} }
+@keyframes hpSpin      { to{transform:rotate(360deg)} }
 
-.hp-root {
-  font-family: 'Rajdhani', sans-serif;
-  padding: 0 16px 112px;
-  color: #fff; min-height: 100vh;
-}
+.hp-root { font-family:'Rajdhani',sans-serif; padding:0 16px 112px; color:#fff; min-height:100vh; }
 
-/* Message */
 .hp-msg { display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; border-radius:13px; margin-bottom:12px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#4ade80; letter-spacing:1px; animation:hpMsgIn 0.3s ease; }
 
-/* ══ TAP CARD ══ */
+/* TAP CARD */
 .hp-tap-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px 16px 14px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s ease; }
 .hp-tap-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.45),transparent); }
 .hp-tap-card::after  { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px); background-size:28px 28px; pointer-events:none; border-radius:22px; }
-
 .hp-tap-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; position:relative; z-index:1; }
 .hp-tap-title  { font-family:'Orbitron',monospace; font-size:12px; font-weight:900; letter-spacing:2px; color:#fff; }
 .hp-tap-title span { color:#ffbe00; }
 .hp-energy-pill { display:flex; align-items:center; gap:4px; padding:3px 10px; border-radius:20px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00; }
 .hp-energy-pill.regen { animation:hpEPulse 1.5s ease-in-out infinite; }
-
 .hp-tap-center { display:flex; flex-direction:column; align-items:center; gap:12px; position:relative; z-index:1; }
-
 .hp-tap-btn-wrap { position:relative; width:130px; height:130px; display:flex; align-items:center; justify-content:center; }
 .hp-tap-ripple { position:absolute; inset:0; border-radius:50%; border:2px solid rgba(255,190,0,0.35); animation:hpRipple 1.8s ease-out infinite; pointer-events:none; }
 .hp-tap-ripple:nth-child(2){animation-delay:0.6s} .hp-tap-ripple:nth-child(3){animation-delay:1.2s}
@@ -142,10 +130,7 @@ const CSS = `
 .hp-tap-btn:disabled { opacity:0.3; cursor:not-allowed; animation:none; box-shadow:none; }
 .hp-tap-btn-emoji { font-size:46px; line-height:1; pointer-events:none; animation:hpFloat 3s ease-in-out infinite; }
 .hp-tap-btn-sub   { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; color:rgba(255,190,0,0.7); letter-spacing:1px; pointer-events:none; }
-
 .hp-float-pts { position:absolute; font-family:'Orbitron',monospace; font-size:17px; font-weight:900; color:#ffbe00; pointer-events:none; z-index:99; text-shadow:0 0 12px rgba(255,190,0,0.9); animation:hpFloatPts 0.9s ease-out forwards; }
-
-/* Energy bar */
 .hp-energy-wrap { width:100%; }
 .hp-energy-labels { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
 .hp-energy-track  { height:7px; border-radius:4px; background:rgba(255,255,255,0.06); overflow:hidden; position:relative; }
@@ -153,13 +138,11 @@ const CSS = `
 .hp-energy-segments { position:absolute; inset:0; display:flex; gap:2px; padding:0 2px; pointer-events:none; }
 .hp-energy-seg { flex:1; border-right:1px solid rgba(6,8,15,0.4); }
 .hp-regen-label { text-align:center; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; margin-top:5px; animation:hpCdFlash 1.5s ease-in-out infinite; color:#ef4444; }
-
-/* Boost buttons — SMALLER */
 .hp-boost-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:10px; position:relative; z-index:1; }
 .hp-boost-btn { padding:8px 6px; border-radius:12px; border:none; cursor:pointer; transition:transform 0.12s; text-align:center; position:relative; overflow:hidden; }
 .hp-boost-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); animation:hpShine 3s ease-in-out infinite; }
-.hp-boost-btn:active  { transform:scale(0.95); }
-.hp-boost-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.hp-boost-btn:active { transform:scale(0.95); }
+.hp-boost-btn:disabled { opacity:0.4; cursor:not-allowed; }
 .hp-boost-btn:disabled::after { display:none; }
 .hp-boost-btn.x2   { background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); color:#fbbf24; }
 .hp-boost-btn.x2.on{ animation:hpX2Glow 1.5s ease-in-out infinite; border-color:rgba(251,191,36,0.55); background:rgba(251,191,36,0.14); }
@@ -171,37 +154,39 @@ const CSS = `
 .hp-boost-sub   { font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; margin-top:1px; }
 .hp-boost-timer { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; margin-top:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
-/* ══ DAILY DROP ══ */
+/* DAILY DROP */
 .hp-drop-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.05s ease both; }
 .hp-drop-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
-
 .hp-drop-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
 .hp-drop-title-row { display:flex; align-items:center; gap:8px; }
 .hp-drop-title { font-family:'Orbitron',monospace; font-size:13px; font-weight:900; letter-spacing:1.5px; color:#fff; }
 .hp-drop-streak { display:flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00; letter-spacing:1px; }
-
-/* Day tiles */
 .hp-drop-days { display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
 .hp-drop-days::-webkit-scrollbar { display:none; }
 .hp-drop-day { flex:1; min-width:44px; border-radius:14px; padding:10px 4px 8px; text-align:center; border:2px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); transition:all 0.2s; position:relative; }
 .hp-drop-day.claimed { background:rgba(74,222,128,0.1); border-color:rgba(74,222,128,0.5); }
-.hp-drop-day.current { border-width:2px; }
 .hp-drop-day.locked  { opacity:0.45; }
 .hp-drop-day.jackpot { background:rgba(167,139,250,0.08); }
-.hp-drop-pts  { font-family:'Orbitron',monospace; font-size:14px; font-weight:900; line-height:1; margin-bottom:4px; }
+.hp-drop-pts    { font-family:'Orbitron',monospace; font-size:14px; font-weight:900; line-height:1; margin-bottom:4px; }
 .hp-drop-dlabel { font-family:'Orbitron',monospace; font-size:8px; letter-spacing:1px; color:rgba(255,255,255,0.3); }
 .hp-drop-day.claimed .hp-drop-dlabel { color:rgba(74,222,128,0.6); }
-.hp-drop-check { position:absolute; top:-5px; right:-5px; width:16px; height:16px; border-radius:50%; background:#4ade80; display:flex; align-items:center; justify-content:center; font-size:9px; border:2px solid #06080f; }
+.hp-drop-check  { position:absolute; top:-5px; right:-5px; width:16px; height:16px; border-radius:50%; background:#4ade80; display:flex; align-items:center; justify-content:center; font-size:9px; border:2px solid #06080f; }
 
-/* Drop claim button */
+/* Drop loading skeleton */
+.hp-drop-loading { display:flex; align-items:center; justify-content:center; height:72px; gap:8px; margin-bottom:12px; }
+.hp-drop-spin { width:18px; height:18px; border-radius:50%; border:2px solid rgba(255,190,0,0.15); border-top:2px solid #ffbe00; animation:hpSpin 0.8s linear infinite; }
+.hp-drop-load-txt { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.15); }
+
 .hp-drop-btn { width:100%; padding:12px; border-radius:14px; border:none; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:transform 0.12s; position:relative; overflow:hidden; }
 .hp-drop-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent); animation:hpShine 3s ease-in-out infinite; }
 .hp-drop-btn:active { transform:scale(0.97); }
 .hp-drop-btn.claim   { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 16px rgba(74,222,128,0.3); }
+.hp-drop-btn.cooldown{ background:rgba(255,190,0,0.06); border:1px solid rgba(255,190,0,0.15); color:rgba(255,190,0,0.5); cursor:not-allowed; }
+.hp-drop-btn.cooldown::after { display:none; }
 .hp-drop-btn.claimed { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.3); cursor:not-allowed; }
 .hp-drop-btn.claimed::after { display:none; }
 
-/* ══ FARM CARD ══ */
+/* FARM CARD */
 .hp-farm-card { background:rgba(255,255,255,0.02); border:1px solid rgba(74,222,128,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.1s ease both; }
 .hp-farm-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(74,222,128,0.4),transparent); }
 .hp-farm-card.farming { animation:hpFarmPulse 2.5s ease-in-out infinite; }
@@ -223,7 +208,7 @@ const CSS = `
 .hp-farm-btn.wait  { background:rgba(255,255,255,0.03); border:1px solid rgba(74,222,128,0.12); color:rgba(74,222,128,0.35); cursor:not-allowed; }
 .hp-farm-btn.wait::after { display:none; }
 
-/* ══ AD CARD ══ */
+/* AD CARD */
 .hp-ad-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.15s ease both; }
 .hp-ad-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
 .hp-ad-top   { display:flex; align-items:center; gap:12px; margin-bottom:11px; }
@@ -255,7 +240,6 @@ const CSS = `
 .hp-tx-label { font-size:13px; font-weight:600; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hp-tx-sub   { font-size:10px; color:rgba(255,255,255,0.2); letter-spacing:1px; margin-top:1px; }
 .hp-tx-pts   { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:#ffbe00; flex-shrink:0; }
-
 .hp-dots span { display:inline-block; width:5px; height:5px; border-radius:50%; background:currentColor; margin:0 2px; animation:hpDot 1.2s ease-in-out infinite; }
 .hp-dots span:nth-child(2){animation-delay:0.2s} .hp-dots span:nth-child(3){animation-delay:0.4s}
 `;
@@ -271,16 +255,15 @@ export default function HomePage() {
   const [energy, setEnergy] = useState<number>(() => {
     const s = localStorage.getItem("energy");
     if (s !== null) {
-      // Restore regen from time away
-      const saved     = parseFloat(s);
-      const lastTime  = Number(localStorage.getItem("lastEnergyTime") || Date.now());
-      const elapsed   = (Date.now() - lastTime) / 1000;
+      const saved    = parseFloat(s);
+      const lastTime = Number(localStorage.getItem("lastEnergyTime") || Date.now());
+      const elapsed  = (Date.now() - lastTime) / 1000;
       return Math.min(MAX_ENERGY, saved + elapsed * REGEN_PER_SEC);
     }
     return MAX_ENERGY;
   });
 
-  /* ── Boosts — persist in localStorage ── */
+  /* ── Boosts ── */
   const [x2SecsLeft,   setX2SecsLeft]   = useState(() => loadBoost("boostX2Exp"));
   const [fastSecsLeft, setFastSecsLeft] = useState(() => loadBoost("boostFastExp"));
   const x2Active   = x2SecsLeft   > 0;
@@ -300,12 +283,14 @@ export default function HomePage() {
   const [farmClaiming, setFarmClaiming] = useState(false);
 
   /* ── Daily Drop ── */
-  const [dropStreak, setDropStreak]     = useState(0);
+  const [dropStreak, setDropStreak]           = useState(0);
   const [dropClaimedToday, setDropClaimedToday] = useState(false);
-  const [dropClaiming, setDropClaiming] = useState(false);
+  const [dropClaiming, setDropClaiming]       = useState(false);
+  const [dropLoading, setDropLoading]         = useState(true);   // ← NEW
+  const [dropCooldown, setDropCooldown]       = useState(DROP_COOLDOWN_SEC); // ← NEW
 
   /* ── Ads ── */
-  const [adsToday, setAdsToday]   = useState(0);
+  const [adsToday, setAdsToday]     = useState(0);
   const [adCooldown, setAdCooldown] = useState(0);
   const [adLoading, setAdLoading]   = useState(false);
   const isAdRunning = useRef(false);
@@ -329,28 +314,43 @@ export default function HomePage() {
 
   async function loadDropState() {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
-    // Check today's claim
-    const { data: todayClaim } = await supabase
-      .from('daily_claims').select('id')
-      .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
-    setDropClaimedToday(!!todayClaim);
+    setDropLoading(true); // ← start loading
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: todayClaim } = await supabase
+        .from('daily_claims').select('id')
+        .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
+      setDropClaimedToday(!!todayClaim);
 
-    // Count streak (consecutive days)
-    const { data: claims } = await supabase
-      .from('daily_claims').select('claim_date')
-      .eq('user_id', user.id).order('claim_date', { ascending: false }).limit(7);
-    if (!claims || claims.length === 0) { setDropStreak(0); return; }
-    let streak = 0;
-    const now = new Date(); now.setUTCHours(0,0,0,0);
-    for (let i = 0; i < claims.length; i++) {
-      const claimDate = new Date(claims[i].claim_date);
-      const expected = new Date(now); expected.setUTCDate(now.getUTCDate() - i);
-      if (claimDate.toISOString().split('T')[0] === expected.toISOString().split('T')[0]) streak++;
-      else break;
+      const { data: claims } = await supabase
+        .from('daily_claims').select('claim_date')
+        .eq('user_id', user.id).order('claim_date', { ascending: false }).limit(7);
+
+      if (!claims || claims.length === 0) {
+        setDropStreak(0);
+      } else {
+        let streak = 0;
+        const now = new Date(); now.setUTCHours(0,0,0,0);
+        for (let i = 0; i < claims.length; i++) {
+          const claimDate = new Date(claims[i].claim_date);
+          const expected  = new Date(now);
+          expected.setUTCDate(now.getUTCDate() - i);
+          if (claimDate.toISOString().split('T')[0] === expected.toISOString().split('T')[0]) streak++;
+          else break;
+        }
+        setDropStreak(streak);
+      }
+    } finally {
+      setDropLoading(false); // ← done loading
     }
-    setDropStreak(streak);
   }
+
+  /* ── Drop cooldown ticker ── */
+  useEffect(() => {
+    if (dropCooldown <= 0) return;
+    const t = setInterval(() => setDropCooldown(p => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(t);
+  }, [dropCooldown]);
 
   /* ── Energy regen ── */
   useEffect(() => {
@@ -370,16 +370,8 @@ export default function HomePage() {
   /* ── Boost timers ── */
   useEffect(() => {
     const t = setInterval(() => {
-      setX2SecsLeft(p => {
-        const next = Math.max(0, p - 1);
-        if (next === 0) localStorage.removeItem("boostX2Exp");
-        return next;
-      });
-      setFastSecsLeft(p => {
-        const next = Math.max(0, p - 1);
-        if (next === 0) localStorage.removeItem("boostFastExp");
-        return next;
-      });
+      setX2SecsLeft(p => { const n = Math.max(0,p-1); if(!n) localStorage.removeItem("boostX2Exp"); return n; });
+      setFastSecsLeft(p => { const n = Math.max(0,p-1); if(!n) localStorage.removeItem("boostFastExp"); return n; });
     }, 1000);
     return () => clearInterval(t);
   }, []);
@@ -465,11 +457,11 @@ export default function HomePage() {
 
   /* ══ DAILY DROP ══ */
   async function handleClaimDrop() {
-    if (!user || dropClaimedToday || dropClaiming) return;
+    if (!user || dropClaimedToday || dropClaiming || dropLoading || dropCooldown > 0) return;
     triggerHaptic("success"); setDropClaiming(true);
-    const today = new Date().toISOString().split('T')[0];
-    const dayIndex = Math.min(dropStreak, 6); // 0-6
-    const reward = DAILY_DROP[dayIndex].pts;
+    const today    = new Date().toISOString().split('T')[0];
+    const dayIndex = Math.min(dropStreak, 6);
+    const reward   = DAILY_DROP[dayIndex].pts;
 
     const { data: bal } = await supabase
       .from('balances').select('points,total_earned').eq('user_id', user.id).single();
@@ -573,7 +565,11 @@ export default function HomePage() {
   const energyPct   = (energy / MAX_ENERGY) * 100;
   const energyColor = energyPct > 50 ? '#ffbe00' : energyPct > 20 ? '#f97316' : '#ef4444';
   const isFarming   = !!farmStart && !farmReady;
-  const todayDayIdx = Math.min(dropStreak, 6); // which reward they'll get
+  const todayDayIdx = Math.min(dropStreak, 6);
+
+  /* drop button state */
+  const dropBtnDisabled = dropClaimedToday || dropClaiming || dropLoading || dropCooldown > 0;
+  const dropBtnClass    = dropClaimedToday ? 'claimed' : dropCooldown > 0 || dropLoading ? 'cooldown' : 'claim';
 
   return (
     <>
@@ -590,7 +586,6 @@ export default function HomePage() {
               ⚡ {Math.floor(energy)}/{MAX_ENERGY}
             </div>
           </div>
-
           <div className="hp-tap-center">
             <div className="hp-tap-btn-wrap">
               <div className="hp-tap-ripple"/><div className="hp-tap-ripple"/><div className="hp-tap-ripple"/>
@@ -599,19 +594,14 @@ export default function HomePage() {
                 <span className="hp-tap-btn-sub">{x2Active ? '+2 PTS' : '+1 PT'}</span>
               </button>
               {floatPts.map(f => (
-                <div key={f.id} className="hp-float-pts" style={{ left: f.x, top: f.y }}>
-                  +{f.val}
-                </div>
+                <div key={f.id} className="hp-float-pts" style={{ left: f.x, top: f.y }}>+{f.val}</div>
               ))}
             </div>
-
             <div className="hp-energy-wrap">
               <div className="hp-energy-labels">
                 <span>ENERGY</span>
                 <span style={{ color: energyColor }}>
-                  {energy >= MAX_ENERGY ? '⚡ FULL'
-                    : fastActive ? '⚡ FAST ×2'
-                    : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
+                  {energy >= MAX_ENERGY ? '⚡ FULL' : fastActive ? '⚡ FAST ×2' : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
                 </span>
               </div>
               <div className="hp-energy-track">
@@ -621,20 +611,15 @@ export default function HomePage() {
                   boxShadow: `0 0 7px ${energyColor}50`,
                 }}/>
                 <div className="hp-energy-segments">
-                  {Array.from({length:9}).map((_,i)=><div key={i} className="hp-energy-seg"/>)}
+                  {Array.from({length:9}).map((_,i) => <div key={i} className="hp-energy-seg"/>)}
                 </div>
               </div>
               {energy < 1 && <div className="hp-regen-label">⏳ Recharging...</div>}
             </div>
           </div>
-
-          {/* Boost buttons */}
           <div className="hp-boost-row">
-            <button
-              className={`hp-boost-btn x2 ${x2Active ? 'on' : ''}`}
-              onClick={() => { if (!x2Active) showX2Ad(); }}
-              disabled={x2Active}
-            >
+            <button className={`hp-boost-btn x2 ${x2Active ? 'on' : ''}`}
+              onClick={() => { if (!x2Active) showX2Ad(); }} disabled={x2Active}>
               <div className="hp-boost-row-inner">
                 <span className="hp-boost-icon">⚡</span>
                 <span className="hp-boost-label">2× TAP</span>
@@ -643,12 +628,8 @@ export default function HomePage() {
                 ? <div className="hp-boost-timer" style={{color:'#fbbf24'}}>{fmtBoost(x2SecsLeft)}</div>
                 : <div className="hp-boost-sub">Watch ad • 10s</div>}
             </button>
-
-            <button
-              className={`hp-boost-btn fast ${fastActive ? 'on' : ''}`}
-              onClick={() => { if (!fastActive) showFastAd(); }}
-              disabled={fastActive}
-            >
+            <button className={`hp-boost-btn fast ${fastActive ? 'on' : ''}`}
+              onClick={() => { if (!fastActive) showFastAd(); }} disabled={fastActive}>
               <div className="hp-boost-row-inner">
                 <span className="hp-boost-icon">🔋</span>
                 <span className="hp-boost-label">FAST ×2</span>
@@ -672,41 +653,53 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Day tiles */}
-          <div className="hp-drop-days">
-            {DAILY_DROP.map((d, i) => {
-              const claimed = i < dropStreak;
-              const current = i === todayDayIdx && !dropClaimedToday;
-              const locked  = i > todayDayIdx;
-              const isJackpot = i === 6;
-              return (
-                <div
-                  key={d.day}
-                  className={`hp-drop-day ${claimed ? 'claimed' : ''} ${current ? 'current' : ''} ${locked ? 'locked' : ''} ${isJackpot ? 'jackpot' : ''}`}
-                  style={current ? { borderColor: d.color, boxShadow: `0 0 12px ${d.color}30` }
-                    : isJackpot && !locked ? { borderColor: '#a78bfa50' } : {}}
-                >
-                  {claimed && <div className="hp-drop-check">✓</div>}
-                  <div className="hp-drop-pts" style={{ color: claimed ? '#4ade80' : locked ? 'rgba(255,255,255,0.25)' : d.color }}>
-                    {d.pts}
+          {/* Day tiles — show spinner while loading */}
+          {dropLoading ? (
+            <div className="hp-drop-loading">
+              <div className="hp-drop-spin"/>
+              <div className="hp-drop-load-txt">Loading...</div>
+            </div>
+          ) : (
+            <div className="hp-drop-days">
+              {DAILY_DROP.map((d, i) => {
+                const claimed   = i < dropStreak;
+                const current   = i === todayDayIdx && !dropClaimedToday;
+                const locked    = i > todayDayIdx;
+                const isJackpot = i === 6;
+                return (
+                  <div key={d.day}
+                    className={`hp-drop-day ${claimed?'claimed':''} ${current?'current':''} ${locked?'locked':''} ${isJackpot?'jackpot':''}`}
+                    style={current ? { borderColor: d.color, boxShadow: `0 0 12px ${d.color}30` }
+                      : isJackpot && !locked ? { borderColor:'#a78bfa50' } : {}}
+                  >
+                    {claimed && <div className="hp-drop-check">✓</div>}
+                    <div className="hp-drop-pts" style={{
+                      color: claimed ? '#4ade80' : locked ? 'rgba(255,255,255,0.25)' : d.color
+                    }}>{d.pts}</div>
+                    <div className="hp-drop-dlabel">{d.label}</div>
                   </div>
-                  <div className="hp-drop-dlabel">{d.label}</div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Claim button */}
           <button
-            className={`hp-drop-btn ${dropClaimedToday ? 'claimed' : 'claim'}`}
+            className={`hp-drop-btn ${dropBtnClass}`}
             onClick={handleClaimDrop}
-            disabled={dropClaimedToday || dropClaiming}
+            disabled={dropBtnDisabled}
           >
-            {dropClaiming
-              ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
-              : dropClaimedToday
-              ? '✅  Claimed Today!'
-              : `🎁  CLAIM +${DAILY_DROP[todayDayIdx].pts} PTS`}
+            {dropClaiming ? (
+              <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
+            ) : dropClaimedToday ? (
+              '✅  Claimed Today!'
+            ) : dropLoading || dropCooldown > 0 ? (
+              <span className="hp-cd-txt">
+                ⏳ {dropLoading ? 'Loading...' : `Available in ${dropCooldown}s`}
+              </span>
+            ) : (
+              `🎁  CLAIM +${DAILY_DROP[todayDayIdx].pts} PTS`
+            )}
           </button>
         </div>
 
@@ -724,7 +717,6 @@ export default function HomePage() {
             </div>
             <div className="hp-farm-badge">+{FARM_REWARD} PTS</div>
           </div>
-
           <div className="hp-farm-prog-labels">
             <span>{farmReady ? 'Complete!' : isFarming ? 'Farming...' : 'Idle'}</span>
             <span style={{color: farmReady ? '#ffbe00' : '#4ade80'}}>{Math.round(farmProgress)}%</span>
@@ -732,28 +724,19 @@ export default function HomePage() {
           <div className="hp-farm-track">
             <div className="hp-farm-fill" style={{
               width: `${farmProgress}%`,
-              background: farmReady
-                ? 'linear-gradient(90deg,#ffbe00,#f59e0b)'
-                : 'linear-gradient(90deg,#4ade80,#22d3ee)',
+              background: farmReady ? 'linear-gradient(90deg,#ffbe00,#f59e0b)' : 'linear-gradient(90deg,#4ade80,#22d3ee)',
               boxShadow: isFarming ? '0 0 6px rgba(74,222,128,0.4)' : 'none',
             }}/>
           </div>
-
           {farmReady ? (
             <button className="hp-farm-btn claim" onClick={handleFarmClaim} disabled={farmClaiming}>
-              {farmClaiming
-                ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
-                : '🚜 CLAIM NOW'}
+              {farmClaiming ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span> : '🚜 CLAIM NOW'}
             </button>
           ) : isFarming ? (
-            <button className="hp-farm-btn wait" disabled>
-              🌾 FARMING... {farmTimeLeft}
-            </button>
+            <button className="hp-farm-btn wait" disabled>🌾 FARMING... {farmTimeLeft}</button>
           ) : (
             <button className="hp-farm-btn start" onClick={handleFarmStart} disabled={farmClaiming}>
-              {farmClaiming
-                ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
-                : '🌾 START FARMING'}
+              {farmClaiming ? <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span> : '🌾 START FARMING'}
             </button>
           )}
         </div>
@@ -797,21 +780,13 @@ export default function HomePage() {
         </div>
 
         {activeTab === "earn" && (
-  <div>
-    <div style={{
-      textAlign:'center', padding:'18px 0 12px',
-      fontFamily:"'Orbitron',monospace", fontSize:9,
-      letterSpacing:'3px', color:'rgba(255,255,255,0.1)',
-      textTransform:'uppercase'
-    }}>
-      ✦ Tap · Drop · Farm · Watch ✦
-    </div>
-
-    {/* Adsgram Task */}
-    <AdsgramTask blockId="task-25198" />
-  </div>
-)}
-
+          <div>
+            <div style={{textAlign:'center',padding:'18px 0 12px',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.1)',textTransform:'uppercase'}}>
+              ✦ Tap · Drop · Farm · Watch ✦
+            </div>
+            <AdsgramTask blockId="task-25198" />
+          </div>
+        )}
 
         {activeTab === "history" && (
           <div>
