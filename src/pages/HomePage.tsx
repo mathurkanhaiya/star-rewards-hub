@@ -10,7 +10,6 @@ interface Transaction {
   id: string;
   type: string;
   points: number;
-  created_at: string;
 }
 
 function triggerHaptic(type: HapticType) {
@@ -47,64 +46,55 @@ function AnimatedNumber({ value = 0 }: { value: number }) {
 
 function txLabel(type: string): string {
   const map: Record<string, string> = {
-    tap_earn:       "Tap Earn",
-    farm_claim:     "Farm Reward",
-    ad_watch:       "Ad Watch",
-    adsgram_reward: "Adsgram Ad",
-    tower_climb:    "Tower Climb",
-    lucky_box:      "Lucky Box",
-    dice_roll:      "Dice Roll",
-    card_flip:      "Card Flip",
-    number_guess:   "Number Guess",
-    daily_reward:   "Daily Reward",
-    referral_bonus: "Referral Bonus",
-    task_complete:  "Task Complete",
+    tap_earn: "Tap Earn", farm_claim: "Farm Reward",
+    ad_watch: "Ad Watch", adsgram_reward: "Adsgram Ad",
+    tower_climb: "Tower Climb", lucky_box: "Lucky Box",
+    dice_roll: "Dice Roll", card_flip: "Card Flip",
+    number_guess: "Number Guess", daily_reward: "Daily Reward",
+    referral_bonus: "Referral Bonus", task_complete: "Task Complete",
   };
   return map[type] || type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function txIcon(type: string): string {
   const map: Record<string, string> = {
-    tap_earn:       "👆",
-    farm_claim:     "🌾",
-    ad_watch:       "🎬",
-    adsgram_reward: "🎬",
-    tower_climb:    "🏗️",
-    lucky_box:      "🎁",
-    dice_roll:      "🎲",
-    card_flip:      "🃏",
-    number_guess:   "🎯",
-    daily_reward:   "🔥",
-    referral_bonus: "👥",
-    task_complete:  "✅",
+    tap_earn: "👆", farm_claim: "🌾", ad_watch: "🎬",
+    adsgram_reward: "🎬", tower_climb: "🏗️", lucky_box: "🎁",
+    dice_roll: "🎲", card_flip: "🃏", number_guess: "🎯",
+    daily_reward: "🔥", referral_bonus: "👥", task_complete: "✅",
   };
   return map[type] || "💰";
 }
 
 /* ── Constants ── */
-const TAP_MAX_PER_HOUR = 50;
-const FARM_DURATION_MS = 15 * 60 * 1000; // 15 min
-const FARM_REWARD = 15;
-const AD_MAX_PER_DAY = 15;
-const AD_REWARD = 30;
-const AD_COOLDOWN_MS = 10000; // 10 sec
+const MAX_ENERGY       = 50;
+const REGEN_PER_SEC    = 50 / 3600;        // fills in 60 min
+const FAST_REGEN_MULT  = 5;                // 5x faster when boosted
+const BOOST_DURATION   = 5 * 60;          // 5 min in seconds
+const FARM_DURATION_MS = 15 * 60 * 1000;
+const FARM_REWARD      = 15;
+const AD_MAX_PER_DAY   = 15;
+const AD_REWARD        = 30;
+const AD_COOLDOWN_SEC  = 10;
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap');
 
-@keyframes hpBounce  { from{transform:scale(0.3) translateY(10px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
 @keyframes hpShine   { 0%{left:-100%} 40%,100%{left:150%} }
-@keyframes hpMsgIn   { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 @keyframes hpDot     { 0%,80%,100%{transform:scale(0.5);opacity:0.4} 40%{transform:scale(1);opacity:1} }
 @keyframes hpFadeIn  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-@keyframes hpPulse   { 0%,100%{opacity:0.7} 50%{opacity:1} }
-@keyframes hpRipple  { 0%{transform:scale(0.8);opacity:0.8} 100%{transform:scale(2.2);opacity:0} }
-@keyframes hpTapPop  { 0%{transform:scale(1)} 40%{transform:scale(0.92)} 100%{transform:scale(1)} }
-@keyframes hpGlow    { 0%,100%{box-shadow:0 0 30px rgba(255,190,0,0.3)} 50%{box-shadow:0 0 60px rgba(255,190,0,0.6)} }
-@keyframes hpFarmPulse { 0%,100%{box-shadow:0 0 20px rgba(74,222,128,0.2)} 50%{box-shadow:0 0 40px rgba(74,222,128,0.5)} }
-@keyframes hpSpin    { to{transform:rotate(360deg)} }
-@keyframes hpFloat   { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-4px)} }
-@keyframes hpCdFlash { 0%,100%{color:#ef4444} 50%{color:#fca5a5} }
+@keyframes hpBounce  { from{transform:scale(0.3) translateY(10px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
+@keyframes hpMsgIn   { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+@keyframes hpFloat   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes hpRipple  { 0%{transform:scale(0.9);opacity:0.6} 100%{transform:scale(2);opacity:0} }
+@keyframes hpTapPop  { 0%{transform:scale(1)} 30%{transform:scale(0.91)} 100%{transform:scale(1)} }
+@keyframes hpGoldGlow{ 0%,100%{box-shadow:0 0 28px rgba(255,190,0,0.35),0 0 0 3px rgba(255,190,0,0.15)} 50%{box-shadow:0 0 52px rgba(255,190,0,0.65),0 0 0 3px rgba(255,190,0,0.3)} }
+@keyframes hpX2Glow  { 0%,100%{box-shadow:0 0 20px rgba(251,191,36,0.3)} 50%{box-shadow:0 0 40px rgba(251,191,36,0.7)} }
+@keyframes hpFastGlow{ 0%,100%{box-shadow:0 0 20px rgba(34,211,238,0.3)} 50%{box-shadow:0 0 40px rgba(34,211,238,0.7)} }
+@keyframes hpFarmPulse{0%,100%{border-color:rgba(74,222,128,0.2)} 50%{border-color:rgba(74,222,128,0.5)} }
+@keyframes hpCdFlash { 0%,100%{opacity:0.5} 50%{opacity:1} }
+@keyframes hpFloatPts{ 0%{opacity:1;transform:translateY(0) scale(1.1)} 100%{opacity:0;transform:translateY(-70px) scale(0.7)} }
+@keyframes hpEnergyPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
 
 .hp-root {
   font-family: 'Rajdhani', sans-serif;
@@ -113,127 +103,172 @@ const CSS = `
   min-height: 100vh;
 }
 
-/* ── Balance ── */
-.hp-balance {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,190,0,0.15);
-  border-radius: 24px; padding: 20px;
-  margin-bottom: 14px; text-align: center;
-  position: relative; overflow: hidden;
+/* ── Msg banner ── */
+.hp-msg-banner {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 16px; border-radius: 14px; margin-bottom: 14px;
+  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2);
+  font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
+  color: #4ade80; letter-spacing: 1px;
+  animation: hpMsgIn 0.3s ease, hpFadeIn 0.3s ease;
 }
-.hp-balance::before {
-  content:''; position:absolute; top:0; left:15%; right:15%; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent);
-}
-.hp-balance::after {
-  content:''; position:absolute; inset:0;
-  background-image: linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);
-  background-size:28px 28px; pointer-events:none; border-radius:24px;
-}
-.hp-balance-inner { position:relative; z-index:1; }
-.hp-burst { font-size:32px; animation:hpBounce 0.6s cubic-bezier(0.34,1.56,0.64,1); margin-bottom:4px; }
-.hp-bal-label { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:4px; color:rgba(255,255,255,0.25); text-transform:uppercase; margin-bottom:4px; }
-.hp-bal-value { font-family:'Orbitron',monospace; font-size:48px; font-weight:900; line-height:1; color:#ffbe00; text-shadow:0 0 30px rgba(255,190,0,0.4); letter-spacing:2px; }
-.hp-bal-sub { font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.2); text-transform:uppercase; margin-top:4px; }
-.hp-bal-msg { margin-top:8px; display:inline-flex; align-items:center; gap:6px; padding:4px 14px; border-radius:20px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#4ade80; letter-spacing:1px; animation:hpMsgIn 0.3s ease; }
 
-/* ── TAP SECTION ── */
+/* ══════ TAP CARD ══════ */
 .hp-tap-card {
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,190,0,0.15);
-  border-radius: 22px; padding: 20px 16px;
+  border-radius: 24px; padding: 20px 16px 18px;
   margin-bottom: 14px; position: relative; overflow: hidden;
   animation: hpFadeIn 0.4s ease;
 }
 .hp-tap-card::before {
   content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent);
+  background:linear-gradient(90deg,transparent,rgba(255,190,0,0.45),transparent);
 }
-.hp-tap-header {
-  display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;
+.hp-tap-card::after {
+  content:''; position:absolute; inset:0;
+  background-image: linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px);
+  background-size:28px 28px; pointer-events:none; border-radius:24px;
 }
-.hp-tap-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); }
-.hp-tap-info { display:flex; gap:8px; }
-.hp-tap-chip { font-family:'Orbitron',monospace; font-size:8px; font-weight:600; letter-spacing:1px; padding:3px 8px; border-radius:20px; }
-.hp-tap-chip.gold { background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); color:#ffbe00; }
-.hp-tap-chip.red  { background:rgba(239,68,68,0.1);  border:1px solid rgba(239,68,68,0.25);  color:#ef4444; }
 
-/* Tap button */
-.hp-tap-center { display:flex; flex-direction:column; align-items:center; gap:12px; }
+/* Header row */
+.hp-tap-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px; position:relative; z-index:1;
+}
+.hp-tap-title { font-family:'Orbitron',monospace; font-size:12px; font-weight:900; letter-spacing:2px; color:#fff; }
+.hp-tap-title span { color:#ffbe00; }
+.hp-energy-pill {
+  display:flex; align-items:center; gap:5px;
+  padding:4px 12px; border-radius:20px;
+  background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2);
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00;
+}
+.hp-energy-pill.recharging { animation: hpEnergyPulse 1.5s ease-in-out infinite; }
+
+/* Tap button area */
+.hp-tap-center {
+  display:flex; flex-direction:column; align-items:center;
+  gap:16px; position:relative; z-index:1;
+}
+
 .hp-tap-btn-wrap {
-  position: relative; width: 140px; height: 140px;
+  position:relative; width:150px; height:150px;
   display:flex; align-items:center; justify-content:center;
 }
 .hp-tap-ripple {
   position:absolute; inset:0; border-radius:50%;
-  border: 2px solid rgba(255,190,0,0.5);
-  animation: hpRipple 1.2s ease-out infinite;
+  border:2px solid rgba(255,190,0,0.4);
+  animation: hpRipple 1.8s ease-out infinite;
   pointer-events:none;
 }
-.hp-tap-ripple:nth-child(2) { animation-delay: 0.4s; }
+.hp-tap-ripple:nth-child(2) { animation-delay:0.6s; }
+.hp-tap-ripple:nth-child(3) { animation-delay:1.2s; }
+
 .hp-tap-btn {
-  width:120px; height:120px; border-radius:50%; border:none;
-  background: radial-gradient(circle at 38% 35%, rgba(255,255,255,0.15), rgba(255,190,0,0.05));
-  border: 2.5px solid rgba(255,190,0,0.5);
+  width:130px; height:130px; border-radius:50%; border:none;
+  background: radial-gradient(circle at 38% 33%, rgba(255,255,255,0.1) 0%, rgba(255,190,0,0.04) 60%);
+  border:2.5px solid rgba(255,190,0,0.5);
   cursor:pointer; position:relative; z-index:1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-  transition: transform 0.1s;
-  animation: hpGlow 2.5s ease-in-out infinite;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  animation: hpGoldGlow 2.5s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent; user-select:none;
+  transition: opacity 0.2s;
 }
-.hp-tap-btn:active { animation: hpTapPop 0.15s ease; }
-.hp-tap-btn-emoji { font-size: 44px; line-height:1; pointer-events:none; animation: hpFloat 3s ease-in-out infinite; }
-.hp-tap-btn-pts { font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#ffbe00; letter-spacing:1px; pointer-events:none; }
+.hp-tap-btn:active { animation: hpTapPop 0.15s ease, hpGoldGlow 2.5s ease-in-out infinite; }
+.hp-tap-btn:disabled { opacity:0.3; cursor:not-allowed; animation:none; box-shadow:none; }
+.hp-tap-btn-emoji { font-size:52px; line-height:1; pointer-events:none; animation:hpFloat 3s ease-in-out infinite; }
+.hp-tap-btn-sub { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; color:rgba(255,190,0,0.7); letter-spacing:1px; pointer-events:none; }
 
-/* Tap progress bar */
-.hp-tap-progress-wrap { width:100%; }
-.hp-tap-progress-label { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
-.hp-tap-progress-track { height:5px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
-.hp-tap-progress-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#ffbe00,#f59e0b); box-shadow:0 0 6px rgba(255,190,0,0.4); transition:width 0.3s ease; }
-
-/* Floating +1 */
+/* Floating pts */
 .hp-float-pts {
-  position:absolute; font-family:'Orbitron',monospace; font-size:16px; font-weight:900;
-  color:#ffbe00; pointer-events:none; z-index:99;
-  text-shadow:0 0 10px rgba(255,190,0,0.8);
-  animation: hpFloatPts 0.8s ease-out forwards;
-}
-@keyframes hpFloatPts {
-  0%   { opacity:1; transform:translateY(0) scale(1); }
-  100% { opacity:0; transform:translateY(-60px) scale(0.7); }
+  position:absolute; font-family:'Orbitron',monospace;
+  font-size:18px; font-weight:900; color:#ffbe00;
+  pointer-events:none; z-index:99; white-space:nowrap;
+  text-shadow:0 0 12px rgba(255,190,0,0.9);
+  animation: hpFloatPts 0.9s ease-out forwards;
 }
 
-/* ── FARM SECTION ── */
+/* Energy bar */
+.hp-energy-wrap { width:100%; }
+.hp-energy-labels {
+  display:flex; justify-content:space-between;
+  font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px;
+  color:rgba(255,255,255,0.2); margin-bottom:6px;
+}
+.hp-energy-track {
+  height:8px; border-radius:4px; background:rgba(255,255,255,0.06);
+  overflow:hidden; position:relative;
+}
+.hp-energy-fill {
+  height:100%; border-radius:4px;
+  transition: width 0.5s ease;
+}
+.hp-energy-segments {
+  position:absolute; inset:0;
+  display:flex; gap:2px; padding:0 2px;
+  pointer-events:none;
+}
+.hp-energy-seg { flex:1; border-right:1px solid rgba(6,8,15,0.4); }
+
+/* Recharge label */
+.hp-recharge-label {
+  text-align:center; font-family:'Orbitron',monospace;
+  font-size:9px; letter-spacing:2px; margin-top:6px;
+  animation: hpCdFlash 1.5s ease-in-out infinite;
+}
+
+/* ── Boost buttons row ── */
+.hp-boost-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; position:relative; z-index:1; }
+.hp-boost-btn {
+  padding:11px 10px; border-radius:14px; border:none;
+  cursor:pointer; transition:transform 0.12s; text-align:center;
+  position:relative; overflow:hidden;
+}
+.hp-boost-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); animation:hpShine 3s ease-in-out infinite; }
+.hp-boost-btn:active { transform:scale(0.95); }
+.hp-boost-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.hp-boost-btn:disabled::after { display:none; }
+
+.hp-boost-btn.x2 {
+  background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); color:#fbbf24;
+}
+.hp-boost-btn.x2.active-boost { animation:hpX2Glow 1.5s ease-in-out infinite; border-color:rgba(251,191,36,0.6); background:rgba(251,191,36,0.18); }
+.hp-boost-btn.fast {
+  background:rgba(34,211,238,0.08); border:1px solid rgba(34,211,238,0.25); color:#22d3ee;
+}
+.hp-boost-btn.fast.active-boost { animation:hpFastGlow 1.5s ease-in-out infinite; border-color:rgba(34,211,238,0.6); background:rgba(34,211,238,0.15); }
+
+.hp-boost-icon  { font-size:20px; margin-bottom:4px; }
+.hp-boost-label { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; letter-spacing:1px; margin-bottom:2px; }
+.hp-boost-sub   { font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
+.hp-boost-timer { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; margin-top:3px; animation:hpCdFlash 1s ease-in-out infinite; }
+
+/* ══════ FARM CARD ══════ */
 .hp-farm-card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(74,222,128,0.15);
-  border-radius: 22px; padding: 18px 16px;
-  margin-bottom: 14px; position:relative; overflow:hidden;
-  animation: hpFadeIn 0.4s 0.1s ease both;
+  background:rgba(255,255,255,0.02); border:1px solid rgba(74,222,128,0.15);
+  border-radius:22px; padding:18px 16px; margin-bottom:14px;
+  position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.1s ease both;
 }
 .hp-farm-card::before {
   content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
   background:linear-gradient(90deg,transparent,rgba(74,222,128,0.4),transparent);
 }
-.hp-farm-card.active { animation: hpFarmPulse 2.5s ease-in-out infinite; border-color:rgba(74,222,128,0.3); }
+.hp-farm-card.farming { animation:hpFarmPulse 2.5s ease-in-out infinite; }
 
-.hp-farm-top { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
-.hp-farm-icon { width:46px; height:46px; border-radius:14px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.hp-farm-top { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.hp-farm-icon { width:44px; height:44px; border-radius:13px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
 .hp-farm-info { flex:1; min-width:0; }
-.hp-farm-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:3px; }
+.hp-farm-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:2px; }
 .hp-farm-sub { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
-.hp-farm-sub.active { color:#4ade80; }
-.hp-farm-reward { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:1px; color:#4ade80; padding:4px 10px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:20px; flex-shrink:0; }
+.hp-farm-sub.live { color:#4ade80; }
+.hp-farm-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#4ade80; padding:4px 10px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); border-radius:20px; flex-shrink:0; }
 
-/* Farm progress */
-.hp-farm-progress-wrap { margin-bottom:12px; }
-.hp-farm-progress-label { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
-.hp-farm-progress-track { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
-.hp-farm-progress-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#4ade80,#22d3ee); box-shadow:0 0 6px rgba(74,222,128,0.4); transition:width 0.5s ease; }
+.hp-farm-prog-labels { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.2); margin-bottom:5px; }
+.hp-farm-track { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:12px; }
+.hp-farm-fill  { height:100%; border-radius:3px; transition:width 0.5s ease; }
 
-/* Farm button */
 .hp-farm-btn {
   width:100%; padding:13px; border-radius:14px; border:none;
   font-family:'Orbitron',monospace; font-size:12px; font-weight:700;
@@ -242,238 +277,266 @@ const CSS = `
 }
 .hp-farm-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent); animation:hpShine 3s ease-in-out infinite; }
 .hp-farm-btn:active { transform:scale(0.97); }
-.hp-farm-btn.start { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 20px rgba(74,222,128,0.3); }
-.hp-farm-btn.claim { background:linear-gradient(135deg,#ffbe00,#f59e0b); color:#1a0800; box-shadow:0 4px 20px rgba(255,190,0,0.3); }
-.hp-farm-btn.farming { background:rgba(255,255,255,0.04); border:1px solid rgba(74,222,128,0.2); color:rgba(74,222,128,0.5); cursor:not-allowed; }
-.hp-farm-btn.farming::after { display:none; }
+.hp-farm-btn.start { background:linear-gradient(135deg,#4ade80,#16a34a); color:#001a0a; box-shadow:0 4px 18px rgba(74,222,128,0.3); }
+.hp-farm-btn.claim { background:linear-gradient(135deg,#ffbe00,#f59e0b); color:#1a0800; box-shadow:0 4px 18px rgba(255,190,0,0.3); }
+.hp-farm-btn.wait  { background:rgba(255,255,255,0.03); border:1px solid rgba(74,222,128,0.15); color:rgba(74,222,128,0.4); cursor:not-allowed; }
+.hp-farm-btn.wait::after { display:none; }
 
-/* ── AD SECTION ── */
+/* ══════ AD CARD ══════ */
 .hp-ad-card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,190,0,0.15);
-  border-radius: 22px; padding: 18px 16px;
-  margin-bottom: 14px; position:relative; overflow:hidden;
-  animation: hpFadeIn 0.4s 0.2s ease both;
+  background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15);
+  border-radius:22px; padding:18px 16px; margin-bottom:14px;
+  position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.2s ease both;
 }
 .hp-ad-card::before {
   content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
   background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent);
 }
-.hp-ad-top { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
-.hp-ad-icon { width:46px; height:46px; border-radius:14px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.hp-ad-top { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.hp-ad-icon { width:44px; height:44px; border-radius:13px; background:rgba(255,190,0,0.1); border:1px solid rgba(255,190,0,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
 .hp-ad-info { flex:1; min-width:0; }
-.hp-ad-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:3px; }
+.hp-ad-title { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.8); margin-bottom:2px; }
 .hp-ad-sub { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; }
 .hp-ad-badge { font-family:'Orbitron',monospace; font-size:11px; font-weight:700; color:#ffbe00; padding:4px 10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.2); border-radius:20px; flex-shrink:0; }
 
-/* Ad progress (daily) */
-.hp-ad-daily-track { height:4px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:12px; }
-.hp-ad-daily-fill  { height:100%; border-radius:2px; background:linear-gradient(90deg,#ffbe00,#f59e0b); transition:width 0.4s; }
+.hp-ad-prog-track { height:4px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:12px; }
+.hp-ad-prog-fill  { height:100%; border-radius:2px; background:linear-gradient(90deg,#ffbe00,#f59e0b); transition:width 0.4s; }
 
-/* Ad button */
 .hp-ad-btn {
   width:100%; padding:14px; border-radius:14px; border:none;
   background:linear-gradient(135deg,#ffbe00,#f59e0b,#d97706);
   color:#1a0800; font-family:'Orbitron',monospace; font-size:13px;
   font-weight:700; letter-spacing:2px; cursor:pointer;
-  transition:transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+  transition:transform 0.12s, opacity 0.2s;
   box-shadow:0 6px 24px rgba(255,190,0,0.35);
   position:relative; overflow:hidden;
 }
 .hp-ad-btn::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); animation:hpShine 3s ease-in-out infinite; }
 .hp-ad-btn:active { transform:scale(0.97); }
 .hp-ad-btn:disabled { opacity:0.5; cursor:not-allowed; }
-.hp-ad-btn.cooldown { background:rgba(255,255,255,0.04); border:1px solid rgba(255,190,0,0.15); color:rgba(255,190,0,0.4); box-shadow:none; }
-.hp-ad-btn.cooldown::after { display:none; }
-.hp-ad-btn.maxed { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.2); box-shadow:none; }
-.hp-ad-btn.maxed::after { display:none; }
+.hp-ad-btn.ghost { background:rgba(255,255,255,0.03); border:1px solid rgba(255,190,0,0.1); color:rgba(255,190,0,0.35); box-shadow:none; }
+.hp-ad-btn.ghost::after { display:none; }
+.hp-cd-txt { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
-/* Cooldown countdown text */
-.hp-cd-text { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; animation:hpCdFlash 1s ease-in-out infinite; }
-
-/* ── TABS ── */
+/* ── Tabs ── */
 .hp-tabs { display:flex; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:4px; gap:4px; margin-bottom:14px; }
 .hp-tab { flex:1; padding:9px; border-radius:10px; border:none; background:none; font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.2s,color 0.2s; }
 .hp-tab.active { background:#ffbe00; color:#1a0800; box-shadow:0 2px 12px rgba(255,190,0,0.3); }
 
-/* ── HISTORY ── */
+/* ── History ── */
 .hp-tx-empty { text-align:center; padding:32px 0; font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
 .hp-tx { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:14px; padding:12px 14px; margin-bottom:8px; }
-.hp-tx-icon { width:38px; height:38px; border-radius:11px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.15); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.hp-tx-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.15); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
 .hp-tx-body { flex:1; min-width:0; }
 .hp-tx-label { font-size:13px; font-weight:600; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hp-tx-sub { font-size:10px; color:rgba(255,255,255,0.2); letter-spacing:1px; margin-top:1px; }
-.hp-tx-pts { font-family:'Orbitron',monospace; font-size:15px; font-weight:700; color:#ffbe00; letter-spacing:0.5px; flex-shrink:0; }
+.hp-tx-pts { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; color:#ffbe00; flex-shrink:0; }
 
-/* Loading dots */
-.hp-dots span { display:inline-block; width:5px; height:5px; border-radius:50%; background:#1a0800; margin:0 2px; animation:hpDot 1.2s ease-in-out infinite; }
+.hp-dots span { display:inline-block; width:5px; height:5px; border-radius:50%; background:currentColor; margin:0 2px; animation:hpDot 1.2s ease-in-out infinite; }
 .hp-dots span:nth-child(2){animation-delay:0.2s} .hp-dots span:nth-child(3){animation-delay:0.4s}
 `;
 
-/* ── Floating +1 component ── */
-interface FloatPt { id: number; x: number; y: number; }
+interface FloatPt { id: number; x: number; y: number; val: number; }
 
 export default function HomePage() {
   const { user, balance, refreshBalance } = useApp();
   const [transactions, setTransactions]   = useState<Transaction[]>([]);
   const [activeTab, setActiveTab]         = useState<"earn" | "history">("earn");
   const [message, setMessage]             = useState("");
-  const [coinBurst, setCoinBurst]         = useState(false);
-
-  /* ── TAP state ── */
-  const [tapCount, setTapCount]           = useState(0);      // taps this hour
-  const [tapHourStart, setTapHourStart]   = useState(() => Date.now());
-  const [floatPts, setFloatPts]           = useState<FloatPt[]>([]);
   const tapBtnRef = useRef<HTMLButtonElement>(null);
 
-  /* ── FARM state ── */
-  const [farmStart, setFarmStart]         = useState<number | null>(() => {
+  /* ── Energy ── */
+  const [energy, setEnergy] = useState<number>(() => {
+    const s = localStorage.getItem("energy");
+    return s !== null ? Math.min(MAX_ENERGY, parseFloat(s)) : MAX_ENERGY;
+  });
+  const [lastEnergyTime, setLastEnergyTime] = useState<number>(() => {
+    return Number(localStorage.getItem("lastEnergyTime") || Date.now());
+  });
+  const energyRef = useRef(energy);
+  energyRef.current = energy;
+
+  /* ── Boosts ── */
+  const [x2Active, setX2Active]       = useState(false);
+  const [x2SecsLeft, setX2SecsLeft]   = useState(0);
+  const [fastActive, setFastActive]   = useState(false);
+  const [fastSecsLeft, setFastSecsLeft] = useState(0);
+
+  /* ── Float pts ── */
+  const [floatPts, setFloatPts] = useState<FloatPt[]>([]);
+
+  /* ── Farm ── */
+  const [farmStart, setFarmStart]     = useState<number | null>(() => {
     const s = localStorage.getItem("farmStart");
     return s ? Number(s) : null;
   });
-  const [farmProgress, setFarmProgress]   = useState(0); // 0–100
-  const [farmReady, setFarmReady]         = useState(false);
-  const [farmClaiming, setFarmClaiming]   = useState(false);
-  const [farmTimeLeft, setFarmTimeLeft]   = useState("");
+  const [farmProgress, setFarmProgress] = useState(0);
+  const [farmReady, setFarmReady]     = useState(false);
+  const [farmTimeLeft, setFarmTimeLeft] = useState("");
+  const [farmClaiming, setFarmClaiming] = useState(false);
 
-  /* ── AD state ── */
-  const [adsToday, setAdsToday]           = useState(0);
-  const [adCooldown, setAdCooldown]       = useState(0); // seconds left
-  const [adLoading, setAdLoading]         = useState(false);
+  /* ── Ads ── */
+  const [adsToday, setAdsToday]       = useState(0);
+  const [adCooldown, setAdCooldown]   = useState(0);
+  const [adLoading, setAdLoading]     = useState(false);
   const isAdRunning = useRef(false);
 
-  /* ── load data ── */
+  /* ── Load data ── */
   useEffect(() => {
     if (!user) return;
     getTransactions(user.id).then(setTransactions);
     loadTodayAds();
+    // Restore energy from elapsed time
+    const elapsed = (Date.now() - lastEnergyTime) / 1000;
+    const regained = elapsed * REGEN_PER_SEC;
+    setEnergy(prev => Math.min(MAX_ENERGY, prev + regained));
   }, [user]);
 
   async function loadTodayAds() {
     if (!user) return;
-    const start = new Date();
-    start.setUTCHours(0,0,0,0);
+    const start = new Date(); start.setUTCHours(0,0,0,0);
     const { count } = await supabase
-      .from('ad_logs')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gte('created_at', start.toISOString());
+      .from('ad_logs').select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).gte('created_at', start.toISOString());
     setAdsToday(count || 0);
   }
 
-  /* ── hourly tap reset ── */
+  /* ── Energy regen ticker ── */
   useEffect(() => {
-    const now = Date.now();
-    if (now - tapHourStart >= 3600000) {
-      setTapCount(0);
-      setTapHourStart(now);
-    }
-  }, []);
+    const t = setInterval(() => {
+      setEnergy(prev => {
+        if (prev >= MAX_ENERGY) return MAX_ENERGY;
+        const mult = fastActive ? FAST_REGEN_MULT : 1;
+        const next = Math.min(MAX_ENERGY, prev + REGEN_PER_SEC * mult);
+        localStorage.setItem("energy", String(next));
+        localStorage.setItem("lastEnergyTime", String(Date.now()));
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [fastActive]);
+
+  /* ── Boost timers ── */
+  useEffect(() => {
+    if (!x2Active) return;
+    const t = setInterval(() => {
+      setX2SecsLeft(p => {
+        if (p <= 1) { setX2Active(false); clearInterval(t); return 0; }
+        return p - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [x2Active]);
+
+  useEffect(() => {
+    if (!fastActive) return;
+    const t = setInterval(() => {
+      setFastSecsLeft(p => {
+        if (p <= 1) { setFastActive(false); clearInterval(t); return 0; }
+        return p - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [fastActive]);
 
   /* ── Farm ticker ── */
   useEffect(() => {
     if (!farmStart) return;
-    const tick = setInterval(() => {
+    const t = setInterval(() => {
       const elapsed = Date.now() - farmStart;
       const pct = Math.min(100, (elapsed / FARM_DURATION_MS) * 100);
       setFarmProgress(pct);
       if (elapsed >= FARM_DURATION_MS) {
-        setFarmReady(true);
-        setFarmProgress(100);
-        setFarmTimeLeft("Ready!");
-        clearInterval(tick);
+        setFarmReady(true); setFarmProgress(100); setFarmTimeLeft("Ready!"); clearInterval(t);
       } else {
         const rem = Math.ceil((FARM_DURATION_MS - elapsed) / 1000);
-        const m = Math.floor(rem / 60);
-        const s = rem % 60;
-        setFarmTimeLeft(`${m}:${s.toString().padStart(2,'0')}`);
+        setFarmTimeLeft(`${Math.floor(rem/60)}:${(rem%60).toString().padStart(2,'0')}`);
       }
     }, 500);
-    return () => clearInterval(tick);
+    return () => clearInterval(t);
   }, [farmStart]);
 
-  /* ── Ad cooldown ticker ── */
+  /* ── Ad cooldown ── */
   useEffect(() => {
     if (adCooldown <= 0) return;
-    const t = setInterval(() => {
-      setAdCooldown(p => Math.max(0, p - 1));
-    }, 1000);
+    const t = setInterval(() => setAdCooldown(p => Math.max(0, p - 1)), 1000);
     return () => clearInterval(t);
   }, [adCooldown]);
 
-  /* ── show message helper ── */
   function showMsg(text: string) {
-    setMessage(text);
-    setTimeout(() => setMessage(""), 2500);
+    setMessage(text); setTimeout(() => setMessage(""), 2500);
   }
 
-  /* ══════════════ TAP HANDLER ══════════════ */
+  function fmtBoostTime(s: number) {
+    return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+  }
+
+  /* ══ TAP ══ */
   async function handleTap(e: React.MouseEvent<HTMLButtonElement>) {
-    if (!user) return;
-
-    // Reset hour if needed
-    if (Date.now() - tapHourStart >= 3600000) {
-      setTapCount(0);
-      setTapHourStart(Date.now());
-    }
-
-    if (tapCount >= TAP_MAX_PER_HOUR) {
-      showMsg("⏳ Hourly limit reached!");
-      triggerHaptic("error");
-      return;
-    }
-
+    if (!user || energy < 1) return;
     triggerHaptic("impact");
 
-    // Floating +1
+    const ptsPerTap = x2Active ? 2 : 1;
+    const newEnergy = Math.max(0, energy - 1);
+    setEnergy(newEnergy);
+    localStorage.setItem("energy", String(newEnergy));
+    localStorage.setItem("lastEnergyTime", String(Date.now()));
+
+    // Floating number
     const rect = tapBtnRef.current?.getBoundingClientRect();
-    const id = Date.now();
-    const x = rect ? e.clientX - rect.left - 10 : 50;
-    const y = rect ? e.clientY - rect.top - 20 : 20;
-    setFloatPts(p => [...p, { id, x, y }]);
-    setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 800);
+    const id = Date.now() + Math.random();
+    const x = rect ? e.clientX - rect.left - 14 : 50;
+    const y = rect ? e.clientY - rect.top - 30 : 20;
+    setFloatPts(p => [...p, { id, x, y, val: ptsPerTap }]);
+    setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 900);
 
-    setTapCount(p => p + 1);
-
-    // Credit balance
+    // Credit Supabase
     const { data: bal } = await supabase
-      .from('balances').select('points, total_earned').eq('user_id', user.id).single();
+      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
     if (bal) {
       await supabase.from('balances').update({
-        points:       bal.points + 1,
-        total_earned: bal.total_earned + 1,
+        points: bal.points + ptsPerTap,
+        total_earned: bal.total_earned + ptsPerTap,
       }).eq('user_id', user.id);
       await supabase.from('transactions').insert({
-        user_id: user.id, type: 'tap_earn', points: 1,
-        description: '👆 Tap Earn',
+        user_id: user.id, type: 'tap_earn', points: ptsPerTap,
+        description: `👆 Tap Earn${x2Active ? ' (2x)' : ''}`,
       });
       refreshBalance();
     }
   }
 
-  /* ══════════════ FARM HANDLER ══════════════ */
+  /* ══ BOOST: X2 per tap ══ */
+  const onX2Reward = useCallback(() => {
+    setX2Active(true); setX2SecsLeft(BOOST_DURATION);
+    triggerHaptic("success"); showMsg("⚡ 2x Tap active for 5 min!");
+  }, []);
+  const { showAd: showX2Ad } = useRewardedAd(onX2Reward);
+
+  /* ══ BOOST: Fast regen ══ */
+  const onFastReward = useCallback(() => {
+    setFastActive(true); setFastSecsLeft(BOOST_DURATION);
+    triggerHaptic("success"); showMsg("⚡ Fast charge active for 5 min!");
+  }, []);
+  const { showAd: showFastAd } = useRewardedAd(onFastReward);
+
+  /* ══ FARM ══ */
   function handleStartFarm() {
     if (farmStart) return;
     const now = Date.now();
-    setFarmStart(now);
-    setFarmProgress(0);
-    setFarmReady(false);
+    setFarmStart(now); setFarmProgress(0); setFarmReady(false);
     localStorage.setItem("farmStart", String(now));
-    triggerHaptic("impact");
-    showMsg("🌾 Farming started!");
+    triggerHaptic("impact"); showMsg("🌾 Farming started!");
   }
 
   async function handleClaimFarm() {
     if (!user || farmClaiming || !farmReady) return;
-    triggerHaptic("success");
-    setFarmClaiming(true);
-
+    triggerHaptic("success"); setFarmClaiming(true);
     const { data: bal } = await supabase
-      .from('balances').select('points, total_earned').eq('user_id', user.id).single();
+      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
     if (bal) {
       await supabase.from('balances').update({
-        points:       bal.points + FARM_REWARD,
-        total_earned: bal.total_earned + FARM_REWARD,
+        points: bal.points + FARM_REWARD, total_earned: bal.total_earned + FARM_REWARD,
       }).eq('user_id', user.id);
       await supabase.from('transactions').insert({
         user_id: user.id, type: 'farm_claim', points: FARM_REWARD,
@@ -481,31 +544,22 @@ export default function HomePage() {
       });
       await refreshBalance();
     }
-
-    setFarmStart(null);
-    setFarmProgress(0);
-    setFarmReady(false);
-    setFarmTimeLeft("");
-    setFarmClaiming(false);
-    localStorage.removeItem("farmStart");
-    setCoinBurst(true);
+    setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
+    setFarmClaiming(false); localStorage.removeItem("farmStart");
     showMsg(`+${FARM_REWARD} pts 🌾`);
     getTransactions(user.id).then(setTransactions);
-    setTimeout(() => setCoinBurst(false), 1200);
   }
 
-  /* ══════════════ AD HANDLER ══════════════ */
+  /* ══ AD WATCH ══ */
   const onAdReward = useCallback(async () => {
     if (!user) return;
     triggerHaptic("success");
     await logAdWatch(user.id, "ad_watch", AD_REWARD);
-
     const { data: bal } = await supabase
-      .from('balances').select('points, total_earned').eq('user_id', user.id).single();
+      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
     if (bal) {
       await supabase.from('balances').update({
-        points:       bal.points + AD_REWARD,
-        total_earned: bal.total_earned + AD_REWARD,
+        points: bal.points + AD_REWARD, total_earned: bal.total_earned + AD_REWARD,
       }).eq('user_id', user.id);
       await supabase.from('transactions').insert({
         user_id: user.id, type: 'ad_watch', points: AD_REWARD,
@@ -514,161 +568,176 @@ export default function HomePage() {
     }
     await refreshBalance();
     setAdsToday(p => p + 1);
-    setAdCooldown(AD_COOLDOWN_MS / 1000);
-    setCoinBurst(true);
+    setAdCooldown(AD_COOLDOWN_SEC);
     showMsg(`+${AD_REWARD} pts 🎬`);
     getTransactions(user.id).then(setTransactions);
-    setTimeout(() => setCoinBurst(false), 1200);
   }, [user, refreshBalance]);
 
-  const { showAd } = useRewardedAd(onAdReward);
+  const { showAd: showMainAd } = useRewardedAd(onAdReward);
 
   async function handleWatchAd() {
     if (!user || isAdRunning.current || adCooldown > 0 || adsToday >= AD_MAX_PER_DAY) return;
     isAdRunning.current = true;
-    triggerHaptic("impact");
-    setAdLoading(true);
-    try { await showAd(); } catch { showMsg("Ad failed. Try again."); }
-    setAdLoading(false);
-    isAdRunning.current = false;
+    triggerHaptic("impact"); setAdLoading(true);
+    try { await showMainAd(); } catch { showMsg("Ad failed."); }
+    setAdLoading(false); isAdRunning.current = false;
   }
 
-  const tapPct   = Math.min(100, (tapCount / TAP_MAX_PER_HOUR) * 100);
-  const adPct    = Math.min(100, (adsToday / AD_MAX_PER_DAY) * 100);
-  const isFarming = !!farmStart && !farmReady;
+  const energyPct   = (energy / MAX_ENERGY) * 100;
+  const isFarming   = !!farmStart && !farmReady;
+  const energyColor = energyPct > 50 ? '#ffbe00' : energyPct > 20 ? '#f97316' : '#ef4444';
 
   return (
     <>
       <style>{CSS}</style>
       <div className="hp-root">
 
-        {/* ── BALANCE ── */}
-        <div className="hp-balance">
-          <div className="hp-balance-inner">
-            {coinBurst && <div className="hp-burst">💰</div>}
-            <div className="hp-bal-label">Total Balance</div>
-            <div className="hp-bal-value">
-              <AnimatedNumber value={balance?.points || 0} />
-            </div>
-            <div className="hp-bal-sub">Available Points</div>
-            {message && <div className="hp-bal-msg">✦ {message}</div>}
-          </div>
-        </div>
+        {/* Message */}
+        {message && (
+          <div className="hp-msg-banner">✦ {message}</div>
+        )}
 
-        {/* ══════════ TAP TO EARN ══════════ */}
+        {/* ══════ TAP TO EARN ══════ */}
         <div className="hp-tap-card">
           <div className="hp-tap-header">
-            <div className="hp-tap-title">👆 TAP TO EARN</div>
-            <div className="hp-tap-info">
-              <div className="hp-tap-chip gold">+1 PT / TAP</div>
-              <div className={`hp-tap-chip ${tapCount >= TAP_MAX_PER_HOUR ? 'red' : 'gold'}`}>
-                {tapCount}/{TAP_MAX_PER_HOUR}/HR
-              </div>
+            <div className="hp-tap-title">⚡ TAP <span>TO EARN</span></div>
+            <div className={`hp-energy-pill ${energy < MAX_ENERGY ? 'recharging' : ''}`}>
+              ⚡ {Math.floor(energy)}/{MAX_ENERGY}
             </div>
           </div>
 
           <div className="hp-tap-center">
             {/* Tap button */}
-            <div className="hp-tap-btn-wrap" style={{ position: 'relative' }}>
-              <div className="hp-tap-ripple" />
-              <div className="hp-tap-ripple" />
+            <div className="hp-tap-btn-wrap">
+              <div className="hp-tap-ripple"/>
+              <div className="hp-tap-ripple"/>
+              <div className="hp-tap-ripple"/>
               <button
                 ref={tapBtnRef}
                 className="hp-tap-btn"
                 onClick={handleTap}
-                disabled={tapCount >= TAP_MAX_PER_HOUR}
-                style={tapCount >= TAP_MAX_PER_HOUR ? {
-                  opacity: 0.4, cursor: 'not-allowed',
-                  animation: 'none', boxShadow: 'none',
-                } : {}}
+                disabled={energy < 1}
               >
                 <span className="hp-tap-btn-emoji">🪙</span>
-                <span className="hp-tap-btn-pts">TAP</span>
+                <span className="hp-tap-btn-sub">
+                  {x2Active ? '+2 PTS' : '+1 PT'}
+                </span>
               </button>
-              {/* Floating +1s */}
               {floatPts.map(f => (
                 <div key={f.id} className="hp-float-pts"
                   style={{ left: f.x, top: f.y }}>
-                  +1
+                  +{f.val}
                 </div>
               ))}
             </div>
 
-            {/* Progress */}
-            <div className="hp-tap-progress-wrap">
-              <div className="hp-tap-progress-label">
-                <span>Hourly Progress</span>
-                <span style={{ color: tapCount >= TAP_MAX_PER_HOUR ? '#ef4444' : '#ffbe00' }}>
-                  {tapCount >= TAP_MAX_PER_HOUR ? 'LIMIT REACHED' : `${tapCount} taps`}
+            {/* Energy bar */}
+            <div className="hp-energy-wrap">
+              <div className="hp-energy-labels">
+                <span>ENERGY</span>
+                <span style={{ color: energyColor }}>
+                  {energy >= MAX_ENERGY ? '⚡ FULL' : fastActive ? `⚡ FAST CHARGE` : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
                 </span>
               </div>
-              <div className="hp-tap-progress-track">
-                <div className="hp-tap-progress-fill"
-                  style={{
-                    width: `${tapPct}%`,
-                    background: tapPct >= 100
-                      ? 'linear-gradient(90deg,#ef4444,#dc2626)'
-                      : 'linear-gradient(90deg,#ffbe00,#f59e0b)',
-                  }}
-                />
+              <div className="hp-energy-track">
+                <div className="hp-energy-fill" style={{
+                  width: `${energyPct}%`,
+                  background: `linear-gradient(90deg, ${energyColor}80, ${energyColor})`,
+                  boxShadow: `0 0 8px ${energyColor}60`,
+                }}/>
+                {/* Segment ticks every 10 */}
+                <div className="hp-energy-segments">
+                  {Array.from({length: 9}).map((_, i) => (
+                    <div key={i} className="hp-energy-seg"/>
+                  ))}
+                </div>
               </div>
+              {energy < 1 && (
+                <div className="hp-recharge-label" style={{ color: '#ef4444' }}>
+                  ⏳ Recharging...
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Boost buttons */}
+          <div className="hp-boost-row">
+            {/* x2 tap */}
+            <button
+              className={`hp-boost-btn x2 ${x2Active ? 'active-boost' : ''}`}
+              onClick={() => { if (!x2Active) showX2Ad(); }}
+              disabled={x2Active}
+            >
+              <div className="hp-boost-icon">⚡</div>
+              <div className="hp-boost-label">2× PER TAP</div>
+              {x2Active ? (
+                <div className="hp-boost-timer" style={{ color:'#fbbf24' }}>
+                  {fmtBoostTime(x2SecsLeft)}
+                </div>
+              ) : (
+                <div className="hp-boost-sub">Watch ad</div>
+              )}
+            </button>
+
+            {/* Fast regen */}
+            <button
+              className={`hp-boost-btn fast ${fastActive ? 'active-boost' : ''}`}
+              onClick={() => { if (!fastActive) showFastAd(); }}
+              disabled={fastActive}
+            >
+              <div className="hp-boost-icon">🔋</div>
+              <div className="hp-boost-label">FAST CHARGE</div>
+              {fastActive ? (
+                <div className="hp-boost-timer" style={{ color:'#22d3ee' }}>
+                  {fmtBoostTime(fastSecsLeft)}
+                </div>
+              ) : (
+                <div className="hp-boost-sub">Watch ad</div>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* ══════════ FARM ══════════ */}
-        <div className={`hp-farm-card ${isFarming ? 'active' : ''}`}>
+        {/* ══════ FARM ══════ */}
+        <div className={`hp-farm-card ${isFarming ? 'farming' : ''}`}>
           <div className="hp-farm-top">
             <div className="hp-farm-icon">🌾</div>
             <div className="hp-farm-info">
               <div className="hp-farm-title">FARMING</div>
-              <div className={`hp-farm-sub ${isFarming || farmReady ? 'active' : ''}`}>
-                {farmReady
-                  ? '✦ Ready to claim!'
-                  : isFarming
-                  ? `⏱ ${farmTimeLeft} remaining`
+              <div className={`hp-farm-sub ${isFarming || farmReady ? 'live' : ''}`}>
+                {farmReady ? '✦ Ready to claim!'
+                  : isFarming ? `⏱ ${farmTimeLeft} remaining`
                   : '15 min → +15 pts'}
               </div>
             </div>
-            <div className="hp-farm-reward">+{FARM_REWARD} PTS</div>
+            <div className="hp-farm-badge">+{FARM_REWARD} PTS</div>
           </div>
 
-          {/* Progress bar */}
-          <div className="hp-farm-progress-wrap">
-            <div className="hp-farm-progress-label">
-              <span>{farmReady ? 'Complete!' : isFarming ? 'Farming...' : 'Not started'}</span>
-              <span style={{ color: farmReady ? '#ffbe00' : '#4ade80' }}>
-                {Math.round(farmProgress)}%
-              </span>
-            </div>
-            <div className="hp-farm-progress-track">
-              <div className="hp-farm-progress-fill"
-                style={{
-                  width: `${farmProgress}%`,
-                  background: farmReady
-                    ? 'linear-gradient(90deg,#ffbe00,#f59e0b)'
-                    : 'linear-gradient(90deg,#4ade80,#22d3ee)',
-                }}
-              />
-            </div>
+          <div className="hp-farm-prog-labels">
+            <span>{farmReady ? 'Complete!' : isFarming ? 'Farming...' : 'Idle'}</span>
+            <span style={{ color: farmReady ? '#ffbe00' : '#4ade80' }}>
+              {Math.round(farmProgress)}%
+            </span>
+          </div>
+          <div className="hp-farm-track">
+            <div className="hp-farm-fill" style={{
+              width: `${farmProgress}%`,
+              background: farmReady
+                ? 'linear-gradient(90deg,#ffbe00,#f59e0b)'
+                : 'linear-gradient(90deg,#4ade80,#22d3ee)',
+              boxShadow: isFarming ? '0 0 6px rgba(74,222,128,0.4)' : 'none',
+            }}/>
           </div>
 
-          {/* Farm button */}
           {farmReady ? (
-            <button
-              className="hp-farm-btn claim"
-              onClick={handleClaimFarm}
-              disabled={farmClaiming}
-            >
-              {farmClaiming ? (
-                <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                  <span className="hp-dots"><span/><span/><span/></span>
-                </span>
-              ) : '🎁 CLAIM +15 PTS'}
+            <button className="hp-farm-btn claim" onClick={handleClaimFarm} disabled={farmClaiming}>
+              {farmClaiming
+                ? <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
+                : '🎁 CLAIM +15 PTS'}
             </button>
           ) : isFarming ? (
-            <button className="hp-farm-btn farming" disabled>
-              🌾 FARMING IN PROGRESS...
+            <button className="hp-farm-btn wait" disabled>
+              🌾 FARMING... {farmTimeLeft}
             </button>
           ) : (
             <button className="hp-farm-btn start" onClick={handleStartFarm}>
@@ -677,7 +746,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* ══════════ WATCH AD ══════════ */}
+        {/* ══════ WATCH ADS ══════ */}
         <div className="hp-ad-card">
           <div className="hp-ad-top">
             <div className="hp-ad-icon">🎬</div>
@@ -685,35 +754,31 @@ export default function HomePage() {
               <div className="hp-ad-title">WATCH ADS</div>
               <div className="hp-ad-sub">
                 {adsToday >= AD_MAX_PER_DAY
-                  ? 'Daily limit reached'
-                  : `${adsToday}/${AD_MAX_PER_DAY} ads today`}
+                  ? '✅ Daily limit reached'
+                  : `${adsToday} / ${AD_MAX_PER_DAY} today`}
               </div>
             </div>
             <div className="hp-ad-badge">+{AD_REWARD} PTS</div>
           </div>
 
-          {/* Daily progress */}
-          <div className="hp-ad-daily-track">
-            <div className="hp-ad-daily-fill" style={{ width: `${adPct}%` }} />
+          <div className="hp-ad-prog-track">
+            <div className="hp-ad-prog-fill"
+              style={{ width: `${(adsToday / AD_MAX_PER_DAY) * 100}%` }}/>
           </div>
 
           <button
             className={`hp-ad-btn ${
-              adsToday >= AD_MAX_PER_DAY ? 'maxed'
-              : adCooldown > 0 ? 'cooldown'
-              : ''
+              adsToday >= AD_MAX_PER_DAY || adCooldown > 0 ? 'ghost' : ''
             }`}
             onClick={handleWatchAd}
             disabled={adLoading || adCooldown > 0 || adsToday >= AD_MAX_PER_DAY}
           >
             {adLoading ? (
-              <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                <span className="hp-dots"><span/><span/><span/></span>
-              </span>
+              <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
             ) : adsToday >= AD_MAX_PER_DAY ? (
-              '✅ DAILY LIMIT REACHED'
+              '✅ COME BACK TOMORROW'
             ) : adCooldown > 0 ? (
-              <span className="hp-cd-text">⏳ NEXT AD IN {adCooldown}s</span>
+              <span className="hp-cd-txt">⏳ NEXT AD IN {adCooldown}s</span>
             ) : (
               '🎬  WATCH AD  +30 PTS'
             )}
@@ -722,36 +787,21 @@ export default function HomePage() {
 
         {/* ── TABS ── */}
         <div className="hp-tabs">
-          <button
-            className={`hp-tab ${activeTab === "earn" ? "active" : ""}`}
-            onClick={() => setActiveTab("earn")}
-          >
-            Earn
-          </button>
-          <button
-            className={`hp-tab ${activeTab === "history" ? "active" : ""}`}
-            onClick={() => setActiveTab("history")}
-          >
-            History
-          </button>
+          <button className={`hp-tab ${activeTab==="earn"?"active":""}`} onClick={()=>setActiveTab("earn")}>Earn</button>
+          <button className={`hp-tab ${activeTab==="history"?"active":""}`} onClick={()=>setActiveTab("history")}>History</button>
         </div>
 
-        {/* ── EARN TAB ── */}
         {activeTab === "earn" && (
-          <div style={{ textAlign:'center', padding:'24px 0' }}>
-            <div style={{ fontFamily:"'Orbitron',monospace", fontSize:9, letterSpacing:'3px', color:'rgba(255,255,255,0.15)', textTransform:'uppercase' }}>
-              ✦ Tap · Farm · Watch Ads above ✦
-            </div>
+          <div style={{textAlign:'center',padding:'20px 0',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.12)',textTransform:'uppercase'}}>
+            ✦ Tap · Farm · Watch Ads to earn ✦
           </div>
         )}
 
-        {/* ── HISTORY TAB ── */}
         {activeTab === "history" && (
           <div>
-            {transactions.length === 0 ? (
-              <div className="hp-tx-empty">No transactions yet</div>
-            ) : (
-              transactions.map(t => (
+            {transactions.length === 0
+              ? <div className="hp-tx-empty">No transactions yet</div>
+              : transactions.map(t => (
                 <div key={t.id} className="hp-tx">
                   <div className="hp-tx-icon">{txIcon(t.type)}</div>
                   <div className="hp-tx-body">
@@ -760,8 +810,7 @@ export default function HomePage() {
                   </div>
                   <div className="hp-tx-pts">+{t.points}</div>
                 </div>
-              ))
-            )}
+              ))}
           </div>
         )}
 
