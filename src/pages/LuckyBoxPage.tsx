@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 import { logAdWatch } from '@/lib/api';
@@ -19,20 +19,440 @@ interface BoxReward {
   tier: 'empty' | 'small' | 'medium' | 'big' | 'jackpot';
 }
 
-const BOX_EMOJIS = ['🎁', '📦', '🎀', '💎', '🏆'];
-
-// Weighted reward pool — user feels wins but net is loss
 function generateReward(): BoxReward {
   const r = Math.random();
-  if (r < 0.30) return { points: 0, label: 'Empty!', emoji: '💨', tier: 'empty' };
-  if (r < 0.55) return { points: 5, label: '+5 Points', emoji: '🪙', tier: 'small' };
-  if (r < 0.75) return { points: 15, label: '+15 Points', emoji: '✨', tier: 'small' };
-  if (r < 0.88) return { points: 50, label: '+50 Points', emoji: '🔥', tier: 'medium' };
-  if (r < 0.96) return { points: 150, label: '+150 Points', emoji: '💰', tier: 'big' };
-  return { points: 500, label: '+500 Points!', emoji: '🏆', tier: 'jackpot' };
+  if (r < 0.30) return { points: 0,   label: 'Empty',        emoji: '💨', tier: 'empty'   };
+  if (r < 0.55) return { points: 5,   label: '+5 Points',    emoji: '🪙', tier: 'small'   };
+  if (r < 0.75) return { points: 15,  label: '+15 Points',   emoji: '✨', tier: 'small'   };
+  if (r < 0.88) return { points: 50,  label: '+50 Points',   emoji: '🔥', tier: 'medium'  };
+  if (r < 0.96) return { points: 150, label: '+150 Points',  emoji: '💰', tier: 'big'     };
+  return           { points: 500, label: '+500 Points!', emoji: '🏆', tier: 'jackpot' };
 }
 
 type GameState = 'idle' | 'watching' | 'picking' | 'revealing' | 'result';
+
+/* ── tier config ── */
+const TIER = {
+  jackpot: { color: '#fbbf24', glow: 'rgba(251,191,36,0.6)', bg: 'rgba(251,191,36,0.12)', label: 'JACKPOT' },
+  big:     { color: '#4ade80', glow: 'rgba(74,222,128,0.5)', bg: 'rgba(74,222,128,0.1)',  label: 'BIG WIN' },
+  medium:  { color: '#22d3ee', glow: 'rgba(34,211,238,0.5)', bg: 'rgba(34,211,238,0.1)', label: 'NICE'    },
+  small:   { color: '#a78bfa', glow: 'rgba(167,139,250,0.4)', bg: 'rgba(167,139,250,0.08)', label: 'WIN'  },
+  empty:   { color: '#6b7280', glow: 'rgba(107,114,128,0.3)', bg: 'rgba(107,114,128,0.06)', label: 'MISS' },
+};
+
+/* ── Particle component ── */
+interface Particle { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; life: number; }
+
+function ParticleBurst({ active, color }: { active: boolean; color: string }) {
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const burst: Particle[] = Array.from({ length: 24 }, (_, i) => ({
+      id: i,
+      x: 50, y: 50,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      color,
+      size: 3 + Math.random() * 5,
+      life: 1,
+    }));
+    setParticles(burst);
+
+    let frame = 0;
+    function tick() {
+      frame++;
+      setParticles(prev => prev
+        .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, vy: p.vy + 0.18, life: p.life - 0.025 }))
+        .filter(p => p.life > 0)
+      );
+      if (frame < 60) rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [active, color]);
+
+  if (!particles.length) return null;
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', borderRadius: '20px' }}>
+      {particles.map(p => (
+        <div key={p.id} style={{
+          position: 'absolute',
+          left: `${p.x}%`, top: `${p.y}%`,
+          width: p.size, height: p.size,
+          borderRadius: '50%',
+          background: p.color,
+          opacity: p.life,
+          transform: 'translate(-50%,-50%)',
+          boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+/* ── CSS ── */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Outfit:wght@400;500;600;700&display=swap');
+
+.lb-root {
+  font-family: 'Outfit', sans-serif;
+  background: #070510;
+  min-height: 100vh;
+  padding: 20px 16px 112px;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+}
+
+/* Ambient glow orbs */
+.lb-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(60px);
+  z-index: 0;
+}
+.lb-orb-1 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(251,191,36,0.08) 0%, transparent 70%);
+  top: -80px; left: -60px;
+  animation: lbFloat1 8s ease-in-out infinite;
+}
+.lb-orb-2 {
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, rgba(167,139,250,0.07) 0%, transparent 70%);
+  bottom: 100px; right: -60px;
+  animation: lbFloat2 10s ease-in-out infinite;
+}
+@keyframes lbFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,30px)} }
+@keyframes lbFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,-20px)} }
+
+/* Sparkle dots */
+.lb-sparkles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.lb-spark {
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(251,191,36,0.6);
+  animation: lbSpark var(--dur) ease-in-out infinite var(--delay);
+}
+@keyframes lbSpark {
+  0%,100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.lb-content { position: relative; z-index: 1; }
+
+/* Header */
+.lb-title {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 24px;
+  font-weight: 900;
+  text-align: center;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 40%, #fde68a 70%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 20px rgba(251,191,36,0.4));
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+.lb-subtitle {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+/* Stats */
+.lb-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.lb-stat {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 12px 8px;
+  text-align: center;
+}
+.lb-stat-val {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.lb-stat-lbl {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+}
+
+/* Main game card */
+.lb-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(251,191,36,0.15);
+  border-radius: 24px;
+  padding: 24px 20px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.lb-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent);
+}
+
+/* Idle state */
+.lb-idle-icon {
+  font-size: 64px;
+  text-align: center;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 20px rgba(251,191,36,0.3));
+  animation: lbBob 3s ease-in-out infinite;
+}
+@keyframes lbBob {
+  0%,100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-8px) rotate(3deg); }
+}
+.lb-idle-text {
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 20px;
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+}
+
+/* Watch ad button */
+.lb-btn-watch {
+  width: 100%;
+  padding: 18px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  color: #1a0e00;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 6px 32px rgba(251,191,36,0.35), 0 2px 8px rgba(0,0,0,0.4);
+  position: relative;
+  overflow: hidden;
+}
+.lb-btn-watch::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  animation: lbShine 3s ease-in-out infinite;
+}
+@keyframes lbShine {
+  0% { left: -100%; }
+  40%, 100% { left: 150%; }
+}
+.lb-btn-watch:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(251,191,36,0.2); }
+
+/* Boxes grid */
+.lb-pick-label {
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.lb-pick-label.active {
+  color: #fbbf24;
+  animation: lbPulseText 1.5s ease-in-out infinite;
+}
+@keyframes lbPulseText { 0%,100%{opacity:0.8} 50%{opacity:1} }
+
+.lb-boxes {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lb-box {
+  aspect-ratio: 1;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.lb-box.pickable {
+  animation: lbBoxIdle 2s ease-in-out infinite;
+}
+.lb-box.pickable:nth-child(2) { animation-delay: 0.2s; }
+.lb-box.pickable:nth-child(3) { animation-delay: 0.4s; }
+.lb-box.pickable:nth-child(4) { animation-delay: 0.6s; }
+.lb-box.pickable:nth-child(5) { animation-delay: 0.8s; }
+
+@keyframes lbBoxIdle {
+  0%,100% { transform: translateY(0); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  50% { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(251,191,36,0.15); }
+}
+.lb-box.pickable:active { transform: scale(0.92); }
+
+.lb-box-emoji { font-size: 26px; line-height: 1; }
+.lb-box-pts { font-size: 9px; font-weight: 700; letter-spacing: 1px; margin-top: 3px; }
+
+/* check badge */
+.lb-check {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+/* Result panel */
+.lb-result {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.lb-result-emoji {
+  font-size: 52px;
+  margin-bottom: 8px;
+  display: block;
+  animation: lbResultPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes lbResultPop {
+  from { transform: scale(0) rotate(-20deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);  opacity: 1; }
+}
+.lb-result-tier {
+  font-size: 10px;
+  letter-spacing: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.lb-result-pts {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.lb-result-msg {
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+}
+
+.lb-btn-again {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a0e00;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  box-shadow: 0 4px 20px rgba(251,191,36,0.3);
+}
+.lb-btn-again:active { transform: scale(0.97); }
+
+/* Watching */
+.lb-watching {
+  text-align: center;
+  padding: 24px 0;
+}
+.lb-watching-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+  display: block;
+}
+.lb-watching-dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #fbbf24;
+  margin: 0 3px;
+  animation: lbDot 1.2s ease-in-out infinite;
+}
+.lb-watching-dots span:nth-child(2) { animation-delay: 0.2s; }
+.lb-watching-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lbDot { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+/* Reward table */
+.lb-table {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 16px;
+  overflow: hidden;
+}
+.lb-table-title {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.lb-table-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.lb-table-row:last-child { border-bottom: none; }
+.lb-table-emoji { font-size: 16px; width: 24px; text-align: center; }
+.lb-table-label { flex: 1; font-size: 13px; font-weight: 500; }
+.lb-table-prob {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.05);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+`;
+
+const SPARKS = Array.from({ length: 12 }, (_, i) => ({
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  dur: `${2 + Math.random() * 4}s`,
+  delay: `${Math.random() * 4}s`,
+}));
 
 export default function LuckyBoxPage() {
   const { user, balance, refreshBalance } = useApp();
@@ -42,67 +462,48 @@ export default function LuckyBoxPage() {
   const [revealedBoxes, setRevealedBoxes] = useState<(BoxReward | null)[]>([null, null, null, null, null]);
   const [totalPlayed, setTotalPlayed] = useState(0);
   const [totalWon, setTotalWon] = useState(0);
+  const [burstActive, setBurstActive] = useState(false);
 
-  const onAdReward = useCallback(() => {
-    setGameState('picking');
-  }, []);
-
+  const onAdReward = useCallback(() => { setGameState('picking'); }, []);
   const { showAd } = useRewardedAd(onAdReward);
 
   const handleWatchAd = async () => {
     setGameState('watching');
     const ok = await showAd();
-    if (!ok) {
-      setGameState('idle');
-    }
-    // Log ad watch
-    if (user) {
-      logAdWatch(user.id, 'lucky_box', 0);
-    }
+    if (!ok) setGameState('idle');
+    if (user) logAdWatch(user.id, 'lucky_box', 0);
   };
 
   const handlePickBox = async (index: number) => {
     if (gameState !== 'picking' || selectedBox !== null) return;
-
     triggerHaptic('impact');
     setSelectedBox(index);
     setGameState('revealing');
 
-    // Generate rewards for all boxes
     const allRewards = Array.from({ length: 5 }, () => generateReward());
-    // The picked box gets a fresh reward
     const pickedReward = allRewards[index];
 
-    // Reveal animation — show picked box first, then others
-    await new Promise(r => setTimeout(r, 800));
-
-    const newRevealed = [...allRewards];
-    setRevealedBoxes(newRevealed);
+    await new Promise(r => setTimeout(r, 600));
+    setRevealedBoxes(allRewards);
     setReward(pickedReward);
     setTotalPlayed(p => p + 1);
 
     if (pickedReward.points > 0) {
       triggerHaptic('success');
+      setBurstActive(true);
+      setTimeout(() => setBurstActive(false), 100);
       setTotalWon(w => w + pickedReward.points);
 
-      // Add points to balance
       if (user) {
         const { data: bal } = await supabase
-          .from('balances')
-          .select('points, total_earned')
-          .eq('user_id', user.id)
-          .single();
-
+          .from('balances').select('points, total_earned').eq('user_id', user.id).single();
         if (bal) {
           await supabase.from('balances').update({
             points: bal.points + pickedReward.points,
             total_earned: bal.total_earned + pickedReward.points,
           }).eq('user_id', user.id);
-
           await supabase.from('transactions').insert({
-            user_id: user.id,
-            type: 'lucky_box',
-            points: pickedReward.points,
+            user_id: user.id, type: 'lucky_box', points: pickedReward.points,
             description: `🎁 Lucky Box: ${pickedReward.label}`,
           });
         }
@@ -120,195 +521,181 @@ export default function LuckyBoxPage() {
     setSelectedBox(null);
     setReward(null);
     setRevealedBoxes([null, null, null, null, null]);
+    setBurstActive(false);
   };
 
-  const tierColor = (tier: string) => {
-    switch (tier) {
-      case 'jackpot': return 'hsl(var(--gold))';
-      case 'big': return 'hsl(var(--green-reward))';
-      case 'medium': return 'hsl(var(--cyan))';
-      case 'small': return 'hsl(var(--muted-foreground))';
-      default: return 'hsl(var(--destructive))';
-    }
-  };
+  const BOX_ICONS = ['🎁', '📦', '🎀', '💎', '🏆'];
 
   return (
-    <div className="px-4 pb-28">
-      {/* Header */}
-      <div className="text-center mb-6">
-       <img
-  src="https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773236074591-d9f8b5e0.gif"
-  alt="Lucky Box"
-  className="w-20 h-20 mx-auto mb-2 object-contain animate-float"
-/>
-        <h2 className="text-2xl font-bold shimmer-text">Lucky Box</h2>
-        <p className="text-sm mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          Watch an ad, pick a box, win prizes!
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="glass-card rounded-xl p-3 text-center">
-          <div className="text-[10px] uppercase tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>Balance</div>
-          <div className="font-bold text-sm" style={{ color: 'hsl(var(--gold))' }}>
-            {balance?.points?.toLocaleString() ?? 0}
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 text-center">
-          <div className="text-[10px] uppercase tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>Played</div>
-          <div className="font-bold text-sm">{totalPlayed}</div>
-        </div>
-        <div className="glass-card rounded-xl p-3 text-center">
-          <div className="text-[10px] uppercase tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>Won</div>
-          <div className="font-bold text-sm" style={{ color: 'hsl(var(--green-reward))' }}>
-            {totalWon.toLocaleString()}
-          </div>
-        </div>
-      </div>
-
-      {/* Game Area */}
-      <div className="glass-card rounded-2xl p-5 mb-4" style={{ border: '1px solid hsl(var(--gold) / 0.2)' }}>
-        {/* Idle — Watch Ad to Play */}
-        {gameState === 'idle' && (
-          <div className="text-center">
-            <div className="text-6xl mb-4">🎬</div>
-            <p className="text-sm mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Watch a short ad to unlock 5 mystery boxes
-            </p>
-            <button
-              onClick={handleWatchAd}
-              className="w-full py-4 rounded-xl font-bold text-lg transition-all active:scale-95"
-              style={{
-                background: 'linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold) / 0.7))',
-                color: 'hsl(220 30% 5%)',
-                boxShadow: '0 4px 20px hsl(var(--gold) / 0.3)',
-              }}
-            >
-              📺 WATCH AD & PLAY
-            </button>
-          </div>
-        )}
-
-        {/* Watching Ad */}
-        {gameState === 'watching' && (
-          <div className="text-center py-8">
-            <div className="text-4xl mb-3 animate-pulse">📺</div>
-            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Loading ad...
-            </p>
-          </div>
-        )}
-
-        {/* Picking — Choose a Box */}
-        {(gameState === 'picking' || gameState === 'revealing' || gameState === 'result') && (
-          <div>
-            <div className="text-center mb-4">
-              <p className="font-bold text-sm" style={{ 
-                color: gameState === 'picking' ? 'hsl(var(--gold))' : 'hsl(var(--muted-foreground))'
-              }}>
-                {gameState === 'picking' ? '👆 Pick a box!' : gameState === 'revealing' ? '✨ Revealing...' : ''}
-              </p>
-            </div>
-
-            {/* Boxes Grid */}
-            <div className="grid grid-cols-5 gap-2 mb-4">
-              {BOX_EMOJIS.map((emoji, i) => {
-                const isRevealed = revealedBoxes[i] !== null;
-                const isPicked = selectedBox === i;
-                const boxReward = revealedBoxes[i];
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handlePickBox(i)}
-                    disabled={gameState !== 'picking'}
-                    className="relative aspect-square rounded-xl flex flex-col items-center justify-center transition-all"
-                    style={{
-                      background: isRevealed
-                        ? isPicked
-                          ? `linear-gradient(135deg, ${tierColor(boxReward!.tier)} / 0.3, hsl(220 25% 10%))`
-                          : 'hsl(220 25% 8%)'
-                        : 'linear-gradient(135deg, hsl(220 25% 15%), hsl(220 25% 10%))',
-                      border: isPicked && isRevealed
-                        ? `2px solid ${tierColor(boxReward!.tier)}`
-                        : '1px solid hsl(220 20% 20%)',
-                      transform: gameState === 'picking' ? 'scale(1)' : 'scale(1)',
-                      cursor: gameState === 'picking' ? 'pointer' : 'default',
-                    }}
-                  >
-                    {isRevealed ? (
-                      <div className="text-center">
-                        <div className="text-xl">{boxReward!.emoji}</div>
-                        <div className="text-[9px] font-bold mt-0.5" style={{ color: tierColor(boxReward!.tier) }}>
-                          {boxReward!.points > 0 ? `+${boxReward!.points}` : '0'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-3xl" style={{
-                        animation: gameState === 'picking' ? 'pulse 2s infinite' : 'none',
-                      }}>
-                        {emoji}
-                      </div>
-                    )}
-                    {isPicked && isRevealed && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
-                        style={{ background: tierColor(boxReward!.tier) }}>
-                        ✓
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Result */}
-            {gameState === 'result' && reward && (
-              <div className="text-center">
-                <div className="text-4xl mb-2">{reward.emoji}</div>
-                <div className="text-xl font-bold mb-1" style={{ color: tierColor(reward.tier) }}>
-                  {reward.label}
-                </div>
-                <p className="text-xs mb-4" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {reward.points > 0 ? 'Nice pick! Points added to your balance.' : 'Better luck next time!'}
-                </p>
-                <button
-                  onClick={resetGame}
-                  className="w-full py-3 rounded-xl font-bold transition-all active:scale-95"
-                  style={{
-                    background: 'linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold) / 0.7))',
-                    color: 'hsl(220 30% 5%)',
-                  }}
-                >
-                  📺 Watch Ad & Play Again
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Reward Tiers Info */}
-      <div className="glass-card rounded-xl p-4">
-        <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          Possible Rewards
-        </div>
-        <div className="space-y-1.5">
-          {[
-            { emoji: '🏆', label: '500 Points', tier: 'jackpot' },
-            { emoji: '💰', label: '150 Points', tier: 'big' },
-            { emoji: '🔥', label: '50 Points', tier: 'medium' },
-            { emoji: '✨', label: '15 Points', tier: 'small' },
-            { emoji: '🪙', label: '5 Points', tier: 'small' },
-            { emoji: '💨', label: 'Empty', tier: 'empty' },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <span>{item.emoji}</span>
-              <span style={{ color: tierColor(item.tier) }}>{item.label}</span>
-            </div>
+    <>
+      <style>{CSS}</style>
+      <div className="lb-root">
+        {/* Background */}
+        <div className="lb-orb lb-orb-1" />
+        <div className="lb-orb lb-orb-2" />
+        <div className="lb-sparkles">
+          {SPARKS.map((s, i) => (
+            <div key={i} className="lb-spark" style={{
+              left: s.left, top: s.top,
+              '--dur': s.dur, '--delay': s.delay,
+            } as React.CSSProperties} />
           ))}
         </div>
+
+        <div className="lb-content">
+          {/* Title */}
+          <div className="lb-title">Lucky Box</div>
+          <div className="lb-subtitle">Pick your treasure · Win big</div>
+
+          {/* Stats */}
+          <div className="lb-stats">
+            <div className="lb-stat">
+              <div className="lb-stat-val" style={{ color: '#fbbf24' }}>
+                {(balance?.points ?? 0).toLocaleString()}
+              </div>
+              <div className="lb-stat-lbl">Balance</div>
+            </div>
+            <div className="lb-stat">
+              <div className="lb-stat-val">{totalPlayed}</div>
+              <div className="lb-stat-lbl">Played</div>
+            </div>
+            <div className="lb-stat">
+              <div className="lb-stat-val" style={{ color: '#4ade80' }}>
+                {totalWon.toLocaleString()}
+              </div>
+              <div className="lb-stat-lbl">Won</div>
+            </div>
+          </div>
+
+          {/* Main card */}
+          <div className="lb-card">
+            <ParticleBurst
+              active={burstActive}
+              color={reward ? TIER[reward.tier].color : '#fbbf24'}
+            />
+
+            {/* ── IDLE ── */}
+            {gameState === 'idle' && (
+              <>
+                <div className="lb-idle-icon">🎁</div>
+                <div className="lb-idle-text">
+                  Watch a short ad to unlock<br />5 mystery boxes
+                </div>
+                <button className="lb-btn-watch" onClick={handleWatchAd}>
+                  📺 &nbsp;WATCH AD & PLAY
+                </button>
+              </>
+            )}
+
+            {/* ── WATCHING ── */}
+            {gameState === 'watching' && (
+              <div className="lb-watching">
+                <span className="lb-watching-icon">📺</span>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: '12px' }}>
+                  LOADING AD
+                </div>
+                <div className="lb-watching-dots">
+                  <span /><span /><span />
+                </div>
+              </div>
+            )}
+
+            {/* ── PICKING / REVEALING / RESULT ── */}
+            {(gameState === 'picking' || gameState === 'revealing' || gameState === 'result') && (
+              <>
+                <div className={`lb-pick-label ${gameState === 'picking' ? 'active' : ''}`}>
+                  {gameState === 'picking' ? '✦ Choose your box ✦' : gameState === 'revealing' ? '✨ Revealing...' : ''}
+                </div>
+
+                {/* Boxes */}
+                <div className="lb-boxes">
+                  {BOX_ICONS.map((icon, i) => {
+                    const isRevealed = revealedBoxes[i] !== null;
+                    const isPicked = selectedBox === i;
+                    const br = revealedBoxes[i];
+                    const tc = br ? TIER[br.tier] : null;
+
+                    return (
+                      <button
+                        key={i}
+                        className={`lb-box ${gameState === 'picking' ? 'pickable' : ''}`}
+                        onClick={() => handlePickBox(i)}
+                        disabled={gameState !== 'picking'}
+                        style={isRevealed && tc ? {
+                          background: tc.bg,
+                          borderColor: isPicked ? tc.color : 'rgba(255,255,255,0.1)',
+                          boxShadow: isPicked ? `0 0 20px ${tc.glow}` : 'none',
+                          animationName: 'none',
+                        } : {}}
+                      >
+                        {isRevealed && br ? (
+                          <>
+                            <span className="lb-box-emoji">{br.emoji}</span>
+                            <span className="lb-box-pts" style={{ color: tc?.color }}>
+                              {br.points > 0 ? `+${br.points}` : '—'}
+                            </span>
+                            {isPicked && (
+                              <div className="lb-check" style={{ background: tc?.color, color: '#000' }}>✓</div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="lb-box-emoji">{icon}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Result panel */}
+                {gameState === 'result' && reward && (() => {
+                  const tc = TIER[reward.tier];
+                  return (
+                    <div className="lb-result">
+                      <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: tc.bg, border: `2px solid ${tc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', boxShadow: `0 0 30px ${tc.glow}` }}>
+                        <span style={{ fontSize: '36px' }}>{reward.emoji}</span>
+                      </div>
+                      <div className="lb-result-tier" style={{ color: tc.color }}>{tc.label}</div>
+                      <div className="lb-result-pts" style={{
+                        background: `linear-gradient(135deg, ${tc.color}, #fff)`,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                      }}>
+                        {reward.points > 0 ? `+${reward.points} pts` : 'Empty Box'}
+                      </div>
+                      <div className="lb-result-msg">
+                        {reward.points > 0 ? 'Points added to your balance!' : 'Better luck next time'}
+                      </div>
+                      <button className="lb-btn-again" onClick={resetGame}>
+                        📺 &nbsp;Watch Ad & Play Again
+                      </button>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+
+          {/* Reward table */}
+          <div className="lb-table">
+            <div className="lb-table-title">Possible Rewards</div>
+            {[
+              { emoji: '🏆', label: '500 Points', tier: 'jackpot' as const, prob: '4%'  },
+              { emoji: '💰', label: '150 Points', tier: 'big'     as const, prob: '8%'  },
+              { emoji: '🔥', label: '50 Points',  tier: 'medium'  as const, prob: '13%' },
+              { emoji: '✨', label: '15 Points',  tier: 'small'   as const, prob: '20%' },
+              { emoji: '🪙', label: '5 Points',   tier: 'small'   as const, prob: '25%' },
+              { emoji: '💨', label: 'Empty',       tier: 'empty'   as const, prob: '30%' },
+            ].map((row, i) => (
+              <div key={i} className="lb-table-row">
+                <span className="lb-table-emoji">{row.emoji}</span>
+                <span className="lb-table-label" style={{ color: TIER[row.tier].color }}>{row.label}</span>
+                <span className="lb-table-prob">{row.prob}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
