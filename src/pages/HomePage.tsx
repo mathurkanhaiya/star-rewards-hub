@@ -3,6 +3,7 @@ import { useApp } from "@/context/AppContext";
 import { getTransactions, logAdWatch } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
+import AdsgramTask from "@/components/AdsgramTask";
 
 type HapticType = "impact" | "success" | "error";
 interface Transaction { id: string; type: string; points: number; }
@@ -71,13 +72,13 @@ const AD_COOLDOWN_SEC   = 10;
 
 /* Daily Drop config */
 const DAILY_DROP = [
-  { day: 1, pts: 5,  color: '#4ade80', label: 'D1' },
-  { day: 2, pts: 10, color: '#4ade80', label: 'D2' },
-  { day: 3, pts: 15, color: '#ffbe00', label: 'D3' },
-  { day: 4, pts: 20, color: '#ffbe00', label: 'D4' },
-  { day: 5, pts: 25, color: '#22d3ee', label: 'D5' },
-  { day: 6, pts: 35, color: '#22d3ee', label: 'D6' },
-  { day: 7, pts: 50, color: '#a78bfa', label: 'D7' },
+  { day: 1, pts: 100,  color: '#4ade80', label: 'D1' },
+  { day: 2, pts: 129, color: '#4ade80', label: 'D2' },
+  { day: 3, pts: 130, color: '#ffbe00', label: 'D3' },
+  { day: 4, pts: 140, color: '#ffbe00', label: 'D4' },
+  { day: 5, pts: 150, color: '#22d3ee', label: 'D5' },
+  { day: 6, pts: 160, color: '#22d3ee', label: 'D6' },
+  { day: 7, pts: 170, color: '#a78bfa', label: 'D7' },
 ];
 
 /* ── localStorage helpers ── */
@@ -796,10 +797,21 @@ export default function HomePage() {
         </div>
 
         {activeTab === "earn" && (
-          <div style={{textAlign:'center',padding:'18px 0',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.1)',textTransform:'uppercase'}}>
-            ✦ Tap · Drop · Farm · Watch ✦
-          </div>
-        )}
+  <div>
+    <div style={{
+      textAlign:'center', padding:'18px 0 12px',
+      fontFamily:"'Orbitron',monospace", fontSize:9,
+      letterSpacing:'3px', color:'rgba(255,255,255,0.1)',
+      textTransform:'uppercase'
+    }}>
+      ✦ Tap · Drop · Farm · Watch ✦
+    </div>
+
+    {/* Adsgram Task */}
+    <AdsgramTask blockId="task-25198" />
+  </div>
+)}
+
 
         {activeTab === "history" && (
           <div>
