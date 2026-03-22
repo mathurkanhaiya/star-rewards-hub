@@ -13,7 +13,7 @@ function getLevelInfo(level: number) {
     { name: "Platinum",  color: "#22d3ee", glow: "rgba(34,211,238,0.5)",    min: 19, max: 24 },
     { name: "Diamond",   color: "#c084fc", glow: "rgba(192,132,252,0.5)",   min: 25, max: 35 },
     { name: "Master",    color: "#a855f7", glow: "rgba(168,85,247,0.5)",    min: 36, max: 50 },
-    { name: "Legend",    color: "#ef4444", glow: "rgba(239,68,68,0.5)",     min: 51, max: 99 },
+    { name: "LEGEND",    color: "#ef4444", glow: "rgba(239,68,68,0.5)",     min: 51, max: 99 },
   ];
   return levels.find((l) => level >= l.min && level <= l.max) || levels[0];
 }
