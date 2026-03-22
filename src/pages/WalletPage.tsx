@@ -4,11 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { submitWithdrawal } from '@/lib/api';
 
 const TIERS = [
-  { pts: 5000, ton: 0.08 },
+  { pts: 5000,  ton: 0.08 },
   { pts: 10000, ton: 0.16 },
   { pts: 15000, ton: 0.24 },
   { pts: 20000, ton: 0.32 },
-  { pts: 25000, ton: 0.4 },
+  { pts: 25000, ton: 0.40 },
   { pts: 30000, ton: 0.48 },
 ];
 
@@ -18,28 +18,440 @@ function isValidTon(addr: string) {
   return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
 }
 
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+.wp-root {
+  font-family: 'Rajdhani', sans-serif;
+  padding: 0 16px 112px;
+  color: #fff;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.wp-header { padding: 4px 0 20px; }
+.wp-eyebrow {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 5px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.wp-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  line-height: 1;
+}
+.wp-title span { color: #ffbe00; text-shadow: 0 0 16px rgba(255,190,0,0.4); }
+
+/* ── Balance card ── */
+.wp-balance {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,190,0,0.15);
+  border-radius: 22px;
+  padding: 22px 20px;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+.wp-balance::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,190,0,0.4), transparent);
+}
+.wp-balance::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  border-radius: 22px;
+}
+.wp-balance-inner { position: relative; z-index: 1; }
+.wp-bal-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.wp-bal-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffbe00;
+  text-shadow: 0 0 30px rgba(255,190,0,0.4), 0 0 60px rgba(255,190,0,0.15);
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+.wp-bal-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 2px;
+}
+
+/* ── Ads progress ── */
+.wp-ads-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(34,211,238,0.12);
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.wp-ads-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent);
+}
+.wp-ads-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.wp-ads-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+}
+.wp-ads-count {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #22d3ee;
+  letter-spacing: 1px;
+}
+.wp-progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.wp-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #22d3ee, #06b6d4);
+  transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: 0 0 8px rgba(34,211,238,0.5);
+}
+.wp-ads-msg {
+  font-size: 11px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 1px;
+}
+.wp-ads-msg.done { color: #4ade80; }
+
+/* ── Section label ── */
+.wp-section-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.15);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-left: 2px;
+}
+
+/* ── Tier grid ── */
+.wp-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wp-tier {
+  border-radius: 18px;
+  padding: 16px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.2s;
+  cursor: pointer;
+}
+.wp-tier.locked {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.wp-tier.unlocked {
+  background: rgba(34,211,238,0.04);
+  border: 1px solid rgba(34,211,238,0.2);
+}
+.wp-tier.unlocked:active { transform: scale(0.96); }
+.wp-tier.unlocked::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,0.4), transparent);
+}
+/* Shine on hover */
+.wp-tier.unlocked::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: wpShine 4s ease-in-out infinite;
+}
+@keyframes wpShine { 0%{left:-100%} 40%,100%{left:150%} }
+
+.wp-tier-lock {
+  position: absolute;
+  top: 10px; right: 10px;
+  font-size: 12px;
+  opacity: 0.4;
+}
+.wp-tier-pts {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 4px;
+}
+.wp-tier-ton {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.wp-tier-ton.locked-val { color: rgba(255,255,255,0.2); }
+.wp-tier-reason {
+  font-size: 10px;
+  color: rgba(239,68,68,0.6);
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* ── Modal overlay ── */
+.wp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3,5,10,0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+  animation: wpFadeIn 0.2s ease;
+}
+@keyframes wpFadeIn { from{opacity:0} to{opacity:1} }
+
+.wp-modal {
+  background: rgba(6,8,15,0.98);
+  border: 1px solid rgba(255,190,0,0.2);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 360px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  animation: wpModalUp 0.3s cubic-bezier(0.34,1.2,0.64,1);
+}
+@keyframes wpModalUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.wp-modal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,190,0,0.5), transparent);
+}
+.wp-modal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  border-radius: 24px;
+}
+.wp-modal-inner { position: relative; z-index: 1; }
+
+.wp-modal-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.wp-modal-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+}
+
+.wp-modal-ton {
+  font-family: 'Orbitron', monospace;
+  font-size: 36px;
+  font-weight: 900;
+  color: #22d3ee;
+  letter-spacing: 2px;
+  text-shadow: 0 0 24px rgba(34,211,238,0.4);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.wp-input-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.wp-input {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.wp-input:focus { border-color: rgba(255,190,0,0.4); }
+.wp-input::placeholder { color: rgba(255,255,255,0.15); }
+
+.wp-modal-ads {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(34,211,238,0.05);
+  border: 1px solid rgba(34,211,238,0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.wp-modal-ads-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+}
+.wp-modal-ads-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #22d3ee;
+}
+
+.wp-msg {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 9px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  animation: wpFadeIn 0.2s ease;
+}
+.wp-msg.error {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  color: #f87171;
+}
+.wp-msg.success {
+  background: rgba(74,222,128,0.08);
+  border: 1px solid rgba(74,222,128,0.2);
+  color: #4ade80;
+}
+
+.wp-confirm-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #ffbe00, #f59e0b, #d97706);
+  color: #1a0800;
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(255,190,0,0.3);
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.wp-confirm-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: wpShine 3s ease-in-out infinite;
+}
+.wp-confirm-btn:active { transform: scale(0.97); }
+
+.wp-cancel-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.3);
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.wp-cancel-btn:hover { background: rgba(255,255,255,0.05); }
+`;
+
 export default function WalletPage() {
   const { user, balance, refreshBalance } = useApp();
-
   const [adCount, setAdCount] = useState(0);
-  const [selectedTier, setSelectedTier] = useState<any>(null);
+  const [selectedTier, setSelectedTier] = useState<typeof TIERS[0] | null>(null);
   const [wallet, setWallet] = useState('');
   const [message, setMessage] = useState('');
+  const [msgType, setMsgType] = useState<'error' | 'success'>('error');
+  const [submitting, setSubmitting] = useState(false);
 
   const pts = balance?.points || 0;
   const progress = Math.min((adCount / REQUIRED_ADS) * 100, 100);
+  const adsComplete = adCount >= REQUIRED_ADS;
 
-  /* ✅ DAILY ADS */
   useEffect(() => {
     if (!user) return;
-
     const todayUTC = new Date();
     const startOfDay = new Date(Date.UTC(
-      todayUTC.getUTCFullYear(),
-      todayUTC.getUTCMonth(),
-      todayUTC.getUTCDate()
+      todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate()
     )).toISOString();
-
     supabase
       .from('ad_logs')
       .select('id', { count: 'exact', head: true })
@@ -48,158 +460,147 @@ export default function WalletPage() {
       .then(({ count }) => setAdCount(count || 0));
   }, [user]);
 
-  /* 💰 WITHDRAW */
   async function handleWithdraw() {
-    if (!selectedTier) return;
-
+    if (!selectedTier || submitting) return;
     if (!isValidTon(wallet)) {
-      setMessage('Invalid TON wallet ❌');
+      setMessage('Invalid TON wallet address');
+      setMsgType('error');
       return;
     }
-
-    const locked = pts < selectedTier.pts || adCount < REQUIRED_ADS;
-
-    if (locked) {
-      setMessage('Requirements not met ❗');
+    if (pts < selectedTier.pts) {
+      setMessage('Not enough points');
+      setMsgType('error');
       return;
     }
-
-    const res = await submitWithdrawal(
-      user.id,
-      'ton',
-      selectedTier.pts,
-      wallet
-    );
-
+    if (!adsComplete) {
+      setMessage(`Watch ${REQUIRED_ADS - adCount} more ads today`);
+      setMsgType('error');
+      return;
+    }
+    setSubmitting(true);
+    const res = await submitWithdrawal(user!.id, 'ton', selectedTier.pts, wallet);
     if (res.success) {
-      setMessage('✅ Withdrawal successful');
-      setSelectedTier(null);
+      setMessage('Withdrawal submitted!');
+      setMsgType('success');
       setWallet('');
       refreshBalance();
+      setTimeout(() => {
+        setSelectedTier(null);
+        setMessage('');
+        setSubmitting(false);
+      }, 1800);
     } else {
-      setMessage('Failed');
+      setMessage(res.message || 'Failed to submit');
+      setMsgType('error');
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="px-4 pb-24 text-white">
+    <>
+      <style>{CSS}</style>
+      <div className="wp-root">
 
-      {/* 💰 BALANCE CARD */}
-      <div className="mb-6 p-6 rounded-3xl bg-gradient-to-br from-[#111827] to-[#020617] border border-gray-800 shadow-xl">
-        <div className="text-sm text-gray-400">Balance</div>
-        <div className="text-4xl text-yellow-400 font-bold mt-1 tracking-wide">
-          {pts.toLocaleString()}
-        </div>
-      </div>
-
-      {/* 📊 PROGRESS BAR */}
-      <div className="mb-6">
-        <div className="text-xs text-gray-400 mb-1">
-          Ads Progress ({adCount}/{REQUIRED_ADS})
+        {/* ── Header ── */}
+        <div className="wp-header">
+          <div className="wp-eyebrow">Withdraw · TON</div>
+          <div className="wp-title">MY <span>WALLET</span></div>
         </div>
 
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {/* 💎 TIERS */}
-      <div className="grid grid-cols-2 gap-4">
-        {TIERS.map((t, i) => {
-          const locked = pts < t.pts || adCount < REQUIRED_ADS;
-
-          return (
-            <div
-              key={i}
-              onClick={() => !locked && setSelectedTier(t)}
-              className={`relative p-5 rounded-2xl transition-all duration-300
-              ${locked
-                ? 'bg-[#0b0f1a] border border-gray-800 opacity-60 cursor-not-allowed'
-                : 'bg-gradient-to-br from-[#111827] to-[#1f2937] border border-gray-700 hover:scale-[1.05] cursor-pointer shadow-lg'
-              }`}
-            >
-              {/* GLOW */}
-              {!locked && (
-                <div className="absolute inset-0 rounded-2xl bg-blue-500/10 blur-xl opacity-0 hover:opacity-100 transition" />
-              )}
-
-              {/* LOCK */}
-              {locked && (
-                <div className="absolute top-2 right-2 text-xs text-gray-400">
-                  🔒
-                </div>
-              )}
-
-              <div className="text-sm text-gray-400">
-                {t.pts.toLocaleString()} pts
-              </div>
-
-              <div className="text-xl font-bold text-blue-400 mt-1">
-                {t.ton} TON
-              </div>
-
-              {locked && (
-                <div className="text-xs text-red-400 mt-2">
-                  {pts < t.pts
-                    ? 'Not enough points'
-                    : 'Complete ads'}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 💳 POPUP */}
-      {selectedTier && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm">
-
-          <div className="bg-[#0f172a] p-6 rounded-3xl w-[90%] max-w-sm border border-gray-800 shadow-2xl animate-[fadeIn_0.3s]">
-
-            <div className="text-lg font-bold mb-3">
-              Withdraw {selectedTier.ton} TON
-            </div>
-
-            <input
-              value={wallet}
-              onChange={e => setWallet(e.target.value)}
-              placeholder="Enter TON wallet"
-              className="w-full p-3 rounded-xl bg-black border border-gray-700 mb-3 outline-none focus:border-blue-500"
-            />
-
-            <div className="text-xs text-gray-400 mb-3">
-              Ads: {adCount}/{REQUIRED_ADS}
-            </div>
-
-            {message && (
-              <div className="text-sm text-red-400 mb-2">
-                {message}
-              </div>
-            )}
-
-            <button
-              onClick={handleWithdraw}
-              className="w-full py-3 bg-gradient-to-r from-yellow-400 to-yellow-300 text-black rounded-xl font-bold hover:scale-[1.02] transition"
-            >
-              Confirm Withdraw
-            </button>
-
-            <button
-              onClick={() => {
-                setSelectedTier(null);
-                setMessage('');
-              }}
-              className="w-full mt-3 text-sm text-gray-400"
-            >
-              Cancel
-            </button>
-
+        {/* ── Balance ── */}
+        <div className="wp-balance">
+          <div className="wp-balance-inner">
+            <div className="wp-bal-label">Available Balance</div>
+            <div className="wp-bal-val">{pts.toLocaleString()}</div>
+            <div className="wp-bal-sub">Points · Ready to withdraw</div>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* ── Ads progress ── */}
+        <div className="wp-ads-card">
+          <div className="wp-ads-top">
+            <div className="wp-ads-label">Daily Ads Progress</div>
+            <div className="wp-ads-count">{adCount} / {REQUIRED_ADS}</div>
+          </div>
+          <div className="wp-progress-track">
+            <div className="wp-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className={`wp-ads-msg ${adsComplete ? 'done' : ''}`}>
+            {adsComplete
+              ? '✦ Requirement met — withdrawals unlocked'
+              : `Watch ${REQUIRED_ADS - adCount} more ads to unlock withdrawals`}
+          </div>
+        </div>
+
+        {/* ── Tiers ── */}
+        <div className="wp-section-label">Select Withdrawal Tier</div>
+        <div className="wp-tier-grid">
+          {TIERS.map((t, i) => {
+            const notEnoughPts = pts < t.pts;
+            const locked = notEnoughPts || !adsComplete;
+            return (
+              <div
+                key={i}
+                className={`wp-tier ${locked ? 'locked' : 'unlocked'}`}
+                onClick={() => !locked && setSelectedTier(t)}
+              >
+                {locked && <div className="wp-tier-lock">🔒</div>}
+                <div className="wp-tier-pts">{t.pts.toLocaleString()} pts</div>
+                <div className={`wp-tier-ton ${locked ? 'locked-val' : ''}`}
+                  style={!locked ? { color: '#22d3ee', textShadow: '0 0 16px rgba(34,211,238,0.4)' } : {}}>
+                  {t.ton} TON
+                </div>
+                {locked && (
+                  <div className="wp-tier-reason">
+                    {notEnoughPts ? 'Need more points' : 'Complete daily ads'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Modal ── */}
+        {selectedTier && (
+          <div className="wp-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedTier(null); setMessage(''); } }}>
+            <div className="wp-modal">
+              <div className="wp-modal-inner">
+                <div className="wp-modal-title">Withdraw TON</div>
+                <div className="wp-modal-sub">{selectedTier.pts.toLocaleString()} pts → {selectedTier.ton} TON</div>
+
+                <div className="wp-modal-ton">{selectedTier.ton} TON</div>
+
+                <div className="wp-input-label">TON Wallet Address</div>
+                <input
+                  className="wp-input"
+                  value={wallet}
+                  onChange={e => setWallet(e.target.value)}
+                  placeholder="UQ..."
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+
+                <div className="wp-modal-ads">
+                  <div className="wp-modal-ads-label">Daily Ads</div>
+                  <div className="wp-modal-ads-val">{adCount} / {REQUIRED_ADS} {adsComplete ? '✓' : ''}</div>
+                </div>
+
+                {message && (
+                  <div className={`wp-msg ${msgType}`}>{message}</div>
+                )}
+
+                <button className="wp-confirm-btn" onClick={handleWithdraw} disabled={submitting}>
+                  {submitting ? '···' : 'CONFIRM WITHDRAW'}
+                </button>
+                <button className="wp-cancel-btn" onClick={() => { setSelectedTier(null); setMessage(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </>
   );
 }
