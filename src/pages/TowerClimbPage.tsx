@@ -3,7 +3,6 @@ import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 import { logAdWatch } from '@/lib/api';
-import { Progress } from '@/components/ui/progress';
 
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
@@ -24,6 +23,466 @@ interface LeaderEntry {
 
 type GameState = 'menu' | 'playing' | 'gameover';
 
+/* ─── Styles ─────────────────────────────────────────────── */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+.tc-root {
+  font-family: 'Rajdhani', sans-serif;
+  background: #06080f;
+  min-height: 100vh;
+  padding: 20px 16px 112px;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Animated background beams */
+.tc-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.tc-beam {
+  position: absolute;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(255,190,0,0.15), transparent);
+  animation: tcBeam 4s ease-in-out infinite;
+}
+.tc-beam:nth-child(1) { left: 15%; height: 60%; top: 10%; animation-delay: 0s; }
+.tc-beam:nth-child(2) { left: 40%; height: 40%; top: 30%; animation-delay: 1.2s; }
+.tc-beam:nth-child(3) { left: 65%; height: 70%; top: 5%; animation-delay: 0.6s; }
+.tc-beam:nth-child(4) { left: 85%; height: 45%; top: 20%; animation-delay: 2s; }
+
+@keyframes tcBeam {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.8); }
+  50% { opacity: 1; transform: scaleY(1); }
+}
+
+.tc-scanline {
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,0.08) 3px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tc-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── MENU ─────────────────────────────── */
+.tc-tower-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 20px;
+}
+.tc-floor-block {
+  border-radius: 4px;
+  border: 1px solid rgba(255,190,0,0.3);
+  background: rgba(255,190,0,0.08);
+  animation: tcPulseBlock 2s ease-in-out infinite;
+}
+@keyframes tcPulseBlock {
+  0%, 100% { border-color: rgba(255,190,0,0.2); }
+  50% { border-color: rgba(255,190,0,0.6); box-shadow: 0 0 8px rgba(255,190,0,0.2); }
+}
+
+.tc-game-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 52px;
+  letter-spacing: 4px;
+  line-height: 1;
+  color: #ffbe00;
+  text-shadow: 0 0 30px rgba(255,190,0,0.5), 0 0 60px rgba(255,190,0,0.2);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.tc-game-sub {
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.tc-stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.tc-stat {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+}
+.tc-stat-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 32px;
+  color: #ffbe00;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.tc-stat-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ── BUTTONS ─────────────────────────── */
+.tc-btn-primary {
+  width: 100%;
+  padding: 18px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #ffbe00, #ff8c00);
+  color: #000;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 4px 24px rgba(255,190,0,0.3);
+  margin-bottom: 10px;
+  display: block;
+}
+.tc-btn-primary:active { transform: scale(0.97); }
+
+.tc-btn-secondary {
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,190,0,0.3);
+  background: rgba(255,190,0,0.06);
+  color: #ffbe00;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.2s;
+  margin-bottom: 10px;
+  display: block;
+}
+.tc-btn-secondary:active { transform: scale(0.97); }
+.tc-btn-secondary:hover { background: rgba(255,190,0,0.1); }
+
+.tc-btn-revive {
+  width: 100%;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(168,85,247,0.4);
+  background: rgba(168,85,247,0.12);
+  color: #c084fc;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  box-shadow: 0 0 24px rgba(168,85,247,0.15);
+  margin-bottom: 10px;
+  display: block;
+}
+.tc-btn-revive:active { transform: scale(0.97); }
+
+/* ── PLAYING HUD ─────────────────────── */
+.tc-hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.tc-hud-floor {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 64px;
+  color: #ffbe00;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(255,190,0,0.4);
+}
+
+.tc-hud-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.tc-hud-score {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  color: #fff;
+  text-align: right;
+}
+
+/* Speed bar */
+.tc-speed-bar-wrap {
+  margin-bottom: 16px;
+}
+.tc-speed-track {
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.tc-speed-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #22d3ee, #ffbe00, #ef4444);
+  transition: width 0.5s ease;
+}
+
+/* Reaction bar */
+.tc-reaction-wrap {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 24px 20px;
+  margin-bottom: 16px;
+  position: relative;
+  cursor: pointer;
+}
+
+.tc-tap-hint {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.tc-bar-track {
+  position: relative;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.tc-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 8px;
+  transition: left 0.15s ease;
+}
+
+.tc-cursor {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.tc-bar-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+}
+
+/* Powerup badges */
+.tc-powerups {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  min-height: 28px;
+}
+.tc-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* Powerup buttons */
+.tc-powerup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tc-powerup-btn {
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  transition: transform 0.1s, background 0.15s;
+}
+.tc-powerup-btn:active { transform: scale(0.95); }
+
+.tc-powerup-btn.shield {
+  border: 1px solid rgba(34,211,238,0.3);
+}
+.tc-powerup-btn.shield:hover { background: rgba(34,211,238,0.07); }
+
+.tc-powerup-btn.multiplier {
+  border: 1px solid rgba(255,190,0,0.3);
+}
+.tc-powerup-btn.multiplier:hover { background: rgba(255,190,0,0.07); }
+
+.tc-powerup-icon { font-size: 22px; margin-bottom: 4px; }
+.tc-powerup-name { font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 1px; }
+.tc-powerup-hint { font-size: 10px; letter-spacing: 1px; color: rgba(255,255,255,0.3); margin-top: 1px; }
+
+/* ── GAME OVER ───────────────────────── */
+.tc-result-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,190,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  position: relative;
+  box-shadow: 0 0 40px rgba(255,190,0,0.15), inset 0 0 40px rgba(255,190,0,0.05);
+}
+.tc-result-floor {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 52px;
+  color: #ffbe00;
+  line-height: 1;
+}
+.tc-result-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.tc-result-pts {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  color: #4ade80;
+  text-align: center;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+.tc-result-record {
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #4ade80;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+
+.tc-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 16px 0;
+}
+
+/* ── LEADERBOARD ─────────────────────── */
+.tc-lb-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tc-lb-back {
+  background: none;
+  border: none;
+  color: #ffbe00;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+.tc-lb-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 3px;
+  color: #fff;
+}
+
+.tc-lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.tc-lb-rank {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.tc-lb-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+}
+.tc-lb-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 1px;
+}
+.tc-lb-floor {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  color: #ffbe00;
+  letter-spacing: 1px;
+}
+
+/* Flash overlay */
+.tc-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.05s;
+}
+.tc-flash.success { background: rgba(74,222,128,0.12); }
+.tc-flash.fail { background: rgba(239,68,68,0.15); }
+.tc-flash.show { opacity: 1; }
+`;
+
 export default function TowerClimbPage() {
   const { user, balance, refreshBalance } = useApp();
   const [gameState, setGameState] = useState<GameState>('menu');
@@ -32,11 +491,9 @@ export default function TowerClimbPage() {
   const [bestFloor, setBestFloor] = useState(0);
   const [totalRuns, setTotalRuns] = useState(0);
 
-  // Reaction game state
   const [targetZone, setTargetZone] = useState(50);
   const [cursorPos, setCursorPos] = useState(0);
   const [speed, setSpeed] = useState(2);
-  const [direction, setDirection] = useState(1);
   const [hasShield, setHasShield] = useState(false);
   const [revivesUsed, setRevivesUsed] = useState(0);
   const [shieldsUsed, setShieldsUsed] = useState(0);
@@ -44,7 +501,6 @@ export default function TowerClimbPage() {
   const [multiplier, setMultiplier] = useState(1);
   const [multiplierFloors, setMultiplierFloors] = useState(0);
 
-  // Leaderboard
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
@@ -52,8 +508,13 @@ export default function TowerClimbPage() {
   const cursorRef = useRef(0);
   const dirRef = useRef(1);
   const speedRef = useRef(2);
+  const floorRef = useRef(0);
+  const scoreRef = useRef(0);
+  const multiplierRef = useRef(1);
+  const multiplierFloorsRef = useRef(0);
+  const hasShieldRef = useRef(false);
 
-  // Ad hooks
+  /* ── Ad callbacks ── */
   const onReviveReward = useCallback(() => {
     triggerHaptic('success');
     setRevivesUsed(r => r + 1);
@@ -64,29 +525,53 @@ export default function TowerClimbPage() {
 
   const onShieldReward = useCallback(() => {
     triggerHaptic('success');
+    hasShieldRef.current = true;
     setHasShield(true);
     setShieldsUsed(s => s + 1);
     if (user) logAdWatch(user.id, 'tower_shield', 0);
   }, [user]);
-  
-  const onStartReward = useCallback(() => {
-  startGame(); // start only AFTER ad finishes
-  if (user) logAdWatch(user.id, 'tower_start', 0);
-}, [user, startGame]);
 
   const onMultiplierReward = useCallback(() => {
     triggerHaptic('success');
+    multiplierRef.current = 2;
+    multiplierFloorsRef.current = 3;
     setMultiplier(2);
     setMultiplierFloors(3);
     if (user) logAdWatch(user.id, 'tower_2x', 0);
   }, [user]);
+
+  const startGame = useCallback(() => {
+    floorRef.current = 0;
+    scoreRef.current = 0;
+    multiplierRef.current = 1;
+    multiplierFloorsRef.current = 0;
+    hasShieldRef.current = false;
+    setFloor(0);
+    setScore(0);
+    setHasShield(false);
+    setRevivesUsed(0);
+    setShieldsUsed(0);
+    setMultiplier(1);
+    setMultiplierFloors(0);
+    cursorRef.current = 0;
+    dirRef.current = 1;
+    speedRef.current = 2;
+    setSpeed(2);
+    setCursorPos(0);
+    setTargetZone(30 + Math.random() * 40);
+    setGameState('playing');
+    setShowResult(null);
+    triggerHaptic('impact');
+    if (user) logAdWatch(user.id, 'tower_start', 0);
+  }, [user]);
+
+  const onStartReward = useCallback(() => { startGame(); }, [startGame]);
 
   const { showAd: showStartAd } = useRewardedAd(onStartReward);
   const { showAd: showReviveAd } = useRewardedAd(onReviveReward);
   const { showAd: showShieldAd } = useRewardedAd(onShieldReward);
   const { showAd: showMultiplierAd } = useRewardedAd(onMultiplierReward);
 
-  // Load best score
   useEffect(() => {
     if (!user) return;
     loadStats();
@@ -100,10 +585,7 @@ export default function TowerClimbPage() {
       .select('best_floor, total_runs')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (data) {
-      setBestFloor(data.best_floor);
-      setTotalRuns(data.total_runs);
-    }
+    if (data) { setBestFloor(data.best_floor); setTotalRuns(data.total_runs); }
   }
 
   async function loadLeaderboard() {
@@ -113,16 +595,11 @@ export default function TowerClimbPage() {
       .order('best_floor', { ascending: false })
       .limit(20);
     if (!data || data.length === 0) { setLeaderboard([]); return; }
-
     const userIds = data.map(d => d.user_id);
     const { data: users } = await supabase
-      .from('users')
-      .select('id, first_name, username, photo_url')
-      .in('id', userIds);
-
+      .from('users').select('id, first_name, username, photo_url').in('id', userIds);
     const userMap: Record<string, any> = {};
     (users || []).forEach(u => { userMap[u.id] = u; });
-
     setLeaderboard(data.map(d => ({
       ...d,
       first_name: userMap[d.user_id]?.first_name || 'Unknown',
@@ -131,15 +608,11 @@ export default function TowerClimbPage() {
     })));
   }
 
-  // Animation loop
+  /* ── Animation loop ── */
   useEffect(() => {
-    if (gameState !== 'playing') {
-      cancelAnimationFrame(animRef.current);
-      return;
-    }
-
+    if (gameState !== 'playing') { cancelAnimationFrame(animRef.current); return; }
     function animate() {
-      cursorRef.current += dirRef.current * speedRef.current;
+      cursorRef.current += dirRef.current * speedRef.current * 0.5;
       if (cursorRef.current >= 100) { cursorRef.current = 100; dirRef.current = -1; }
       if (cursorRef.current <= 0) { cursorRef.current = 0; dirRef.current = 1; }
       setCursorPos(cursorRef.current);
@@ -149,60 +622,41 @@ export default function TowerClimbPage() {
     return () => cancelAnimationFrame(animRef.current);
   }, [gameState]);
 
-  function startGame() {
-    setFloor(0);
-    setScore(0);
-    setHasShield(false);
-    setRevivesUsed(0);
-    setShieldsUsed(0);
-    setMultiplier(1);
-    setMultiplierFloors(0);
-    cursorRef.current = 0;
-    dirRef.current = 1;
-    speedRef.current = 2;
-    setSpeed(2);
-    setDirection(1);
-    setCursorPos(0);
-    setTargetZone(30 + Math.random() * 40);
-    setGameState('playing');
-    setShowResult(null);
-    triggerHaptic('impact');
-  }
-
   function handleTap() {
     if (gameState !== 'playing') return;
     triggerHaptic('impact');
-
-    const zoneSize = Math.max(8, 25 - floor * 0.5);
+    const currentFloor = floorRef.current;
+    const zoneSize = Math.max(8, 25 - currentFloor * 0.5);
     const zoneStart = targetZone - zoneSize / 2;
     const zoneEnd = targetZone + zoneSize / 2;
 
     if (cursorRef.current >= zoneStart && cursorRef.current <= zoneEnd) {
-      // Success
-      const pts = (0 + floor * 1) * multiplier;
-      setScore(s => s + pts);
-      setFloor(f => f + 1);
+      const pts = currentFloor * 1 * multiplierRef.current;
+      scoreRef.current += pts;
+      floorRef.current += 1;
+      setScore(scoreRef.current);
+      setFloor(floorRef.current);
       setShowResult('success');
-      setTimeout(() => setShowResult(null), 300);
+      setTimeout(() => setShowResult(null), 250);
 
-      if (multiplierFloors > 0) {
-        setMultiplierFloors(f => f - 1);
-        if (multiplierFloors <= 1) setMultiplier(1);
+      if (multiplierFloorsRef.current > 0) {
+        multiplierFloorsRef.current -= 1;
+        setMultiplierFloors(multiplierFloorsRef.current);
+        if (multiplierFloorsRef.current <= 0) { multiplierRef.current = 1; setMultiplier(1); }
       }
 
-      // Increase difficulty
-      const newSpeed = Math.min(6, 2 + (floor + 1) * 0.15);
+      const newSpeed = Math.min(7, 2 + floorRef.current * 0.15);
       speedRef.current = newSpeed;
       setSpeed(newSpeed);
       setTargetZone(10 + Math.random() * 80);
       cursorRef.current = Math.random() * 100;
       triggerHaptic('success');
     } else {
-      // Fail
-      if (hasShield) {
+      if (hasShieldRef.current) {
+        hasShieldRef.current = false;
         setHasShield(false);
         setShowResult('success');
-        setTimeout(() => setShowResult(null), 300);
+        setTimeout(() => setShowResult(null), 250);
         setTargetZone(10 + Math.random() * 80);
         triggerHaptic('impact');
         return;
@@ -214,274 +668,296 @@ export default function TowerClimbPage() {
   }
 
   async function endGame() {
+    const finalFloor = floorRef.current;
+    const finalScore = scoreRef.current;
     setGameState('gameover');
     cancelAnimationFrame(animRef.current);
     if (!user) return;
 
-    // Save run
     await supabase.from('tower_runs').insert({
-      user_id: user.id,
-      floors_reached: floor,
-      points_earned: score,
-      revives_used: revivesUsed,
-      shields_used: shieldsUsed,
+      user_id: user.id, floors_reached: finalFloor,
+      points_earned: finalScore, revives_used: revivesUsed, shields_used: shieldsUsed,
     });
 
-    // Update leaderboard
-    const { data: existing } = await supabase
-      .from('tower_leaderboard')
-      .select('id, best_floor, total_runs, total_floors')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: existing } = await supabase.from('tower_leaderboard')
+      .select('id, best_floor, total_runs, total_floors').eq('user_id', user.id).maybeSingle();
 
     if (existing) {
       await supabase.from('tower_leaderboard').update({
-        best_floor: Math.max(existing.best_floor, floor),
-        total_floors: existing.total_floors + floor,
+        best_floor: Math.max(existing.best_floor, finalFloor),
+        total_floors: existing.total_floors + finalFloor,
         total_runs: existing.total_runs + 1,
         updated_at: new Date().toISOString(),
       }).eq('id', existing.id);
     } else {
       await supabase.from('tower_leaderboard').insert({
-        user_id: user.id,
-        best_floor: floor,
-        total_floors: floor,
-        total_runs: 1,
+        user_id: user.id, best_floor: finalFloor, total_floors: finalFloor, total_runs: 1,
       });
     }
 
-    // Award points to balance
-    if (score > 0) {
-      const { data: bal } = await supabase.from('balances').select('points, total_earned').eq('user_id', user.id).single();
+    if (finalScore > 0) {
+      const { data: bal } = await supabase.from('balances')
+        .select('points, total_earned').eq('user_id', user.id).single();
       if (bal) {
         await supabase.from('balances').update({
-          points: bal.points + score,
-          total_earned: bal.total_earned + score,
+          points: bal.points + finalScore, total_earned: bal.total_earned + finalScore,
         }).eq('user_id', user.id);
         await supabase.from('transactions').insert({
-          user_id: user.id,
-          type: 'tower_climb',
-          points: score,
-          description: `🏗️ Tower Climb: Floor ${floor}`,
+          user_id: user.id, type: 'tower_climb', points: finalScore,
+          description: `🏗️ Tower Climb: Floor ${finalFloor}`,
         });
       }
       await refreshBalance();
     }
 
-    setBestFloor(prev => Math.max(prev, floor));
+    setBestFloor(prev => Math.max(prev, finalFloor));
     setTotalRuns(prev => prev + 1);
     loadLeaderboard();
   }
 
   const zoneSize = Math.max(8, 25 - floor * 0.5);
+  const speedPct = Math.min(100, ((speed - 2) / 5) * 100);
 
-  // ---- MENU ----
-  if (showLeaderboard) {
-    return (
-      <div className="px-4 pb-28">
-        <button onClick={() => setShowLeaderboard(false)} className="mb-4 text-sm" style={{ color: 'hsl(var(--gold))' }}>
-          ← Back
-        </button>
-        <h2 className="text-xl font-bold mb-4 shimmer-text">🏗️ Tower Leaderboard</h2>
-        <div className="space-y-2">
+  /* ── LEADERBOARD ── */
+  if (showLeaderboard) return (
+    <>
+      <style>{CSS}</style>
+      <div className="tc-root">
+        <div className="tc-bg">
+          {[1,2,3,4].map(i => <div key={i} className="tc-beam" />)}
+        </div>
+        <div className="tc-scanline" />
+        <div className="tc-content">
+          <div className="tc-lb-header">
+            <button className="tc-lb-back" onClick={() => setShowLeaderboard(false)}>← BACK</button>
+            <div className="tc-lb-title">LEADERBOARD</div>
+          </div>
+          {leaderboard.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '40px 0', letterSpacing: '2px', fontSize: '12px' }}>
+              NO PLAYERS YET
+            </div>
+          )}
           {leaderboard.map((entry, i) => (
-            <div key={entry.user_id} className="glass-card rounded-xl p-3 flex items-center gap-3">
-              <div className="text-lg font-bold w-8 text-center" style={{ color: i < 3 ? 'hsl(var(--gold))' : 'hsl(var(--muted-foreground))' }}>
-                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+            <div key={entry.user_id} className="tc-lb-row"
+              style={i < 3 ? { borderColor: `rgba(255,190,0,${0.3 - i * 0.08})` } : {}}>
+              <div className="tc-lb-rank" style={{ color: i === 0 ? '#ffbe00' : i === 1 ? '#a0a0b0' : i === 2 ? '#cd7f32' : 'rgba(255,255,255,0.3)' }}>
+                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
               </div>
-              <div className="flex-1">
-                <div className="font-semibold text-sm">{entry.first_name}</div>
-                <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                  {entry.total_runs} runs
-                </div>
+              <div style={{ flex: 1 }}>
+                <div className="tc-lb-name">{entry.first_name}</div>
+                <div className="tc-lb-sub">{entry.total_runs} RUNS</div>
               </div>
-              <div className="font-bold" style={{ color: 'hsl(var(--gold))' }}>
-                Floor {entry.best_floor}
+              <div>
+                <div className="tc-lb-floor">FL {entry.best_floor}</div>
               </div>
             </div>
           ))}
-          {leaderboard.length === 0 && (
-            <div className="text-center py-8" style={{ color: 'hsl(var(--muted-foreground))' }}>No players yet</div>
-          )}
         </div>
       </div>
-    );
-  }
+    </>
+  );
 
-  if (gameState === 'menu') {
-    return (
-      <div className="px-4 pb-28">
-        <div className="text-center mb-6">
-          <div className="text-6xl mb-3 animate-float">🏗️</div>
-          <h2 className="text-2xl font-bold shimmer-text mb-1">Tower Climb</h2>
-          <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Tap at the right time to climb higher!
-          </p>
+  /* ── MENU ── */
+  if (gameState === 'menu') return (
+    <>
+      <style>{CSS}</style>
+      <div className="tc-root">
+        <div className="tc-bg">
+          {[1,2,3,4].map(i => <div key={i} className="tc-beam" />)}
         </div>
+        <div className="tc-scanline" />
+        <div className="tc-content">
 
-        <div className="glass-card rounded-2xl p-4 mb-4">
-          <div className="flex justify-between text-sm mb-2">
-            <span style={{ color: 'hsl(var(--muted-foreground))' }}>Best Floor</span>
-            <span className="font-bold" style={{ color: 'hsl(var(--gold))' }}>{bestFloor}</span>
+          {/* Animated tower blocks */}
+          <div className="tc-tower-visual">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="tc-floor-block"
+                style={{
+                  width: `${70 + i * 8}px`,
+                  height: '12px',
+                  animationDelay: `${i * 0.2}s`,
+                  opacity: 0.4 + i * 0.1,
+                }}
+              />
+            ))}
           </div>
-          <div className="flex justify-between text-sm">
-            <span style={{ color: 'hsl(var(--muted-foreground))' }}>Total Runs</span>
-            <span className="font-bold">{totalRuns}</span>
+
+          <div className="tc-game-title">TOWER<br/>CLIMB</div>
+          <div className="tc-game-sub">TAP · RISE · SURVIVE</div>
+
+          <div className="tc-stat-row">
+            <div className="tc-stat">
+              <div className="tc-stat-val">{bestFloor}</div>
+              <div className="tc-stat-label">Best Floor</div>
+            </div>
+            <div className="tc-stat">
+              <div className="tc-stat-val">{totalRuns}</div>
+              <div className="tc-stat-label">Total Runs</div>
+            </div>
           </div>
+
+          <button className="tc-btn-primary" onClick={() => showStartAd()}>
+            🚀 START CLIMBING
+          </button>
+          <button className="tc-btn-secondary" onClick={() => setShowLeaderboard(true)}>
+            🏆 LEADERBOARD
+          </button>
         </div>
-
-       <button
-  onClick={async () => {
-    try {
-      await showStartAd();
-    } catch (err) {
-      console.error('Start ad failed:', err);
-    }
-  }}
-  className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
->
-  🚀 Start Climbing
-</button>
-
-        <button onClick={() => setShowLeaderboard(true)} className="w-full glass-card rounded-2xl py-3 text-sm font-semibold neon-border-gold">
-          🏆 Leaderboard
-        </button>
       </div>
-    );
-  }
+    </>
+  );
 
-  // ---- GAME OVER ----
-  if (gameState === 'gameover') {
-    return (
-      <div className="px-4 pb-28">
-        <div className="text-center mb-6">
-          <div className="text-6xl mb-3">💥</div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: 'hsl(var(--destructive))' }}>Game Over!</h2>
-          <div className="text-4xl font-black mb-1" style={{ color: 'hsl(var(--gold))' }}>Floor {floor}</div>
-          <div className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>+{score} points earned</div>
-          {floor > bestFloor - 1 && floor > 0 && (
-            <div className="text-sm font-bold mt-1" style={{ color: 'hsl(var(--green-reward))' }}>🎉 New Record!</div>
+  /* ── GAME OVER ── */
+  if (gameState === 'gameover') return (
+    <>
+      <style>{CSS}</style>
+      <div className="tc-root">
+        <div className="tc-bg">
+          {[1,2,3,4].map(i => <div key={i} className="tc-beam" />)}
+        </div>
+        <div className="tc-scanline" />
+        <div className="tc-content">
+
+          <div style={{ textAlign: 'center', marginBottom: '8px', fontFamily: "'Bebas Neue', sans-serif", fontSize: '13px', letterSpacing: '5px', color: 'rgba(255,255,255,0.3)' }}>
+            GAME OVER
+          </div>
+
+          <div className="tc-result-ring">
+            <div>
+              <div className="tc-result-floor">{floor}</div>
+              <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: '10px', letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>FLOOR</div>
+            </div>
+          </div>
+
+          <div className="tc-result-label">POINTS EARNED</div>
+          <div className="tc-result-pts">+{score} PTS</div>
+
+          {floor >= bestFloor && floor > 0 && (
+            <div className="tc-result-record">🎉 NEW RECORD!</div>
           )}
+
+          <div className="tc-divider" />
+
+          <button className="tc-btn-revive" onClick={() => showReviveAd()}>
+            🎬 WATCH AD TO REVIVE
+          </button>
+          <button className="tc-btn-primary" onClick={() => showStartAd()}>
+            🎬 PLAY AGAIN
+          </button>
+          <button className="tc-btn-secondary" onClick={() => { setGameState('menu'); loadStats(); }}>
+            ← BACK TO MENU
+          </button>
         </div>
-
-        {/* Revive */}
-        <button
-          onClick={async () => {
-            await showReviveAd();
-          }}
-          className="w-full btn-purple rounded-2xl py-4 text-lg font-bold mb-3"
-        >
-          🎬 Watch Ad to Revive
-        </button>
-
-        <button
-  onClick={async () => {
-    try {
-      await showStartAd();
-    } catch (err) {
-      console.error('Play Again ad failed:', err);
-    }
-  }}
-  className="w-full btn-gold rounded-2xl py-4 text-lg font-bold mb-3"
->
-  🎬 Watch Ad & Play Again
-</button>
-
-        <button onClick={() => { setGameState('menu'); loadStats(); }} className="w-full glass-card rounded-2xl py-3 text-sm font-semibold neon-border-gold">
-          ← Back to Menu
-        </button>
       </div>
-    );
-  }
+    </>
+  );
 
-  // ---- PLAYING ----
+  /* ── PLAYING ── */
   return (
-    <div className="px-4 pb-28" onClick={handleTap}>
-      {/* HUD */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Floor</div>
-          <div className="text-3xl font-black" style={{ color: 'hsl(var(--gold))' }}>{floor}</div>
+    <>
+      <style>{CSS}</style>
+      <div className="tc-root" onClick={handleTap}>
+        <div className="tc-bg">
+          {[1,2,3,4].map(i => <div key={i} className="tc-beam" />)}
         </div>
-        <div className="text-right">
-          <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>Score</div>
-          <div className="text-xl font-bold">{score}</div>
-        </div>
-      </div>
+        <div className="tc-scanline" />
 
-      {/* Powerups */}
-      <div className="flex gap-2 mb-4">
-        {hasShield && (
-          <div className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: 'hsl(var(--cyan) / 0.2)', color: 'hsl(var(--cyan))', border: '1px solid hsl(var(--cyan) / 0.4)' }}>
-            🛡️ Shield Active
+        {/* Flash overlay */}
+        <div className={`tc-flash ${showResult || ''} ${showResult ? 'show' : ''}`} />
+
+        <div className="tc-content">
+          {/* HUD */}
+          <div className="tc-hud">
+            <div>
+              <div className="tc-hud-label">FLOOR</div>
+              <div className="tc-hud-floor">{floor}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div className="tc-hud-label">SCORE</div>
+              <div className="tc-hud-score">{score}</div>
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '2px', marginTop: '4px' }}>
+                BEST {bestFloor}
+              </div>
+            </div>
           </div>
-        )}
-        {multiplier > 1 && (
-          <div className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: 'hsl(var(--gold) / 0.2)', color: 'hsl(var(--gold))', border: '1px solid hsl(var(--gold) / 0.4)' }}>
-            ⚡ 2x ({multiplierFloors} floors)
+
+          {/* Speed bar */}
+          <div className="tc-speed-bar-wrap">
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', letterSpacing: '2px', color: 'rgba(255,255,255,0.2)', marginBottom: '5px' }}>
+              <span>SPEED</span><span>{speed.toFixed(1)}x</span>
+            </div>
+            <div className="tc-speed-track">
+              <div className="tc-speed-fill" style={{ width: `${speedPct}%` }} />
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Reaction Bar */}
-      <div className="glass-card rounded-2xl p-6 mb-6 relative">
-        <div className="text-center text-sm mb-4 font-semibold" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          TAP when the cursor is in the green zone!
+          {/* Powerup badges */}
+          <div className="tc-powerups">
+            {hasShield && (
+              <div className="tc-badge" style={{ background: 'rgba(34,211,238,0.12)', border: '1px solid rgba(34,211,238,0.3)', color: '#22d3ee' }}>
+                🛡️ SHIELD
+              </div>
+            )}
+            {multiplier > 1 && (
+              <div className="tc-badge" style={{ background: 'rgba(255,190,0,0.12)', border: '1px solid rgba(255,190,0,0.3)', color: '#ffbe00' }}>
+                ⚡ 2X · {multiplierFloors} LEFT
+              </div>
+            )}
+          </div>
+
+          {/* Reaction bar */}
+          <div className="tc-reaction-wrap">
+            <div className="tc-tap-hint">TAP WHEN CURSOR HITS THE ZONE</div>
+
+            <div className="tc-bar-track">
+              {/* Zone */}
+              <div className="tc-zone" style={{
+                left: `${targetZone - zoneSize / 2}%`,
+                width: `${zoneSize}%`,
+                background: showResult === 'fail'
+                  ? 'rgba(239,68,68,0.3)'
+                  : 'rgba(74,222,128,0.2)',
+                border: `1px solid ${showResult === 'fail' ? '#ef4444' : '#4ade80'}`,
+                boxShadow: showResult === 'success'
+                  ? '0 0 12px rgba(74,222,128,0.5)'
+                  : showResult === 'fail'
+                  ? '0 0 12px rgba(239,68,68,0.5)'
+                  : 'none',
+              }} />
+
+              {/* Cursor */}
+              <div className="tc-cursor" style={{
+                left: `${cursorPos}%`,
+                background: showResult === 'fail' ? '#ef4444' : '#ffbe00',
+                boxShadow: `0 0 12px ${showResult === 'fail' ? 'rgba(239,68,68,0.8)' : 'rgba(255,190,0,0.8)'}`,
+              }} />
+            </div>
+
+            <div className="tc-bar-meta">
+              <span>ZONE {zoneSize.toFixed(0)}%</span>
+              <span>TAP ANYWHERE</span>
+            </div>
+          </div>
+
+          {/* Powerup buttons */}
+          <div className="tc-powerup-grid">
+            {!hasShield && (
+              <button className="tc-powerup-btn shield" onClick={e => { e.stopPropagation(); showShieldAd(); }}>
+                <div className="tc-powerup-icon">🛡️</div>
+                <div className="tc-powerup-name" style={{ color: '#22d3ee' }}>SHIELD</div>
+                <div className="tc-powerup-hint">WATCH AD</div>
+              </button>
+            )}
+            {multiplier === 1 && (
+              <button className="tc-powerup-btn multiplier" onClick={e => { e.stopPropagation(); showMultiplierAd(); }}>
+                <div className="tc-powerup-icon">⚡</div>
+                <div className="tc-powerup-name" style={{ color: '#ffbe00' }}>2X POINTS</div>
+                <div className="tc-powerup-hint">3 FLOORS</div>
+              </button>
+            )}
+          </div>
         </div>
-
-        <div className="relative h-12 rounded-full overflow-hidden mb-4" style={{ background: 'hsl(var(--muted))' }}>
-          {/* Target zone */}
-          <div
-            className="absolute top-0 h-full rounded-full"
-            style={{
-              left: `${targetZone - zoneSize / 2}%`,
-              width: `${zoneSize}%`,
-              background: 'linear-gradient(135deg, hsl(var(--green-reward) / 0.6), hsl(var(--green-reward) / 0.3))',
-              border: '2px solid hsl(var(--green-reward))',
-            }}
-          />
-
-          {/* Cursor */}
-          <div
-            className="absolute top-0 h-full w-1 transition-none"
-            style={{
-              left: `${cursorPos}%`,
-              background: showResult === 'success' ? 'hsl(var(--green-reward))' : showResult === 'fail' ? 'hsl(var(--destructive))' : 'hsl(var(--gold))',
-              boxShadow: `0 0 10px ${showResult === 'fail' ? 'hsl(var(--destructive))' : 'hsl(var(--gold))'}`,
-            }}
-          />
-        </div>
-
-        {/* Difficulty */}
-        <div className="flex justify-between text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          <span>Speed: {speed.toFixed(1)}x</span>
-          <span>Zone: {zoneSize.toFixed(0)}%</span>
-        </div>
       </div>
-
-      {/* Ad buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        {!hasShield && (
-          <button
-            onClick={async (e) => { e.stopPropagation(); await showShieldAd(); }}
-            className="glass-card rounded-xl p-3 text-center neon-border-purple"
-          >
-            <div className="text-2xl mb-1">🛡️</div>
-            <div className="text-xs font-bold">Shield</div>
-            <div className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>Watch Ad</div>
-          </button>
-        )}
-        {multiplier === 1 && (
-          <button
-            onClick={async (e) => { e.stopPropagation(); await showMultiplierAd(); }}
-            className="glass-card rounded-xl p-3 text-center neon-border-gold"
-          >
-            <div className="text-2xl mb-1">⚡</div>
-            <div className="text-xs font-bold">2x Points</div>
-            <div className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>3 Floors</div>
-          </button>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
