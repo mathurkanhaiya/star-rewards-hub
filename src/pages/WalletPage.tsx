@@ -4,12 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { submitWithdrawal } from '@/lib/api';
 
 const TIERS = [
-  { pts: 5000,  ton: 0.08 },
-  { pts: 10000, ton: 0.16 },
-  { pts: 15000, ton: 0.24 },
-  { pts: 20000, ton: 0.32 },
-  { pts: 25000, ton: 0.40 },
-  { pts: 30000, ton: 0.48 },
+  { pts: 5000,  ton: 0.05 },
+  { pts: 10000, ton: 0.1 },
+  { pts: 15000, ton: 0.15 },
+  { pts: 20000, ton: 0.2 },
+  { pts: 25000, ton: 0.25 },
+  { pts: 30000, ton: 0.3 },
 ];
 
 const REQUIRED_ADS = 10;
