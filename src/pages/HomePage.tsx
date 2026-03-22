@@ -65,7 +65,7 @@ const X2_DURATION_SEC   = 10;
 const FAST_DURATION_SEC = 60;
 const FAST_REGEN_MULT   = 2;
 const FARM_DURATION_MS  = 15 * 60 * 1000;
-const FARM_REWARD       = 15;
+const FARM_REWARD       = 50;
 const AD_MAX_PER_DAY    = 15;
 const AD_REWARD         = 30;
 const AD_COOLDOWN_SEC   = 10;
@@ -73,7 +73,7 @@ const AD_COOLDOWN_SEC   = 10;
 /* Daily Drop config */
 const DAILY_DROP = [
   { day: 1, pts: 100,  color: '#4ade80', label: 'D1' },
-  { day: 2, pts: 129, color: '#4ade80', label: 'D2' },
+  { day: 2, pts: 120, color: '#4ade80', label: 'D2' },
   { day: 3, pts: 130, color: '#ffbe00', label: 'D3' },
   { day: 4, pts: 140, color: '#ffbe00', label: 'D4' },
   { day: 5, pts: 150, color: '#22d3ee', label: 'D5' },
