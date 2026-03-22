@@ -14,28 +14,20 @@ export default function AdsgramTask({
   onError,
 }: AdsgramTaskProps) {
   const taskRef = useRef<HTMLElement | null>(null);
-
   const [state, setState] = useState<"idle" | "done" | "error" | "no_banner">("idle");
-
-  // 🔥 CORE FIX: re-mount trigger
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const task = taskRef.current;
     if (!task) return;
-
-    let isMounted = true; // ✅ prevent memory issues
+    let isMounted = true;
 
     const handleReward = (e: Event) => {
       if (!isMounted) return;
-
       setState("done");
       onReward?.((e as CustomEvent).detail);
-
-      // ✅ Reset + reload next ad
       setTimeout(() => {
         if (!isMounted) return;
-
         setState("idle");
         setReloadKey((k) => k + 1);
       }, 1200);
@@ -43,13 +35,10 @@ export default function AdsgramTask({
 
     const handleError = (e: Event) => {
       if (!isMounted) return;
-
       setState("error");
       onError?.((e as CustomEvent).detail);
-
       setTimeout(() => {
         if (!isMounted) return;
-
         setState("idle");
         setReloadKey((k) => k + 1);
       }, 2500);
@@ -57,12 +46,9 @@ export default function AdsgramTask({
 
     const handleNoBanner = () => {
       if (!isMounted) return;
-
       setState("no_banner");
-
       setTimeout(() => {
         if (!isMounted) return;
-
         setState("idle");
         setReloadKey((k) => k + 1);
       }, 3500);
@@ -74,23 +60,51 @@ export default function AdsgramTask({
 
     return () => {
       isMounted = false;
-
       task.removeEventListener("reward", handleReward);
       task.removeEventListener("error", handleError);
       task.removeEventListener("bannerNotFound", handleNoBanner);
     };
-  }, [reloadKey, onReward, onError]); // ✅ important
+  }, [reloadKey, onReward, onError]);
 
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=Rajdhani:wght@500;600&display=swap');
+
         .ags-wrap {
           position: relative;
           border-radius: 20px;
           overflow: hidden;
-          background: linear-gradient(135deg, #1e293b, #0f172a);
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.07);
+        }
+
+        /* Gold top beam */
+        .ags-wrap::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 10%; right: 10%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,190,0,0.35), transparent);
+          pointer-events: none;
+        }
+
+        /* Grid texture */
+        .ags-wrap::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+          background-size: 28px 28px;
+          pointer-events: none;
+          border-radius: 20px;
+        }
+
+        .ags-inner {
+          position: relative;
+          z-index: 1;
         }
 
         .ags-header {
@@ -103,36 +117,51 @@ export default function AdsgramTask({
         .ags-left {
           display: flex;
           align-items: center;
-          gap: 11px;
+          gap: 12px;
         }
 
         .ags-icon {
-          width: 44px; height: 44px;
-          border-radius: 13px;
-          background: linear-gradient(45deg, #3b82f6, #60a5fa);
-          display: flex; align-items: center; justify-content: center;
+          width: 46px;
+          height: 46px;
+          border-radius: 14px;
+          background: rgba(255,190,0,0.1);
+          border: 1px solid rgba(255,190,0,0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           font-size: 22px;
+          box-shadow: 0 0 12px rgba(255,190,0,0.15);
+          flex-shrink: 0;
         }
 
         .ags-title {
-          font-size: 14px;
+          font-family: 'Orbitron', monospace;
+          font-size: 11px;
           font-weight: 700;
-          color: #f3f4f6;
+          letter-spacing: 1px;
+          color: rgba(255,255,255,0.85);
+          margin-bottom: 3px;
         }
 
         .ags-sub {
+          font-family: 'Rajdhani', sans-serif;
           font-size: 12px;
-          color: #6b7280;
+          color: rgba(255,255,255,0.3);
+          letter-spacing: 0.5px;
         }
 
         .ags-badge {
+          font-family: 'Orbitron', monospace;
           font-size: 12px;
           font-weight: 700;
-          color: #fbbf24;
-          background: rgba(251,191,36,0.15);
-          border: 1px solid rgba(251,191,36,0.25);
-          padding: 4px 10px;
+          color: #ffbe00;
+          background: rgba(255,190,0,0.08);
+          border: 1px solid rgba(255,190,0,0.25);
+          padding: 5px 12px;
           border-radius: 20px;
+          letter-spacing: 1px;
+          flex-shrink: 0;
+          box-shadow: 0 0 10px rgba(255,190,0,0.1);
         }
 
         adsgram-task {
@@ -140,68 +169,122 @@ export default function AdsgramTask({
           padding: 10px 16px 14px 16px;
         }
 
+        /* Status bars */
+        .ags-status {
+          margin: 0 16px 12px;
+          padding: 9px 14px;
+          border-radius: 12px;
+          text-align: center;
+          font-family: 'Orbitron', monospace;
+          font-size: 10px;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        .ags-status.error {
+          color: #f87171;
+          background: rgba(239,68,68,0.08);
+          border: 1px solid rgba(239,68,68,0.2);
+        }
+
+        .ags-status.nobanner {
+          color: rgba(255,255,255,0.25);
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+        }
+
+        /* Done overlay */
         .ags-done-overlay {
           position: absolute;
           inset: 0;
-          background: rgba(0,0,0,0.6);
+          background: rgba(6,8,15,0.85);
+          backdrop-filter: blur(4px);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          gap: 6px;
+          z-index: 10;
+          border-radius: 20px;
+          animation: agsFadeIn 0.2s ease;
+        }
+
+        @keyframes agsFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+
+        .ags-done-icon {
+          font-size: 32px;
+          animation: agsPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        @keyframes agsPop {
+          from { transform: scale(0.4); opacity: 0; }
+          to   { transform: scale(1);   opacity: 1; }
+        }
+
+        .ags-done-label {
+          font-family: 'Orbitron', monospace;
+          font-size: 16px;
+          font-weight: 700;
           color: #4ade80;
-          font-weight: bold;
+          letter-spacing: 2px;
+          text-shadow: 0 0 16px rgba(74,222,128,0.6);
+          animation: agsPop 0.4s 0.1s cubic-bezier(0.34,1.56,0.64,1) both;
         }
 
-        .ags-error-bar,
-        .ags-nobanner-bar {
-          margin: 0 16px 12px;
-          padding: 9px;
-          border-radius: 12px;
-          text-align: center;
+        .ags-done-sub {
+          font-family: 'Rajdhani', sans-serif;
           font-size: 12px;
-        }
-
-        .ags-error-bar {
-          color: #f87171;
-          background: rgba(220,38,38,0.15);
-        }
-
-        .ags-nobanner-bar {
-          color: #9ca3af;
-          background: rgba(255,255,255,0.05);
+          color: rgba(74,222,128,0.5);
+          letter-spacing: 2px;
         }
       `}</style>
 
       <div className="ags-wrap">
-        <div className="ags-header">
-          <div className="ags-left">
-            <div className="ags-icon">🎬</div>
-            <div>
-              <div className="ags-title">Watch Sponsored Video</div>
-              <div className="ags-sub">Short ad • Instant reward</div>
+        <div className="ags-inner">
+
+          <div className="ags-header">
+            <div className="ags-left">
+              <div className="ags-icon">🎬</div>
+              <div>
+                <div className="ags-title">Sponsored Video</div>
+                <div className="ags-sub">Short ad · Instant reward</div>
+              </div>
             </div>
+            <div className="ags-badge">+{rewardAmount} PTS</div>
           </div>
-          <div className="ags-badge">+{rewardAmount} pts</div>
+
+          {state === "error" && (
+            <div className="ags-status error">
+              <span>✕</span> Ad unavailable
+            </div>
+          )}
+
+          {state === "no_banner" && (
+            <div className="ags-status nobanner">
+              <span>—</span> No ads right now
+            </div>
+          )}
+
+          <adsgram-task
+            key={reloadKey}
+            ref={taskRef}
+            data-block-id={blockId}
+          />
+
         </div>
-
-        {state === "error" && (
-          <div className="ags-error-bar">❌ Ad unavailable</div>
-        )}
-
-        {state === "no_banner" && (
-          <div className="ags-nobanner-bar">😔 No ads available</div>
-        )}
-
-        {/* 🔥 CORE FIX */}
-        <adsgram-task
-          key={reloadKey}
-          ref={taskRef}
-          data-block-id={blockId}
-        />
 
         {state === "done" && (
           <div className="ags-done-overlay">
-            ✅ +{rewardAmount} pts
+            <div className="ags-done-icon">✦</div>
+            <div className="ags-done-label">+{rewardAmount} PTS</div>
+            <div className="ags-done-sub">Points credited</div>
           </div>
         )}
       </div>
