@@ -6,7 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/* ── Conversion rates ── */
 const TON_TIERS: Record<number, number> = {
   5000:  0.05,
   10000: 0.1,
@@ -14,7 +13,7 @@ const TON_TIERS: Record<number, number> = {
   20000: 0.2,
 };
 
-/* 5000 pts = ₹6 → rate = 6/5000 = 0.0012 INR per point */
+/* 5000 pts = ₹6 → 6/5000 = 0.0012 */
 const UPI_RATE = 0.0012;
 
 async function sendTelegramMessage(chatId: number, text: string) {
@@ -52,14 +51,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    /* ── Parse body ── */
     let body: any;
     try { body = await req.json(); }
     catch { return errorResponse('Invalid request body'); }
 
     const { userId, method, points, walletAddress } = body;
 
-    /* ── Basic validation ── */
     if (!userId || typeof userId !== 'string')
       return errorResponse('Missing userId');
     if (!method || !['ton', 'upi'].includes(method))
@@ -81,9 +78,8 @@ serve(async (req) => {
         return errorResponse('Invalid UPI ID format (e.g. name@upi)');
     }
 
-    /* ── Get settings ── */
-    const { data: settings } = await supabase
-      .from('settings').select('key, value');
+    /* ── Settings ── */
+    const { data: settings } = await supabase.from('settings').select('key, value');
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => {
       settingsMap[s.key] = s.value;
@@ -93,55 +89,45 @@ serve(async (req) => {
     if (points < minPoints)
       return errorResponse(`Minimum withdrawal is ${minPoints.toLocaleString()} points`);
 
-    /* ── Server-side amount calculation ── */
+    /* ── Amount calculation (server-side only) ── */
     let amount: number;
+    let amountStr: string;
 
     if (method === 'upi') {
-      /* Rate-based: points × 0.0012 INR
-         5000  → ₹6
-         10000 → ₹12
-         15000 → ₹18
-         20000 → ₹24 */
       amount = parseFloat((points * UPI_RATE).toFixed(2));
-      if (amount <= 0)
-        return errorResponse('Invalid UPI withdrawal amount');
-
+      if (amount <= 0) return errorResponse('Invalid UPI withdrawal amount');
+      amountStr = `₹${amount} INR`;
     } else {
-      /* TON: exact tier match */
       const ton = TON_TIERS[points];
       if (!ton)
-        return errorResponse(
-          `Invalid TON tier. Valid tiers: ${Object.keys(TON_TIERS).join(', ')} pts`
-        );
+        return errorResponse(`Invalid TON tier. Valid: ${Object.keys(TON_TIERS).join(', ')} pts`);
       amount = ton;
+      amountStr = `${amount.toFixed(2)} TON`;
     }
 
-    /* ── Check user exists ── */
+    const addressLabel = method === 'upi' ? 'UPI ID' : 'Wallet';
+
+    /* ── User ── */
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, telegram_id, username, first_name')
       .eq('id', userId)
       .single();
 
-    if (userError || !userData)
-      return errorResponse('User not found');
+    if (userError || !userData) return errorResponse('User not found');
 
-    /* ── Check balance ── */
+    /* ── Balance ── */
     const { data: balance, error: balError } = await supabase
       .from('balances')
       .select('points, total_withdrawn')
       .eq('user_id', userId)
       .single();
 
-    if (balError || !balance)
-      return errorResponse('Could not fetch balance');
-
+    if (balError || !balance) return errorResponse('Could not fetch balance');
     if (balance.points < points)
-      return errorResponse(
-        `Insufficient balance. You have ${balance.points.toLocaleString()} pts`
-      );
+      return errorResponse(`Insufficient balance. You have ${balance.points.toLocaleString()} pts`);
 
-    /* ── Anti-fraud: pending limit ── */
+    /* ── Pending limit ── */
     const { count: pendingCount } = await supabase
       .from('withdrawals')
       .select('id', { count: 'exact', head: true })
@@ -150,9 +136,9 @@ serve(async (req) => {
 
     const maxPending = parseInt(settingsMap.max_pending_withdrawals || '2');
     if ((pendingCount || 0) >= maxPending)
-      return errorResponse('You have too many pending withdrawals. Please wait for them to be processed.');
+      return errorResponse('You have too many pending withdrawals. Wait for them to be processed.');
 
-    /* ── Anti-fraud: daily limit ── */
+    /* ── Daily limit ── */
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
 
@@ -165,10 +151,6 @@ serve(async (req) => {
     const maxDaily = parseInt(settingsMap.max_daily_withdrawals || '3');
     if ((todayCount || 0) >= maxDaily)
       return errorResponse('Daily withdrawal limit reached. Try again tomorrow.');
-
-    /* ── Display strings ── */
-    const amountStr    = method === 'upi' ? `₹${amount} INR` : `${amount.toFixed(2)} TON`;
-    const addressLabel = method === 'upi' ? 'UPI ID' : 'Wallet';
 
     /* ── Insert withdrawal ── */
     const { error: withdrawError } = await supabase
@@ -188,15 +170,10 @@ serve(async (req) => {
     }
 
     /* ── Deduct points ── */
-    const { error: balUpdateError } = await supabase
-      .from('balances')
-      .update({
-        points:          balance.points - points,
-        total_withdrawn: (balance.total_withdrawn || 0) + points,
-      })
-      .eq('user_id', userId);
-
-    if (balUpdateError) console.error('Balance update error:', balUpdateError);
+    await supabase.from('balances').update({
+      points:          balance.points - points,
+      total_withdrawn: (balance.total_withdrawn || 0) + points,
+    }).eq('user_id', userId);
 
     /* ── Transaction log ── */
     await supabase.from('transactions').insert({
@@ -214,7 +191,7 @@ serve(async (req) => {
       type:    'withdrawal',
     });
 
-    /* ── Telegram: notify user ── */
+    /* ── Telegram: user ── */
     if (userData.telegram_id) {
       await sendTelegramMessage(
         userData.telegram_id,
@@ -227,7 +204,7 @@ serve(async (req) => {
       );
     }
 
-    /* ── Telegram: notify admin ── */
+    /* ── Telegram: admin ── */
     const adminTgId = Deno.env.get('ADMIN_TELEGRAM_ID');
     if (adminTgId) {
       await sendTelegramMessage(
