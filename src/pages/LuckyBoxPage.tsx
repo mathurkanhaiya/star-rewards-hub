@@ -22,10 +22,12 @@ interface BoxReward {
 function generateReward(): BoxReward {
   const r = Math.random();
   if (r < 0.30) return { points: 0,   label: 'Empty',        emoji: '💨', tier: 'empty'   };
-  if (r < 0.55) return { points: 5,   label: '+5 Points',    emoji: '🪙', tier: 'small'   };
-  if (r < 0.75) return { points: 15,  label: '+15 Points',   emoji: '✨', tier: 'small'   };
-  if (r < 0.88) return { points: 50,  label: '+50 Points',   emoji: '🔥', tier: 'medium'  };
-  if (r < 0.96) return { points: 150, label: '+150 Points',  emoji: '💰', tier: 'big'     };
+  if (r < 0.55) return { points: 10,  label: '+10 Points',   emoji: '🪙', tier: 'small'   };
+  if (r < 0.75) return { points: 25,  label: '+25 Points',   emoji: '✨', tier: 'small'   };
+  if (r < 0.89) return { points: 50,  label: '+50 Points',   emoji: '🔥', tier: 'medium'  };
+  if (r < 0.94) return { points: 100, label: '+100 Points',  emoji: '💰', tier: 'big'     };
+  if (r < 0.97) return { points: 200, label: '+200 Points',  emoji: '💎', tier: 'big'     };
+  if (r < 0.99) return { points: 300, label: '+300 Points',  emoji: '👑', tier: 'big'     };
   return           { points: 500, label: '+500 Points!', emoji: '🏆', tier: 'jackpot' };
 }
 
@@ -86,17 +88,17 @@ function ParticleBurst({ active, color }: { active: boolean; color: string }) {
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Outfit:wght@400;500;600;700&display=swap');
 
-@keyframes lbFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,30px)} }
-@keyframes lbFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,-20px)} }
-@keyframes lbSpark  { 0%,100%{opacity:0;transform:scale(0)} 50%{opacity:1;transform:scale(1)} }
-@keyframes lbBob    { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-8px) rotate(3deg)} }
-@keyframes lbShine  { 0%{left:-100%} 40%,100%{left:150%} }
-@keyframes lbBoxIdle{ 0%,100%{transform:translateY(0);box-shadow:0 4px 12px rgba(0,0,0,0.3)} 50%{transform:translateY(-3px);box-shadow:0 8px 20px rgba(251,191,36,0.15)} }
-@keyframes lbDot    { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+@keyframes lbFloat1    { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,30px)} }
+@keyframes lbFloat2    { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,-20px)} }
+@keyframes lbSpark     { 0%,100%{opacity:0;transform:scale(0)} 50%{opacity:1;transform:scale(1)} }
+@keyframes lbBob       { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-8px) rotate(3deg)} }
+@keyframes lbShine     { 0%{left:-100%} 40%,100%{left:150%} }
+@keyframes lbBoxIdle   { 0%,100%{transform:translateY(0);box-shadow:0 4px 12px rgba(0,0,0,0.3)} 50%{transform:translateY(-3px);box-shadow:0 8px 20px rgba(251,191,36,0.15)} }
+@keyframes lbDot       { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
 @keyframes lbPulseText { 0%,100%{opacity:0.8} 50%{opacity:1} }
 @keyframes lbResultPop { from{transform:scale(0) rotate(-20deg);opacity:0} to{transform:scale(1) rotate(0deg);opacity:1} }
-@keyframes lbLimitPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
-@keyframes lbPipPop { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+@keyframes lbLimitPulse{ 0%,100%{opacity:0.5} 50%{opacity:1} }
+@keyframes lbPipPop    { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
 
 .lb-root {
   font-family:'Outfit',sans-serif; background:#070510; min-height:100vh;
@@ -109,38 +111,20 @@ const CSS = `
 .lb-spark    { position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(251,191,36,0.6); animation:lbSpark var(--dur) ease-in-out infinite var(--delay); }
 .lb-content  { position:relative;z-index:1; }
 
-.lb-title { font-family:'Cinzel Decorative',serif; font-size:24px; font-weight:900; text-align:center; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 40%,#fde68a 70%,#fbbf24 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 20px rgba(251,191,36,0.4)); margin-bottom:4px; letter-spacing:1px; }
+.lb-title    { font-family:'Cinzel Decorative',serif; font-size:24px; font-weight:900; text-align:center; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 40%,#fde68a 70%,#fbbf24 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 20px rgba(251,191,36,0.4)); margin-bottom:4px; letter-spacing:1px; }
 .lb-subtitle { text-align:center; font-size:11px; letter-spacing:3px; color:rgba(255,255,255,0.25); text-transform:uppercase; margin-bottom:20px; }
 
-/* ── Daily limit pips ── */
-.lb-limit-wrap {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  margin-bottom: 18px;
-}
-.lb-limit-label {
-  font-family: 'Outfit', sans-serif;
-  font-size: 11px; letter-spacing: 2px;
-  color: rgba(255,255,255,0.25); text-transform: uppercase;
-  display: flex; align-items: center; gap: 6px;
-}
-.lb-limit-label span { color: #fbbf24; font-weight: 700; }
-.lb-pips { display: flex; gap: 7px; }
-.lb-pip {
-  width: 28px; height: 8px; border-radius: 4px;
-  transition: background 0.3s, box-shadow 0.3s;
-  animation: lbPipPop 0.3s ease both;
-}
-.lb-pip.used  { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
-.lb-pip.avail { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); }
+.lb-limit-wrap  { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:18px; }
+.lb-limit-label { font-family:'Outfit',sans-serif; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; display:flex; align-items:center; gap:6px; }
+.lb-limit-label span { color:#fbbf24; font-weight:700; }
+.lb-pips { display:flex; gap:7px; }
+.lb-pip  { width:28px; height:8px; border-radius:4px; transition:background 0.3s,box-shadow 0.3s; animation:lbPipPop 0.3s ease both; }
+.lb-pip.used  { background:#fbbf24; box-shadow:0 0 8px rgba(251,191,36,0.5); }
+.lb-pip.avail { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); }
 
-/* ── Maxed banner ── */
-.lb-maxed {
-  background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2);
-  border-radius: 16px; padding: 16px; text-align: center; margin-bottom: 16px;
-  position: relative; overflow: hidden;
-}
+.lb-maxed { background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:16px; padding:16px; text-align:center; margin-bottom:16px; position:relative; overflow:hidden; }
 .lb-maxed::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(239,68,68,0.35),transparent); }
-.lb-maxed-icon  { font-size: 36px; margin-bottom: 8px; animation: lbLimitPulse 2s ease-in-out infinite; }
+.lb-maxed-icon  { font-size:36px; margin-bottom:8px; animation:lbLimitPulse 2s ease-in-out infinite; }
 .lb-maxed-title { font-family:'Cinzel Decorative',serif; font-size:14px; color:#ef4444; margin-bottom:4px; }
 .lb-maxed-sub   { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:1px; }
 
@@ -164,33 +148,37 @@ const CSS = `
   position:relative; overflow:hidden;
 }
 .lb-btn-watch::after { content:''; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); animation:lbShine 3s ease-in-out infinite; }
-.lb-btn-watch:active { transform:scale(0.97); box-shadow:0 2px 12px rgba(251,191,36,0.2); }
+.lb-btn-watch:active   { transform:scale(0.97); box-shadow:0 2px 12px rgba(251,191,36,0.2); }
 .lb-btn-watch:disabled { opacity:0.4; cursor:not-allowed; }
 .lb-btn-watch:disabled::after { display:none; }
 
 .lb-pick-label { text-align:center; font-size:12px; letter-spacing:3px; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-bottom:16px; }
 .lb-pick-label.active { color:#fbbf24; animation:lbPulseText 1.5s ease-in-out infinite; }
+
 .lb-boxes { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:16px; }
 .lb-box { aspect-ratio:1; border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border:1px solid rgba(255,255,255,0.08); transition:transform 0.15s,box-shadow 0.2s; position:relative; overflow:hidden; background:rgba(255,255,255,0.04); }
 .lb-box.pickable { animation:lbBoxIdle 2s ease-in-out infinite; }
-.lb-box.pickable:nth-child(2){animation-delay:0.2s} .lb-box.pickable:nth-child(3){animation-delay:0.4s} .lb-box.pickable:nth-child(4){animation-delay:0.6s} .lb-box.pickable:nth-child(5){animation-delay:0.8s}
+.lb-box.pickable:nth-child(2){animation-delay:0.2s}
+.lb-box.pickable:nth-child(3){animation-delay:0.4s}
+.lb-box.pickable:nth-child(4){animation-delay:0.6s}
+.lb-box.pickable:nth-child(5){animation-delay:0.8s}
 .lb-box.pickable:active { transform:scale(0.92); }
 .lb-box-emoji { font-size:26px; line-height:1; }
 .lb-box-pts   { font-size:9px; font-weight:700; letter-spacing:1px; margin-top:3px; }
 .lb-check     { position:absolute; top:4px; right:4px; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; }
 
-.lb-result { text-align:center; padding:8px 0 4px; }
-.lb-result-emoji { font-size:52px; margin-bottom:8px; display:block; animation:lbResultPop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
-.lb-result-tier  { font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin-bottom:6px; }
-.lb-result-pts   { font-family:'Cinzel Decorative',serif; font-size:28px; font-weight:700; margin-bottom:4px; }
-.lb-result-msg   { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:1px; margin-bottom:20px; }
-.lb-btn-again    { width:100%; padding:16px; border-radius:14px; border:none; background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1a0e00; font-family:'Outfit',sans-serif; font-size:15px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:transform 0.1s; box-shadow:0 4px 20px rgba(251,191,36,0.3); }
+.lb-result     { text-align:center; padding:8px 0 4px; }
+.lb-result-tier{ font-size:10px; letter-spacing:4px; font-weight:700; text-transform:uppercase; margin-bottom:6px; }
+.lb-result-pts { font-family:'Cinzel Decorative',serif; font-size:28px; font-weight:700; margin-bottom:4px; }
+.lb-result-msg { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:1px; margin-bottom:20px; }
+.lb-btn-again  { width:100%; padding:16px; border-radius:14px; border:none; background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1a0e00; font-family:'Outfit',sans-serif; font-size:15px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:transform 0.1s; box-shadow:0 4px 20px rgba(251,191,36,0.3); }
 .lb-btn-again:active { transform:scale(0.97); }
 
 .lb-watching { text-align:center; padding:24px 0; }
 .lb-watching-icon { font-size:40px; margin-bottom:10px; display:block; }
 .lb-watching-dots span { display:inline-block; width:6px; height:6px; border-radius:50%; background:#fbbf24; margin:0 3px; animation:lbDot 1.2s ease-in-out infinite; }
-.lb-watching-dots span:nth-child(2){animation-delay:0.2s} .lb-watching-dots span:nth-child(3){animation-delay:0.4s}
+.lb-watching-dots span:nth-child(2){animation-delay:0.2s}
+.lb-watching-dots span:nth-child(3){animation-delay:0.4s}
 
 .lb-table       { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:16px; overflow:hidden; }
 .lb-table-title { font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.2); text-transform:uppercase; margin-bottom:12px; }
@@ -202,10 +190,10 @@ const CSS = `
 `;
 
 const SPARKS = Array.from({ length: 12 }, () => ({
-  left: `${Math.random() * 100}%`,
-  top:  `${Math.random() * 100}%`,
-  dur:  `${2 + Math.random() * 4}s`,
-  delay:`${Math.random() * 4}s`,
+  left:  `${Math.random() * 100}%`,
+  top:   `${Math.random() * 100}%`,
+  dur:   `${2 + Math.random() * 4}s`,
+  delay: `${Math.random() * 4}s`,
 }));
 
 export default function LuckyBoxPage() {
@@ -218,12 +206,11 @@ export default function LuckyBoxPage() {
   const [totalWon, setTotalWon]           = useState(0);
   const [burstActive, setBurstActive]     = useState(false);
 
-  /* ── Daily limit ── */
   const [gamesPlayedToday, setGamesPlayedToday] = useState(0);
   const [limitLoading, setLimitLoading]         = useState(true);
-  const isMaxed = gamesPlayedToday >= MAX_DAILY_GAMES;
+  const isMaxed   = gamesPlayedToday >= MAX_DAILY_GAMES;
+  const remaining = MAX_DAILY_GAMES - gamesPlayedToday;
 
-  /* Load today's game count */
   useEffect(() => {
     if (!user) return;
     loadTodayCount();
@@ -234,7 +221,7 @@ export default function LuckyBoxPage() {
     const start = new Date(); start.setUTCHours(0,0,0,0);
     const { count } = await supabase
       .from('transactions')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count:'exact', head:true })
       .eq('user_id', user!.id)
       .eq('type', 'lucky_box')
       .gte('created_at', start.toISOString());
@@ -242,9 +229,7 @@ export default function LuckyBoxPage() {
     setLimitLoading(false);
   }
 
-  const onAdReward = useCallback(() => {
-    setGameState('picking');
-  }, []);
+  const onAdReward = useCallback(() => { setGameState('picking'); }, []);
   const { showAd } = useRewardedAd(onAdReward);
 
   const handleWatchAd = async () => {
@@ -261,15 +246,13 @@ export default function LuckyBoxPage() {
     setSelectedBox(index);
     setGameState('revealing');
 
-    const allRewards = Array.from({ length: 5 }, () => generateReward());
+    const allRewards   = Array.from({ length: 5 }, () => generateReward());
     const pickedReward = allRewards[index];
 
     await new Promise(r => setTimeout(r, 600));
     setRevealedBoxes(allRewards);
     setReward(pickedReward);
     setTotalPlayed(p => p + 1);
-
-    /* Always count as a game played — win or lose */
     setGamesPlayedToday(p => p + 1);
 
     if (pickedReward.points > 0) {
@@ -285,7 +268,6 @@ export default function LuckyBoxPage() {
       const { data: bal } = await supabase
         .from('balances').select('points,total_earned').eq('user_id', user.id).single();
       if (bal) {
-        /* Always insert transaction (0 pts for empty = still counts as played) */
         await supabase.from('transactions').insert({
           user_id: user.id, type: 'lucky_box',
           points: pickedReward.points,
@@ -313,7 +295,6 @@ export default function LuckyBoxPage() {
   };
 
   const BOX_ICONS = ['🎁','📦','🎀','💎','🏆'];
-  const remaining = MAX_DAILY_GAMES - gamesPlayedToday;
 
   return (
     <>
@@ -334,7 +315,7 @@ export default function LuckyBoxPage() {
           <div className="lb-title">Lucky Box</div>
           <div className="lb-subtitle">Pick your treasure · Win big</div>
 
-          {/* ── Daily limit pips ── */}
+          {/* Daily limit pips */}
           <div className="lb-limit-wrap">
             <div className="lb-limit-label">
               Daily Plays &nbsp;
@@ -344,13 +325,13 @@ export default function LuckyBoxPage() {
               {Array.from({ length: MAX_DAILY_GAMES }, (_, i) => (
                 <div key={i}
                   className={`lb-pip ${i < gamesPlayedToday ? 'used' : 'avail'}`}
-                  style={{ animationDelay: `${i * 0.06}s` }}
+                  style={{ animationDelay:`${i * 0.06}s` }}
                 />
               ))}
             </div>
           </div>
 
-          {/* ── Maxed banner ── */}
+          {/* Maxed banner */}
           {isMaxed && (
             <div className="lb-maxed">
               <div className="lb-maxed-icon">🔒</div>
@@ -392,7 +373,7 @@ export default function LuckyBoxPage() {
                 <div className="lb-idle-icon">🎁</div>
                 <div className="lb-idle-text">
                   {isMaxed
-                    ? 'You\'ve used all 5 plays today.\nReset at midnight UTC.'
+                    ? "You've used all 5 plays today.\nReset at midnight UTC."
                     : `Watch a short ad to unlock\n5 mystery boxes · ${remaining} play${remaining !== 1 ? 's' : ''} remaining`}
                 </div>
                 <button
@@ -400,9 +381,7 @@ export default function LuckyBoxPage() {
                   onClick={handleWatchAd}
                   disabled={isMaxed || limitLoading}
                 >
-                  {isMaxed
-                    ? '🔒  DAILY LIMIT REACHED'
-                    : '📺  WATCH AD & PLAY'}
+                  {isMaxed ? '🔒  DAILY LIMIT REACHED' : '📺  WATCH AD & PLAY'}
                 </button>
               </>
             )}
@@ -414,9 +393,7 @@ export default function LuckyBoxPage() {
                 <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.3)', letterSpacing:'2px', marginBottom:'12px' }}>
                   LOADING AD
                 </div>
-                <div className="lb-watching-dots">
-                  <span/><span/><span/>
-                </div>
+                <div className="lb-watching-dots"><span/><span/><span/></div>
               </div>
             )}
 
@@ -449,11 +426,11 @@ export default function LuckyBoxPage() {
                         {isRevealed && br ? (
                           <>
                             <span className="lb-box-emoji">{br.emoji}</span>
-                            <span className="lb-box-pts" style={{ color: tc?.color }}>
+                            <span className="lb-box-pts" style={{ color:tc?.color }}>
                               {br.points > 0 ? `+${br.points}` : '—'}
                             </span>
                             {isPicked && (
-                              <div className="lb-check" style={{ background: tc?.color, color:'#000' }}>✓</div>
+                              <div className="lb-check" style={{ background:tc?.color, color:'#000' }}>✓</div>
                             )}
                           </>
                         ) : (
@@ -470,7 +447,12 @@ export default function LuckyBoxPage() {
                   const nextRemaining = MAX_DAILY_GAMES - gamesPlayedToday;
                   return (
                     <div className="lb-result">
-                      <div style={{ width:'80px', height:'80px', borderRadius:'50%', background:tc.bg, border:`2px solid ${tc.color}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', boxShadow:`0 0 30px ${tc.glow}` }}>
+                      <div style={{
+                        width:'80px', height:'80px', borderRadius:'50%',
+                        background:tc.bg, border:`2px solid ${tc.color}`,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        margin:'0 auto 12px', boxShadow:`0 0 30px ${tc.glow}`,
+                      }}>
                         <span style={{ fontSize:'36px' }}>{reward.emoji}</span>
                       </div>
                       <div className="lb-result-tier" style={{ color:tc.color }}>{tc.label}</div>
@@ -484,11 +466,10 @@ export default function LuckyBoxPage() {
                         {reward.points > 0 ? 'Points added to your balance!' : 'Better luck next time'}
                       </div>
 
-                      {/* Remaining plays indicator */}
                       <div style={{
                         margin:'0 0 14px', padding:'8px 14px', borderRadius:'12px',
                         background: nextRemaining <= 0 ? 'rgba(239,68,68,0.08)' : 'rgba(251,191,36,0.06)',
-                        border: `1px solid ${nextRemaining <= 0 ? 'rgba(239,68,68,0.2)' : 'rgba(251,191,36,0.15)'}`,
+                        border:`1px solid ${nextRemaining <= 0 ? 'rgba(239,68,68,0.2)' : 'rgba(251,191,36,0.15)'}`,
                         fontFamily:"'Outfit',sans-serif", fontSize:12,
                         color: nextRemaining <= 0 ? '#ef4444' : 'rgba(255,255,255,0.4)',
                         letterSpacing:'0.5px',
@@ -520,12 +501,14 @@ export default function LuckyBoxPage() {
           <div className="lb-table">
             <div className="lb-table-title">Possible Rewards</div>
             {[
-              { emoji:'🏆', label:'500 Points', tier:'jackpot' as const, prob:'4%'  },
-              { emoji:'💰', label:'150 Points', tier:'big'     as const, prob:'8%'  },
-              { emoji:'🔥', label:'50 Points',  tier:'medium'  as const, prob:'13%' },
-              { emoji:'✨', label:'15 Points',  tier:'small'   as const, prob:'20%' },
-              { emoji:'🪙', label:'5 Points',   tier:'small'   as const, prob:'25%' },
-              { emoji:'💨', label:'Empty',       tier:'empty'   as const, prob:'30%' },
+              { emoji:'🏆', label:'500 Points', tier:'jackpot' as const, prob:'1%'  },
+              { emoji:'👑', label:'300 Points', tier:'big'     as const, prob:'2%'  },
+              { emoji:'💎', label:'200 Points', tier:'big'     as const, prob:'3%'  },
+              { emoji:'💰', label:'100 Points', tier:'big'     as const, prob:'5%'  },
+              { emoji:'🔥', label:'50 Points',  tier:'medium'  as const, prob:'14%' },
+              { emoji:'✨', label:'25 Points',  tier:'small'   as const, prob:'20%' },
+              { emoji:'🪙', label:'10 Points',  tier:'small'   as const, prob:'25%' },
+              { emoji:'💨', label:'Empty',      tier:'empty'   as const, prob:'30%' },
             ].map((row, i) => (
               <div key={i} className="lb-table-row">
                 <span className="lb-table-emoji">{row.emoji}</span>
