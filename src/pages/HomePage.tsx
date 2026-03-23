@@ -51,7 +51,7 @@ const FARM_DURATION_MS  = 15 * 60 * 1000;
 const FARM_REWARD       = 50;
 const AD_MAX_PER_DAY    = 20;
 const AD_REWARD         = 50;
-const AD_COOLDOWN_SEC   = 10;
+const AD_COOLDOWN_SEC   = 30;
 const AD_INIT_DELAY_SEC = 3;
 const DROP_COOLDOWN_SEC = 5;
 
