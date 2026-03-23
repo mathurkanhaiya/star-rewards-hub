@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/* ── Conversion tables (server-side only, never trust client) ── */
+/* ── Conversion rates ── */
 const TON_TIERS: Record<number, number> = {
   5000:  0.05,
   10000: 0.1,
@@ -14,12 +14,8 @@ const TON_TIERS: Record<number, number> = {
   20000: 0.2,
 };
 
-const UPI_TIERS: Record<number, number> = {
-  5000:  6,
-  10000: 12,
-  15000: 18,
-  20000: 24,
-};
+/* 5000 pts = ₹6 → rate = 6/5000 = 0.0012 INR per point */
+const UPI_RATE = 0.0012;
 
 async function sendTelegramMessage(chatId: number, text: string) {
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
@@ -30,9 +26,7 @@ async function sendTelegramMessage(chatId: number, text: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     });
-  } catch (e) {
-    console.error('Telegram send error:', e);
-  }
+  } catch (e) { console.error('Telegram send error:', e); }
 }
 
 function errorResponse(message: string, status = 200) {
@@ -50,9 +44,7 @@ function successResponse(message: string) {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
     const supabase = createClient(
@@ -62,73 +54,66 @@ serve(async (req) => {
 
     /* ── Parse body ── */
     let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      return errorResponse('Invalid request body');
-    }
+    try { body = await req.json(); }
+    catch { return errorResponse('Invalid request body'); }
 
     const { userId, method, points, walletAddress } = body;
 
     /* ── Basic validation ── */
-    if (!userId || typeof userId !== 'string') return errorResponse('Missing userId');
-    if (!method || !['ton', 'upi'].includes(method)) return errorResponse('Invalid method — must be ton or upi');
-    if (!points || typeof points !== 'number' || points <= 0) return errorResponse('Invalid points');
+    if (!userId || typeof userId !== 'string')
+      return errorResponse('Missing userId');
+    if (!method || !['ton', 'upi'].includes(method))
+      return errorResponse('Invalid method — must be ton or upi');
+    if (!points || typeof points !== 'number' || points <= 0)
+      return errorResponse('Invalid points');
 
     if (method === 'ton') {
-      if (!walletAddress || typeof walletAddress !== 'string' || walletAddress.trim() === '') {
+      if (!walletAddress?.trim())
         return errorResponse('TON wallet address is required');
-      }
-      if (!/^UQ[A-Za-z0-9_-]{46,}$/.test(walletAddress.trim())) {
+      if (!/^UQ[A-Za-z0-9_-]{46,}$/.test(walletAddress.trim()))
         return errorResponse('Invalid TON wallet address format');
-      }
     }
 
     if (method === 'upi') {
-      if (!walletAddress || typeof walletAddress !== 'string' || walletAddress.trim() === '') {
+      if (!walletAddress?.trim())
         return errorResponse('UPI ID is required');
-      }
-      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(walletAddress.trim())) {
+      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(walletAddress.trim()))
         return errorResponse('Invalid UPI ID format (e.g. name@upi)');
-      }
     }
 
     /* ── Get settings ── */
     const { data: settings } = await supabase
-      .from('settings')
-      .select('key, value');
-
+      .from('settings').select('key, value');
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => {
       settingsMap[s.key] = s.value;
     });
 
     const minPoints = parseInt(settingsMap.min_withdrawal_points || '5000');
-    if (points < minPoints) {
+    if (points < minPoints)
       return errorResponse(`Minimum withdrawal is ${minPoints.toLocaleString()} points`);
-    }
 
-    /* ── Server-side amount calculation (never trust client) ── */
+    /* ── Server-side amount calculation ── */
     let amount: number;
 
     if (method === 'upi') {
-      const inr = UPI_TIERS[points];
-      if (!inr) {
-        return errorResponse(`Invalid UPI tier. Valid tiers: ${Object.keys(UPI_TIERS).join(', ')} pts`);
-      }
-      amount = inr;
+      /* Rate-based: points × 0.0012 INR
+         5000  → ₹6
+         10000 → ₹12
+         15000 → ₹18
+         20000 → ₹24 */
+      amount = parseFloat((points * UPI_RATE).toFixed(2));
+      if (amount <= 0)
+        return errorResponse('Invalid UPI withdrawal amount');
 
     } else {
-      // TON — find highest eligible tier
-      const eligibleTiers = Object.keys(TON_TIERS)
-        .map(Number)
-        .filter(t => t === points) // must match exactly
-        .sort((a, b) => b - a);
-
-      if (eligibleTiers.length === 0) {
-        return errorResponse(`Invalid TON tier. Valid tiers: ${Object.keys(TON_TIERS).join(', ')} pts`);
-      }
-      amount = TON_TIERS[eligibleTiers[0]];
+      /* TON: exact tier match */
+      const ton = TON_TIERS[points];
+      if (!ton)
+        return errorResponse(
+          `Invalid TON tier. Valid tiers: ${Object.keys(TON_TIERS).join(', ')} pts`
+        );
+      amount = ton;
     }
 
     /* ── Check user exists ── */
@@ -138,9 +123,8 @@ serve(async (req) => {
       .eq('id', userId)
       .single();
 
-    if (userError || !userData) {
+    if (userError || !userData)
       return errorResponse('User not found');
-    }
 
     /* ── Check balance ── */
     const { data: balance, error: balError } = await supabase
@@ -149,15 +133,15 @@ serve(async (req) => {
       .eq('user_id', userId)
       .single();
 
-    if (balError || !balance) {
+    if (balError || !balance)
       return errorResponse('Could not fetch balance');
-    }
 
-    if (balance.points < points) {
-      return errorResponse(`Insufficient balance. You have ${balance.points.toLocaleString()} pts`);
-    }
+    if (balance.points < points)
+      return errorResponse(
+        `Insufficient balance. You have ${balance.points.toLocaleString()} pts`
+      );
 
-    /* ── Anti-fraud: pending withdrawals check ── */
+    /* ── Anti-fraud: pending limit ── */
     const { count: pendingCount } = await supabase
       .from('withdrawals')
       .select('id', { count: 'exact', head: true })
@@ -165,11 +149,10 @@ serve(async (req) => {
       .eq('status', 'pending');
 
     const maxPending = parseInt(settingsMap.max_pending_withdrawals || '2');
-    if ((pendingCount || 0) >= maxPending) {
-      return errorResponse('You already have pending withdrawals. Please wait for them to be processed.');
-    }
+    if ((pendingCount || 0) >= maxPending)
+      return errorResponse('You have too many pending withdrawals. Please wait for them to be processed.');
 
-    /* ── Anti-fraud: daily withdrawal limit ── */
+    /* ── Anti-fraud: daily limit ── */
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
 
@@ -180,12 +163,11 @@ serve(async (req) => {
       .gte('created_at', startOfDay.toISOString());
 
     const maxDaily = parseInt(settingsMap.max_daily_withdrawals || '3');
-    if ((todayCount || 0) >= maxDaily) {
+    if ((todayCount || 0) >= maxDaily)
       return errorResponse('Daily withdrawal limit reached. Try again tomorrow.');
-    }
 
     /* ── Display strings ── */
-    const amountStr   = method === 'upi' ? `₹${amount} INR` : `${amount.toFixed(2)} TON`;
+    const amountStr    = method === 'upi' ? `₹${amount} INR` : `${amount.toFixed(2)} TON`;
     const addressLabel = method === 'upi' ? 'UPI ID' : 'Wallet';
 
     /* ── Insert withdrawal ── */
@@ -193,16 +175,16 @@ serve(async (req) => {
       .from('withdrawals')
       .insert({
         user_id:        userId,
-        method:         method,
+        method,
         points_spent:   points,
-        amount:         amount,
+        amount,
         wallet_address: walletAddress.trim(),
         status:         'pending',
       });
 
     if (withdrawError) {
       console.error('Withdrawal insert error:', withdrawError);
-      return errorResponse('Failed to create withdrawal request. Please try again.');
+      return errorResponse('Failed to create withdrawal. Please try again.');
     }
 
     /* ── Deduct points ── */
@@ -214,10 +196,7 @@ serve(async (req) => {
       })
       .eq('user_id', userId);
 
-    if (balUpdateError) {
-      console.error('Balance update error:', balUpdateError);
-      // Don't block — withdrawal was already created, admin can handle
-    }
+    if (balUpdateError) console.error('Balance update error:', balUpdateError);
 
     /* ── Transaction log ── */
     await supabase.from('transactions').insert({
