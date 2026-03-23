@@ -11,10 +11,10 @@ const TON_TIERS = [
 ];
 
 const UPI_TIERS = [
-  { pts: 5000,  inr: 6  },
-  { pts: 10000, inr: 12 },
-  { pts: 15000, inr: 18 },
-  { pts: 20000, inr: 24 },
+  { pts: 5000,  inr: 5  },
+  { pts: 10000, inr: 10 },
+  { pts: 15000, inr: 15 },
+  { pts: 20000, inr: 20 },
 ];
 
 const REQUIRED_ADS = 10;
