@@ -569,18 +569,5 @@ export default function TowerClimbPage() {
               <span>TAP ANYWHERE</span>
             </div>
           </div>
-
-          {/* 2x multiplier button — only shown when not active */}
-          {multiplier === 1 && (
-            <button className="tc-multiplier-btn"
-              onClick={e => { e.stopPropagation(); showMultiplierAd(); }}>
-              <div className="tc-powerup-icon">⚡</div>
-              <div className="tc-powerup-name" style={{ color:'#ffbe00' }}>2X POINTS</div>
-              <div className="tc-powerup-hint">WATCH AD · 3 FLOORS</div>
-            </button>
-          )}
-        </div>
-      </div>
-    </>
   );
 }
