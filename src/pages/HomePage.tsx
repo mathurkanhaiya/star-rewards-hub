@@ -107,9 +107,9 @@ const FAST_REGEN_MULT     = 2;
 const FARM_DURATION_MS    = 15 * 60 * 1000;
 const FARM_REWARD         = 50;
 const AD_MAX_PER_DAY      = 15;
-const AD_REWARD           = 30;
+const AD_REWARD           = 50;
 const AD_COOLDOWN_SEC     = 10;
-const AD_INIT_DELAY_SEC   = 3;   // delay before ad button available on load
+const AD_INIT_DELAY_SEC   = 5;   // delay before ad button available on load
 const DROP_COOLDOWN_SEC   = 5;
 const MONETAG_MAX_DAY     = 20;
 const MONETAG_COOLDOWN    = 5;
@@ -903,7 +903,7 @@ export default function HomePage() {
             ) : adCooldown > 0 ? (
               <span className="hp-cd-txt">⏳ {adCooldown <= AD_INIT_DELAY_SEC && adsToday === 0 ? `READY IN ${adCooldown}s` : `NEXT AD IN ${adCooldown}s`}</span>
             ) : (
-              '🎬  WATCH AD  +30 PTS'
+              '🎬  WATCH AD  +50 PTS'
             )}
           </button>
         </div>
@@ -953,7 +953,7 @@ export default function HomePage() {
                 ) : monetagCooldown > 0 ? (
                   <span className="hp-cd-txt">⏳ {monetagCooldown <= AD_INIT_DELAY_SEC + 1 && monetagToday === 0 ? `READY IN ${monetagCooldown}s` : `NEXT IN ${monetagCooldown}s`}</span>
                 ) : (
-                  '📱  WATCH AD  +25 PTS'
+                  '📱  WATCH AD  +15 PTS'
                 )}
               </button>
             </div>
@@ -987,7 +987,7 @@ export default function HomePage() {
                 ) : gigapubCooldown > 0 ? (
                   <span className="hp-cd-txt">⏳ {gigapubCooldown <= AD_INIT_DELAY_SEC + 2 && gigapubToday === 0 ? `READY IN ${gigapubCooldown}s` : `NEXT IN ${gigapubCooldown}s`}</span>
                 ) : (
-                  '📺  WATCH AD  +25 PTS'
+                  '📺  WATCH AD  +15 PTS'
                 )}
               </button>
             </div>
