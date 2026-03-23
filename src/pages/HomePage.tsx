@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import { getTransactions, logAdWatch } from "@/lib/api";
+import { getTransactions } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
 import AdsgramTask from "@/components/AdsgramTask";
@@ -18,24 +18,6 @@ function triggerHaptic(type: HapticType) {
       if (type === "error") tg.HapticFeedback.notificationOccurred("error");
     }
   }
-}
-
-function AnimatedNumber({ value = 0 }: { value: number }) {
-  const [display, setDisplay] = useState<number>(value);
-  const prev = useRef<number>(value);
-  useEffect(() => {
-    let start = prev.current;
-    const diff = value - start;
-    const steps = 30; const inc = diff / steps; let step = 0;
-    const timer = setInterval(() => {
-      step++; start += inc;
-      if (step >= steps) { setDisplay(value); clearInterval(timer); }
-      else setDisplay(Math.floor(start));
-    }, 20);
-    prev.current = value;
-    return () => clearInterval(timer);
-  }, [value]);
-  return <>{display.toLocaleString()}</>;
 }
 
 function txLabel(type: string): string {
@@ -61,15 +43,13 @@ function txIcon(type: string): string {
   return map[type] || "💰";
 }
 
-/* ── Monetag SDK — only show_10742752 ── */
+/* ── Monetag SDK ── */
 async function callMonetagAd(): Promise<boolean> {
   return new Promise((resolve) => {
     try {
       const fn = (window as any)['show_10742752'];
       if (typeof fn === 'function') {
-        Promise.resolve(fn())
-          .then(() => resolve(true))
-          .catch(() => resolve(false));
+        Promise.resolve(fn()).then(() => resolve(true)).catch(() => resolve(false));
       } else {
         resolve(false);
       }
@@ -77,19 +57,14 @@ async function callMonetagAd(): Promise<boolean> {
   });
 }
 
-/* ── Gigapub SDK — only showGiga(), never Monetag ── */
+/* ── Gigapub SDK ── */
 async function callGigapubAd(): Promise<boolean> {
   return new Promise((resolve) => {
     let attempts = 0;
     const tryShow = () => {
       const fn = (window as any)['showGiga'];
       if (typeof fn === 'function') {
-        fn()
-          .then(() => resolve(true))
-          .catch((e: any) => {
-            console.warn('Gigapub ad error:', e);
-            resolve(false);
-          });
+        fn().then(() => resolve(true)).catch(() => resolve(false));
       } else if (attempts < 20) {
         attempts++;
         setTimeout(tryShow, 150);
@@ -258,7 +233,6 @@ const CSS = `
 .hp-ad-card.cyan::before   { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(34,211,238,0.4),transparent); }
 .hp-ad-card.purple { border:1px solid rgba(167,139,250,0.15); }
 .hp-ad-card.purple::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(167,139,250,0.4),transparent); }
-
 .hp-ad-top   { display:flex; align-items:center; gap:12px; margin-bottom:11px; }
 .hp-ad-icon  { width:42px; height:42px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
 .hp-ad-info  { flex:1; min-width:0; }
@@ -316,7 +290,6 @@ export default function HomePage() {
   const [fastSecsLeft, setFastSecsLeft] = useState(() => loadBoost("boostFastExp"));
   const x2Active   = x2SecsLeft   > 0;
   const fastActive = fastSecsLeft > 0;
-
   const [floatPts, setFloatPts] = useState<FloatPt[]>([]);
 
   /* ── Farm ── */
@@ -342,21 +315,21 @@ export default function HomePage() {
   const [adCooldown, setAdCooldown] = useState(AD_INIT_DELAY_SEC);
   const [adLoading, setAdLoading]   = useState(false);
   const isAdRunning   = useRef(false);
-  const adCredited    = useRef(false); // ← double-reward guard
+  const adCredited    = useRef(false);
 
   /* ── Monetag ── */
   const [monetagToday, setMonetagToday]       = useState(0);
   const [monetagCooldown, setMonetagCooldown] = useState(AD_INIT_DELAY_SEC + 1);
   const [monetagLoading, setMonetagLoading]   = useState(false);
   const monetagRunning  = useRef(false);
-  const monetagCredited = useRef(false); // ← double-reward guard
+  const monetagCredited = useRef(false);
 
   /* ── Gigapub ── */
   const [gigapubToday, setGigapubToday]       = useState(0);
   const [gigapubCooldown, setGigapubCooldown] = useState(AD_INIT_DELAY_SEC + 2);
   const [gigapubLoading, setGigapubLoading]   = useState(false);
   const gigapubRunning  = useRef(false);
-  const gigapubCredited = useRef(false); // ← double-reward guard
+  const gigapubCredited = useRef(false);
 
   /* ── Load ── */
   useEffect(() => {
@@ -366,16 +339,17 @@ export default function HomePage() {
     loadDropState();
   }, [user]);
 
+  /* ── Count from transactions — no ad_logs ── */
   async function loadTodayAds() {
     if (!user) return;
     const start = new Date(); start.setUTCHours(0,0,0,0);
     const [mainRes, monetagRes, gigapubRes] = await Promise.all([
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'ad_watch').gte('created_at', start.toISOString()),
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'monetag_watch').gte('created_at', start.toISOString()),
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'gigapub_watch').gte('created_at', start.toISOString()),
+      supabase.from('transactions').select('id', { count:'exact', head:true })
+        .eq('user_id', user.id).eq('type', 'ad_watch').gte('created_at', start.toISOString()),
+      supabase.from('transactions').select('id', { count:'exact', head:true })
+        .eq('user_id', user.id).eq('type', 'monetag_watch').gte('created_at', start.toISOString()),
+      supabase.from('transactions').select('id', { count:'exact', head:true })
+        .eq('user_id', user.id).eq('type', 'gigapub_watch').gte('created_at', start.toISOString()),
     ]);
     setAdsToday(mainRes.count || 0);
     setMonetagToday(monetagRes.count || 0);
@@ -477,6 +451,7 @@ export default function HomePage() {
     return s >= 60 ? `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}` : `${s}s`;
   }
 
+  /* ── Single credit helper — one transaction only ── */
   async function creditBalance(pts: number, type: string, desc: string) {
     if (!user) return;
     const { data: bal } = await supabase
@@ -501,7 +476,6 @@ export default function HomePage() {
     setEnergy(newEnergy);
     localStorage.setItem("energy", String(newEnergy));
     localStorage.setItem("lastEnergyTime", String(Date.now()));
-
     const rect = tapBtnRef.current?.getBoundingClientRect();
     const id = Date.now() + Math.random();
     const x = rect ? e.clientX - rect.left - 14 : 50;
@@ -539,10 +513,7 @@ export default function HomePage() {
       const { data: existing } = await supabase
         .from('daily_claims').select('id')
         .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
-      if (existing) {
-        setDropClaimedToday(true);
-        return;
-      }
+      if (existing) { setDropClaimedToday(true); return; }
       const dayIndex = Math.min(dropStreak, 6);
       const reward   = DAILY_DROP[dayIndex].pts;
       const { error: claimError } = await supabase.from('daily_claims').insert({
@@ -555,10 +526,7 @@ export default function HomePage() {
       showMsg(`+${reward} pts 🎁 Day ${dayIndex+1}!`);
       getTransactions(user.id).then(setTransactions);
     } catch { showMsg("Error claiming. Try again."); }
-    finally {
-      setDropClaiming(false);
-      dropClaimingRef.current = false;
-    }
+    finally { setDropClaiming(false); dropClaimingRef.current = false; }
   }
 
   /* ══ FARM ══ */
@@ -594,12 +562,11 @@ export default function HomePage() {
     setFarmClaiming(false);
   }
 
-  /* ══ MAIN AD — Adsgram only, strict double-reward guard ══ */
+  /* ══ MAIN AD — one transaction only ══ */
   const onAdReward = useCallback(async () => {
-    if (!user || adCredited.current) return; // ← block double fire
+    if (!user || adCredited.current) return;
     adCredited.current = true;
     triggerHaptic("success");
-    await logAdWatch(user.id, "ad_watch", AD_REWARD);
     await creditBalance(AD_REWARD, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD} pts`);
     setAdsToday(p => p + 1);
     setAdCooldown(AD_COOLDOWN_SEC);
@@ -611,24 +578,23 @@ export default function HomePage() {
   async function handleWatchAd() {
     if (!user || isAdRunning.current || adCooldown > 0 || adsToday >= AD_MAX_PER_DAY) return;
     isAdRunning.current = true;
-    adCredited.current  = false; // ← reset before each new ad
+    adCredited.current  = false;
     triggerHaptic("impact"); setAdLoading(true);
     try { await showMainAd(); } catch { showMsg("Ad failed."); }
     setAdLoading(false);
     isAdRunning.current = false;
   }
 
-  /* ══ MONETAG — only show_10742752, strict guard ══ */
+  /* ══ MONETAG — one transaction only ══ */
   async function handleMonetagAd() {
     if (!user || monetagRunning.current || monetagCooldown > 0 || monetagToday >= MONETAG_MAX_DAY) return;
     monetagRunning.current  = true;
-    monetagCredited.current = false; // ← reset before each new ad
+    monetagCredited.current = false;
     triggerHaptic("impact"); setMonetagLoading(true);
     try {
       const ok = await callMonetagAd();
       if (ok && !monetagCredited.current) {
-        monetagCredited.current = true; // ← mark credited immediately
-        await logAdWatch(user.id, "monetag_watch", MONETAG_REWARD);
+        monetagCredited.current = true;
         await creditBalance(MONETAG_REWARD, 'monetag_watch', `📱 Monetag Ad: +${MONETAG_REWARD} pts`);
         setMonetagToday(p => p + 1);
         setMonetagCooldown(MONETAG_COOLDOWN);
@@ -642,17 +608,16 @@ export default function HomePage() {
     monetagRunning.current = false;
   }
 
-  /* ══ GIGAPUB — only showGiga(), strict guard ══ */
+  /* ══ GIGAPUB — one transaction only ══ */
   async function handleGigapubAd() {
     if (!user || gigapubRunning.current || gigapubCooldown > 0 || gigapubToday >= GIGAPUB_MAX_DAY) return;
     gigapubRunning.current  = true;
-    gigapubCredited.current = false; // ← reset before each new ad
+    gigapubCredited.current = false;
     triggerHaptic("impact"); setGigapubLoading(true);
     try {
       const ok = await callGigapubAd();
       if (ok && !gigapubCredited.current) {
-        gigapubCredited.current = true; // ← mark credited immediately
-        await logAdWatch(user.id, "gigapub_watch", GIGAPUB_REWARD);
+        gigapubCredited.current = true;
         await creditBalance(GIGAPUB_REWARD, 'gigapub_watch', `📺 Gigapub Ad: +${GIGAPUB_REWARD} pts`);
         setGigapubToday(p => p + 1);
         setGigapubCooldown(GIGAPUB_COOLDOWN);
@@ -666,6 +631,7 @@ export default function HomePage() {
     gigapubRunning.current = false;
   }
 
+  /* ── Computed ── */
   const energyPct   = (energy / MAX_ENERGY) * 100;
   const energyColor = energyPct > 50 ? '#ffbe00' : energyPct > 20 ? '#f97316' : '#ef4444';
   const isFarming   = !!farmStart && !farmReady;
