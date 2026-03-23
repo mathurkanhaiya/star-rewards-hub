@@ -23,7 +23,6 @@ function triggerHaptic(type: HapticType) {
 function txLabel(type: string): string {
   const map: Record<string, string> = {
     tap_earn: "Tap Earn", farm_claim: "Farm Reward", ad_watch: "Ad Watch",
-    monetag_watch: "Monetag Ad", gigapub_watch: "Gigapub Ad",
     adsgram_reward: "Adsgram Ad", tower_climb: "Tower Climb", lucky_box: "Lucky Box",
     dice_roll: "Dice Roll", card_flip: "Card Flip", number_guess: "Number Guess",
     daily_reward: "Daily Reward", daily_drop: "Daily Drop",
@@ -35,45 +34,11 @@ function txLabel(type: string): string {
 function txIcon(type: string): string {
   const map: Record<string, string> = {
     tap_earn: "👆", farm_claim: "🌾", ad_watch: "🎬",
-    monetag_watch: "📱", gigapub_watch: "📺",
     adsgram_reward: "🎬", tower_climb: "🏗️", lucky_box: "🎁",
     dice_roll: "🎲", card_flip: "🃏", number_guess: "🎯",
     daily_reward: "🔥", daily_drop: "🎁", referral_bonus: "👥", task_complete: "✅",
   };
   return map[type] || "💰";
-}
-
-/* ── Monetag SDK ── */
-async function callMonetagAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    try {
-      const fn = (window as any)['show_10742752'];
-      if (typeof fn === 'function') {
-        Promise.resolve(fn()).then(() => resolve(true)).catch(() => resolve(false));
-      } else {
-        resolve(false);
-      }
-    } catch { resolve(false); }
-  });
-}
-
-/* ── Gigapub SDK ── */
-async function callGigapubAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const tryShow = () => {
-      const fn = (window as any)['showGiga'];
-      if (typeof fn === 'function') {
-        fn().then(() => resolve(true)).catch(() => resolve(false));
-      } else if (attempts < 20) {
-        attempts++;
-        setTimeout(tryShow, 150);
-      } else {
-        resolve(false);
-      }
-    };
-    tryShow();
-  });
 }
 
 /* ── Constants ── */
@@ -89,12 +54,6 @@ const AD_REWARD         = 50;
 const AD_COOLDOWN_SEC   = 10;
 const AD_INIT_DELAY_SEC = 5;
 const DROP_COOLDOWN_SEC = 5;
-const MONETAG_MAX_DAY   = 20;
-const MONETAG_COOLDOWN  = 5;
-const MONETAG_REWARD    = 15;
-const GIGAPUB_MAX_DAY   = 20;
-const GIGAPUB_COOLDOWN  = 5;
-const GIGAPUB_REWARD    = 15;
 
 const DAILY_DROP = [
   { day: 1, pts: 100, color: '#4ade80', label: 'D1' },
@@ -317,20 +276,6 @@ export default function HomePage() {
   const isAdRunning   = useRef(false);
   const adCredited    = useRef(false);
 
-  /* ── Monetag ── */
-  const [monetagToday, setMonetagToday]       = useState(0);
-  const [monetagCooldown, setMonetagCooldown] = useState(AD_INIT_DELAY_SEC + 1);
-  const [monetagLoading, setMonetagLoading]   = useState(false);
-  const monetagRunning  = useRef(false);
-  const monetagCredited = useRef(false);
-
-  /* ── Gigapub ── */
-  const [gigapubToday, setGigapubToday]       = useState(0);
-  const [gigapubCooldown, setGigapubCooldown] = useState(AD_INIT_DELAY_SEC + 2);
-  const [gigapubLoading, setGigapubLoading]   = useState(false);
-  const gigapubRunning  = useRef(false);
-  const gigapubCredited = useRef(false);
-
   /* ── Load ── */
   useEffect(() => {
     if (!user) return;
@@ -343,17 +288,9 @@ export default function HomePage() {
   async function loadTodayAds() {
     if (!user) return;
     const start = new Date(); start.setUTCHours(0,0,0,0);
-    const [mainRes, monetagRes, gigapubRes] = await Promise.all([
-      supabase.from('transactions').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('type', 'ad_watch').gte('created_at', start.toISOString()),
-      supabase.from('transactions').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('type', 'monetag_watch').gte('created_at', start.toISOString()),
-      supabase.from('transactions').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('type', 'gigapub_watch').gte('created_at', start.toISOString()),
-    ]);
-    setAdsToday(mainRes.count || 0);
-    setMonetagToday(monetagRes.count || 0);
-    setGigapubToday(gigapubRes.count || 0);
+    const { count } = await supabase.from('transactions').select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('type', 'ad_watch').gte('created_at', start.toISOString());
+    setAdsToday(count || 0);
   }
 
   async function loadDropState() {
@@ -422,8 +359,6 @@ export default function HomePage() {
   useEffect(() => {
     const t = setInterval(() => {
       setAdCooldown(p => Math.max(0, p - 1));
-      setMonetagCooldown(p => Math.max(0, p - 1));
-      setGigapubCooldown(p => Math.max(0, p - 1));
     }, 1000);
     return () => clearInterval(t);
   }, []);
@@ -583,52 +518,6 @@ export default function HomePage() {
     try { await showMainAd(); } catch { showMsg("Ad failed."); }
     setAdLoading(false);
     isAdRunning.current = false;
-  }
-
-  /* ══ MONETAG — one transaction only ══ */
-  async function handleMonetagAd() {
-    if (!user || monetagRunning.current || monetagCooldown > 0 || monetagToday >= MONETAG_MAX_DAY) return;
-    monetagRunning.current  = true;
-    monetagCredited.current = false;
-    triggerHaptic("impact"); setMonetagLoading(true);
-    try {
-      const ok = await callMonetagAd();
-      if (ok && !monetagCredited.current) {
-        monetagCredited.current = true;
-        await creditBalance(MONETAG_REWARD, 'monetag_watch', `📱 Monetag Ad: +${MONETAG_REWARD} pts`);
-        setMonetagToday(p => p + 1);
-        setMonetagCooldown(MONETAG_COOLDOWN);
-        showMsg(`+${MONETAG_REWARD} pts 📱`);
-        getTransactions(user.id).then(setTransactions);
-      } else if (!ok) {
-        showMsg("Ad not available. Try again.");
-      }
-    } catch { showMsg("Ad failed."); }
-    setMonetagLoading(false);
-    monetagRunning.current = false;
-  }
-
-  /* ══ GIGAPUB — one transaction only ══ */
-  async function handleGigapubAd() {
-    if (!user || gigapubRunning.current || gigapubCooldown > 0 || gigapubToday >= GIGAPUB_MAX_DAY) return;
-    gigapubRunning.current  = true;
-    gigapubCredited.current = false;
-    triggerHaptic("impact"); setGigapubLoading(true);
-    try {
-      const ok = await callGigapubAd();
-      if (ok && !gigapubCredited.current) {
-        gigapubCredited.current = true;
-        await creditBalance(GIGAPUB_REWARD, 'gigapub_watch', `📺 Gigapub Ad: +${GIGAPUB_REWARD} pts`);
-        setGigapubToday(p => p + 1);
-        setGigapubCooldown(GIGAPUB_COOLDOWN);
-        showMsg(`+${GIGAPUB_REWARD} pts 📺`);
-        getTransactions(user.id).then(setTransactions);
-      } else if (!ok) {
-        showMsg("Ad not available. Try again.");
-      }
-    } catch { showMsg("Ad failed."); }
-    setGigapubLoading(false);
-    gigapubRunning.current = false;
   }
 
   /* ── Computed ── */
@@ -842,68 +731,6 @@ export default function HomePage() {
             </div>
 
             <AdsgramTask blockId="task-25198" />
-
-            {/* MONETAG */}
-            <div className="hp-ad-card cyan" style={{marginTop:10}}>
-              <div className="hp-ad-top">
-                <div className="hp-ad-icon" style={{background:'rgba(34,211,238,0.1)',border:'1px solid rgba(34,211,238,0.25)'}}>📱</div>
-                <div className="hp-ad-info">
-                  <div className="hp-ad-title">MONETAG ADS</div>
-                  <div className="hp-ad-sub">
-                    {monetagToday >= MONETAG_MAX_DAY ? '✅ Daily limit reached' : `${monetagToday} / ${MONETAG_MAX_DAY} today`}
-                  </div>
-                </div>
-                <div className="hp-ad-badge" style={{color:'#22d3ee',background:'rgba(34,211,238,0.08)',border:'1px solid rgba(34,211,238,0.2)'}}>
-                  +{MONETAG_REWARD} PTS
-                </div>
-              </div>
-              <div className="hp-ad-prog-track">
-                <div className="hp-ad-prog-fill" style={{width:`${(monetagToday/MONETAG_MAX_DAY)*100}%`,background:'linear-gradient(90deg,#22d3ee,#0891b2)'}}/>
-              </div>
-              <button
-                className={`hp-ad-btn ${monetagToday >= MONETAG_MAX_DAY || monetagCooldown > 0 ? 'ghost' : 'cyan-btn'}`}
-                onClick={handleMonetagAd}
-                disabled={monetagLoading || monetagCooldown > 0 || monetagToday >= MONETAG_MAX_DAY}
-              >
-                {monetagLoading ? (
-                  <span className="hp-dots" style={{color:'#001a20'}}><span/><span/><span/></span>
-                ) : monetagToday >= MONETAG_MAX_DAY ? '✅ COME BACK TOMORROW'
-                : monetagCooldown > 0 ? (
-                  <span className="hp-cd-txt">⏳ {monetagCooldown <= AD_INIT_DELAY_SEC+1 && monetagToday === 0 ? `READY IN ${monetagCooldown}s` : `NEXT IN ${monetagCooldown}s`}</span>
-                ) : '📱  WATCH AD  +15 PTS'}
-              </button>
-            </div>
-
-            {/* GIGAPUB */}
-            <div className="hp-ad-card purple" style={{marginTop:10}}>
-              <div className="hp-ad-top">
-                <div className="hp-ad-icon" style={{background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.25)'}}>📺</div>
-                <div className="hp-ad-info">
-                  <div className="hp-ad-title">GIGAPUB ADS</div>
-                  <div className="hp-ad-sub">
-                    {gigapubToday >= GIGAPUB_MAX_DAY ? '✅ Daily limit reached' : `${gigapubToday} / ${GIGAPUB_MAX_DAY} today`}
-                  </div>
-                </div>
-                <div className="hp-ad-badge" style={{color:'#a78bfa',background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)'}}>
-                  +{GIGAPUB_REWARD} PTS
-                </div>
-              </div>
-              <div className="hp-ad-prog-track">
-                <div className="hp-ad-prog-fill" style={{width:`${(gigapubToday/GIGAPUB_MAX_DAY)*100}%`,background:'linear-gradient(90deg,#a78bfa,#7c3aed)'}}/>
-              </div>
-              <button
-                className={`hp-ad-btn ${gigapubToday >= GIGAPUB_MAX_DAY || gigapubCooldown > 0 ? 'ghost' : 'purple-btn'}`}
-                onClick={handleGigapubAd}
-                disabled={gigapubLoading || gigapubCooldown > 0 || gigapubToday >= GIGAPUB_MAX_DAY}
-              >
-                {gigapubLoading ? (
-                  <span className="hp-dots" style={{color:'#0a0010'}}><span/><span/><span/></span>
-                ) : gigapubToday >= GIGAPUB_MAX_DAY ? '✅ COME BACK TOMORROW'
-                : gigapubCooldown > 0 ? (
-                  <span className="hp-cd-txt">⏳ {gigapubCooldown <= AD_INIT_DELAY_SEC+2 && gigapubToday === 0 ? `READY IN ${gigapubCooldown}s` : `NEXT IN ${gigapubCooldown}s`}</span>
-                ) : '📺  WATCH AD  +15 PTS'}
-              </button>
-            </div>
           </div>
         )}
 
