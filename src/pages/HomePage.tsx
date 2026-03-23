@@ -76,17 +76,25 @@ async function callMonetagAd(): Promise<boolean> {
 
 async function callGigapubAd(): Promise<boolean> {
   return new Promise((resolve) => {
-    try {
-      // Gigapub SDK — adjust if function name differs
-      const fn = (window as any)['show_gg_5935'] ||
-                 (window as any)['gigapub_show'] ||
-                 (window as any)['gg_show'];
+    /* Wait for showGiga to be available (SDK may load async) */
+    let attempts = 0;
+    const tryShow = () => {
+      const fn = (window as any)['showGiga'];
       if (typeof fn === 'function') {
-        Promise.resolve(fn()).then(() => resolve(true)).catch(() => resolve(false));
+        fn()
+          .then(() => resolve(true))
+          .catch((e: any) => {
+            console.warn('Gigapub ad error:', e);
+            resolve(false);
+          });
+      } else if (attempts < 30) {
+        attempts++;
+        setTimeout(tryShow, 100); // poll every 100ms, up to 3s
       } else {
-        setTimeout(() => resolve(false), 500);
+        resolve(false); // SDK never loaded
       }
-    } catch { resolve(false); }
+    };
+    tryShow();
   });
 }
 
