@@ -2,20 +2,9 @@ import React from 'react';
 import { useApp } from '@/context/AppContext';
 
 type Page =
-  | 'home'
-  | 'tasks'
-  | 'spin'
-  | 'referral'
-  | 'leaderboard'
-  | 'wallet'
-  | 'notifications'
-  | 'admin'
-  | 'games'
-  | 'tower'
-  | 'dice'
-  | 'cardflip'
-  | 'numberguess'
-  | 'luckybox';
+  | 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard'
+  | 'wallet' | 'notifications' | 'admin' | 'games'
+  | 'tower' | 'dice' | 'cardflip' | 'numberguess' | 'luckybox';
 
 interface BottomNavProps {
   currentPage: Page;
@@ -23,123 +12,85 @@ interface BottomNavProps {
 }
 
 const navItems = [
-  {
-    id: 'home' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233659516-1634eac5.gif',
-    label: 'Home',
-  },
-  {
-    id: 'tasks' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233768415-b3ab10fa.gif',
-    label: 'Tasks',
-  },
-  {
-    id: 'games' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233806742-9483b1e2.gif',
-    label: 'Games',
-  },
-  {
-    id: 'referral' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773233943001-33f1c354.gif',
-    label: 'Refer',
-  },
-  {
-    id: 'wallet' as Page,
-    icon: 'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234069854-77c4066d.gif',
-    label: 'Wallet',
-  },
+  { id: 'home'     as Page, emoji: '🏠', label: 'Home'   },
+  { id: 'tasks'    as Page, emoji: '📋', label: 'Tasks'  },
+  { id: 'games'    as Page, emoji: '🎮', label: 'Games'  },
+  { id: 'referral' as Page, emoji: '🤝', label: 'Refer'  },
+  { id: 'wallet'   as Page, emoji: '👛', label: 'Wallet' },
 ];
-
-const notificationIcon =
-  'https://repgyetdcodkynrbxocg.supabase.co/storage/v1/object/public/images/telegram-1773234754093-d8278f25.gif';
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&display=swap');
 
-.bn-root {
+.bn-safe {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 0 12px 10px;
+  z-index: 100;
+  /* Safe area for iPhone home bar */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(6,8,15,0.98);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 .bn-bar {
-  background: rgba(6, 8, 15, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 20px;
-  padding: 6px 4px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  padding: 6px 4px 8px;
   position: relative;
-  overflow: hidden;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
-/* Top edge light */
+/* Top gold line */
 .bn-bar::before {
   content: '';
   position: absolute;
-  top: 0; left: 10%; right: 10%;
+  top: 0; left: 8%; right: 8%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,190,0,0.25), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,190,0,0.2), transparent);
   pointer-events: none;
-}
-
-/* Grid texture */
-.bn-bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-  background-size: 20px 20px;
-  pointer-events: none;
-  border-radius: 20px;
 }
 
 .bn-item {
   position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 6px 8px;
+  padding: 6px 10px 4px;
   border-radius: 14px;
   border: none;
   background: none;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease;
-  min-width: 52px;
+  min-width: 50px;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
 }
 
 .bn-item:active {
-  transform: scale(0.88);
+  transform: scale(0.9);
 }
 
 .bn-item.active {
-  background: rgba(255, 190, 0, 0.08);
+  background: rgba(255,190,0,0.08);
 }
 
-.bn-icon {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  transition: filter 0.2s, transform 0.2s;
-  filter: grayscale(0.4) brightness(0.7);
+/* Emoji icon */
+.bn-emoji {
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.15s, filter 0.15s;
+  filter: grayscale(0.5) brightness(0.65);
 }
 
-.bn-item.active .bn-icon {
-  filter: grayscale(0) brightness(1.1) drop-shadow(0 0 6px rgba(255,190,0,0.5));
-  transform: translateY(-1px) scale(1.08);
+.bn-item.active .bn-emoji {
+  filter: grayscale(0) brightness(1);
+  transform: translateY(-1px) scale(1.12);
 }
 
 .bn-label {
@@ -148,8 +99,8 @@ const CSS = `
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.25);
-  transition: color 0.2s;
+  color: rgba(255,255,255,0.2);
+  transition: color 0.15s;
   line-height: 1;
 }
 
@@ -157,30 +108,26 @@ const CSS = `
   color: #ffbe00;
 }
 
-/* Gold underline pip for active */
+/* Active pip */
 .bn-pip {
   position: absolute;
-  bottom: 3px;
+  bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
-  width: 16px;
+  width: 0;
   height: 2px;
   border-radius: 1px;
   background: #ffbe00;
-  box-shadow: 0 0 6px rgba(255,190,0,0.7);
-  opacity: 0;
-  transition: opacity 0.2s, width 0.2s;
+  box-shadow: 0 0 6px rgba(255,190,0,0.6);
+  transition: width 0.2s;
 }
-
-.bn-item.active .bn-pip {
-  opacity: 1;
-}
+.bn-item.active .bn-pip { width: 18px; }
 
 /* Notification badge */
 .bn-badge {
   position: absolute;
   top: 2px;
-  right: 4px;
+  right: 5px;
   min-width: 15px;
   height: 15px;
   padding: 0 3px;
@@ -193,53 +140,34 @@ const CSS = `
   font-size: 7px;
   font-weight: 700;
   color: #fff;
-  border: 1px solid rgba(0,0,0,0.4);
-  box-shadow: 0 0 6px rgba(239,68,68,0.6);
-  animation: bnBadgePulse 2s ease-in-out infinite;
-}
-
-@keyframes bnBadgePulse {
-  0%, 100% { box-shadow: 0 0 6px rgba(239,68,68,0.6); }
-  50%       { box-shadow: 0 0 12px rgba(239,68,68,0.9); }
-}
-
-/* Admin emoji icon */
-.bn-admin-icon {
-  font-size: 22px;
-  line-height: 1;
-  transition: filter 0.2s, transform 0.2s;
-  filter: grayscale(0.6) brightness(0.7);
-}
-.bn-item.active .bn-admin-icon {
-  filter: grayscale(0) brightness(1.1) drop-shadow(0 0 6px rgba(255,190,0,0.5));
-  transform: translateY(-1px) scale(1.08);
+  border: 1.5px solid #06080f;
+  box-shadow: 0 0 6px rgba(239,68,68,0.5);
 }
 `;
 
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
   const { isAdmin, unreadCount } = useApp();
 
-  /* Treat any game sub-page as 'games' being active */
   const activePage: Page =
-    ['tower', 'dice', 'cardflip', 'numberguess', 'luckybox'].includes(currentPage)
+    ['tower','dice','cardflip','numberguess','luckybox'].includes(currentPage)
       ? 'games'
       : currentPage;
 
   return (
     <>
       <style>{CSS}</style>
-      <div className="bn-root">
+      <div className="bn-safe">
         <div className="bn-bar">
 
-          {navItems.map((item) => (
+          {navItems.map(item => (
             <button
               key={item.id}
               className={`bn-item ${activePage === item.id ? 'active' : ''}`}
               onClick={() => onNavigate(item.id)}
             >
-              <img src={item.icon} alt={item.label} className="bn-icon" />
+              <span className="bn-emoji">{item.emoji}</span>
               <span className="bn-label">{item.label}</span>
-              <div className="bn-pip" />
+              <div className="bn-pip"/>
             </button>
           ))}
 
@@ -248,14 +176,12 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
             className={`bn-item ${activePage === 'notifications' ? 'active' : ''}`}
             onClick={() => onNavigate('notifications')}
           >
-            <img src={notificationIcon} alt="Notifications" className="bn-icon" />
+            <span className="bn-emoji">🔔</span>
             {unreadCount > 0 && (
-              <div className="bn-badge">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </div>
+              <div className="bn-badge">{unreadCount > 9 ? '9+' : unreadCount}</div>
             )}
             <span className="bn-label">Notifs</span>
-            <div className="bn-pip" />
+            <div className="bn-pip"/>
           </button>
 
           {/* Admin */}
@@ -264,14 +190,20 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
               className={`bn-item ${activePage === 'admin' ? 'active' : ''}`}
               onClick={() => onNavigate('admin')}
             >
-              <span className="bn-admin-icon">⚙️</span>
+              <span className="bn-emoji">⚙️</span>
               <span className="bn-label">Admin</span>
-              <div className="bn-pip" />
+              <div className="bn-pip"/>
             </button>
           )}
 
         </div>
       </div>
+
+      {/* Spacer so content is never hidden behind nav */}
+      <div style={{
+        height: `calc(72px + env(safe-area-inset-bottom, 0px))`,
+        flexShrink: 0,
+      }}/>
     </>
   );
 }
