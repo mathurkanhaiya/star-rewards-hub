@@ -23,7 +23,8 @@ interface LeaderEntry {
 
 type GameState = 'menu' | 'playing' | 'gameover';
 
-const MAX_DAILY_GAMES = 5;
+const MAX_DAILY_GAMES    = 5;
+const MAX_SCORE_PER_GAME = 150; // ← hard cap per run
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&display=swap');
@@ -33,11 +34,7 @@ const CSS = `
 @keyframes tcPipPop      { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
 @keyframes tcLimitPulse  { 0%,100%{opacity:0.5} 50%{opacity:1} }
 
-.tc-root {
-  font-family:'Rajdhani',sans-serif; background:#06080f; min-height:100vh;
-  padding:20px 16px 112px; position:relative; overflow:hidden; color:#fff;
-  user-select:none; -webkit-user-select:none;
-}
+.tc-root { font-family:'Rajdhani',sans-serif; background:#06080f; min-height:100vh; padding:20px 16px 112px; position:relative; overflow:hidden; color:#fff; user-select:none; -webkit-user-select:none; }
 .tc-bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
 .tc-beam { position:absolute; width:1px; background:linear-gradient(to bottom,transparent,rgba(255,190,0,0.15),transparent); animation:tcBeam 4s ease-in-out infinite; }
 .tc-beam:nth-child(1){left:15%;height:60%;top:10%;animation-delay:0s}
@@ -47,7 +44,6 @@ const CSS = `
 .tc-scanline { position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px); pointer-events:none; z-index:0; }
 .tc-content { position:relative; z-index:1; }
 
-/* ── Daily limit pips ── */
 .tc-limit-wrap  { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:18px; }
 .tc-limit-label { font-family:'Rajdhani',sans-serif; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; display:flex; align-items:center; gap:6px; }
 .tc-limit-label span { color:#ffbe00; font-weight:700; }
@@ -56,14 +52,12 @@ const CSS = `
 .tc-pip.used  { background:#ffbe00; box-shadow:0 0 8px rgba(255,190,0,0.5); }
 .tc-pip.avail { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); }
 
-/* ── Maxed banner ── */
 .tc-maxed { background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:16px; padding:16px; text-align:center; margin-bottom:16px; position:relative; overflow:hidden; }
 .tc-maxed::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(239,68,68,0.35),transparent); }
 .tc-maxed-icon  { font-size:36px; margin-bottom:8px; animation:tcLimitPulse 2s ease-in-out infinite; }
 .tc-maxed-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:#ef4444; margin-bottom:4px; }
 .tc-maxed-sub   { font-size:12px; color:rgba(255,255,255,0.3); letter-spacing:1px; }
 
-/* ── Tower visual ── */
 .tc-tower-visual { display:flex; flex-direction:column; align-items:center; gap:3px; margin-bottom:20px; }
 .tc-floor-block  { border-radius:4px; border:1px solid rgba(255,190,0,0.3); background:rgba(255,190,0,0.08); animation:tcPulseBlock 2s ease-in-out infinite; }
 .tc-game-title   { font-family:'Bebas Neue',sans-serif; font-size:52px; letter-spacing:4px; line-height:1; color:#ffbe00; text-shadow:0 0 30px rgba(255,190,0,0.5),0 0 60px rgba(255,190,0,0.2); text-align:center; margin-bottom:4px; }
@@ -74,7 +68,15 @@ const CSS = `
 .tc-stat-val { font-family:'Bebas Neue',sans-serif; font-size:32px; color:#ffbe00; letter-spacing:1px; line-height:1; }
 .tc-stat-label { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-top:2px; }
 
-/* ── Buttons ── */
+/* Cap banner */
+.tc-cap-banner {
+  display:flex; align-items:center; justify-content:space-between;
+  background:rgba(255,190,0,0.05); border:1px solid rgba(255,190,0,0.12);
+  border-radius:12px; padding:8px 14px; margin-bottom:14px;
+}
+.tc-cap-label { font-family:'Rajdhani',sans-serif; font-size:11px; letter-spacing:1px; color:rgba(255,255,255,0.25); text-transform:uppercase; }
+.tc-cap-val   { font-family:'Bebas Neue',sans-serif; font-size:16px; color:#ffbe00; letter-spacing:1px; }
+
 .tc-btn-primary   { width:100%; padding:18px; border-radius:14px; border:none; background:linear-gradient(135deg,#ffbe00,#ff8c00); color:#000; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; cursor:pointer; transition:transform 0.1s,box-shadow 0.2s; box-shadow:0 4px 24px rgba(255,190,0,0.3); margin-bottom:10px; display:block; }
 .tc-btn-primary:active { transform:scale(0.97); }
 .tc-btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
@@ -83,14 +85,15 @@ const CSS = `
 .tc-btn-revive    { width:100%; padding:18px; border-radius:14px; border:1px solid rgba(168,85,247,0.4); background:rgba(168,85,247,0.12); color:#c084fc; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; cursor:pointer; transition:transform 0.1s; box-shadow:0 0 24px rgba(168,85,247,0.15); margin-bottom:10px; display:block; }
 .tc-btn-revive:active { transform:scale(0.97); }
 
-/* Remaining pill */
 .tc-remaining { display:inline-flex; align-items:center; gap:5px; padding:6px 14px; border-radius:20px; margin-bottom:12px; font-size:12px; letter-spacing:0.5px; }
 
-/* ── HUD ── */
 .tc-hud       { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
 .tc-hud-floor { font-family:'Bebas Neue',sans-serif; font-size:64px; color:#ffbe00; line-height:1; text-shadow:0 0 20px rgba(255,190,0,0.4); }
 .tc-hud-label { font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.25); text-transform:uppercase; margin-bottom:2px; }
 .tc-hud-score { font-family:'Bebas Neue',sans-serif; font-size:28px; color:#fff; text-align:right; }
+
+/* Score cap warning in HUD */
+.tc-hud-cap { font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:1px; color:#ef4444; text-align:right; margin-top:2px; }
 
 .tc-speed-bar-wrap { margin-bottom:16px; }
 .tc-speed-track { height:3px; background:rgba(255,255,255,0.07); border-radius:99px; overflow:hidden; }
@@ -109,22 +112,18 @@ const CSS = `
 .tc-powerup-btn  { background:rgba(255,255,255,0.03); border-radius:14px; padding:12px; text-align:center; cursor:pointer; border:none; color:#fff; transition:transform 0.1s,background 0.15s; }
 .tc-powerup-btn:active { transform:scale(0.95); }
 .tc-powerup-btn.shield     { border:1px solid rgba(34,211,238,0.3); }
-.tc-powerup-btn.shield:hover { background:rgba(34,211,238,0.07); }
 .tc-powerup-btn.multiplier { border:1px solid rgba(255,190,0,0.3); }
-.tc-powerup-btn.multiplier:hover { background:rgba(255,190,0,0.07); }
 .tc-powerup-icon { font-size:22px; margin-bottom:4px; }
 .tc-powerup-name { font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:1px; }
 .tc-powerup-hint { font-size:10px; letter-spacing:1px; color:rgba(255,255,255,0.3); margin-top:1px; }
 
-/* ── Game over ── */
-.tc-result-ring  { width:120px; height:120px; border-radius:50%; border:3px solid rgba(255,190,0,0.3); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; position:relative; box-shadow:0 0 40px rgba(255,190,0,0.15),inset 0 0 40px rgba(255,190,0,0.05); }
+.tc-result-ring  { width:120px; height:120px; border-radius:50%; border:3px solid rgba(255,190,0,0.3); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; box-shadow:0 0 40px rgba(255,190,0,0.15),inset 0 0 40px rgba(255,190,0,0.05); }
 .tc-result-floor { font-family:'Bebas Neue',sans-serif; font-size:52px; color:#ffbe00; line-height:1; }
 .tc-result-label { font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.3); text-align:center; text-transform:uppercase; margin-bottom:4px; }
 .tc-result-pts   { font-family:'Bebas Neue',sans-serif; font-size:22px; color:#4ade80; text-align:center; margin-bottom:6px; letter-spacing:2px; }
 .tc-result-record{ text-align:center; font-size:12px; letter-spacing:3px; color:#4ade80; margin-bottom:24px; text-transform:uppercase; }
 .tc-divider      { height:1px; background:rgba(255,255,255,0.06); margin:16px 0; }
 
-/* ── Leaderboard ── */
 .tc-lb-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
 .tc-lb-back   { background:none; border:none; color:#ffbe00; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; cursor:pointer; padding:0; }
 .tc-lb-title  { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:3px; color:#fff; }
@@ -141,7 +140,7 @@ const CSS = `
 `;
 
 export default function TowerClimbPage() {
-  const { user, balance, refreshBalance } = useApp();
+  const { user, refreshBalance } = useApp();
   const [gameState, setGameState]   = useState<GameState>('menu');
   const [floor, setFloor]           = useState(0);
   const [score, setScore]           = useState(0);
@@ -149,7 +148,7 @@ export default function TowerClimbPage() {
   const [totalRuns, setTotalRuns]   = useState(0);
   const [targetZone, setTargetZone] = useState(50);
   const [cursorPos, setCursorPos]   = useState(0);
-  const [speed, setSpeed]           = useState(2);
+  const [speed, setSpeed]           = useState(2.5);
   const [hasShield, setHasShield]   = useState(false);
   const [revivesUsed, setRevivesUsed]   = useState(0);
   const [shieldsUsed, setShieldsUsed]   = useState(0);
@@ -168,7 +167,7 @@ export default function TowerClimbPage() {
   const animRef            = useRef<number>(0);
   const cursorRef          = useRef(0);
   const dirRef             = useRef(1);
-  const speedRef           = useRef(2);
+  const speedRef           = useRef(2.5); // ← harder start
   const floorRef           = useRef(0);
   const scoreRef           = useRef(0);
   const multiplierRef      = useRef(1);
@@ -224,7 +223,6 @@ export default function TowerClimbPage() {
     })));
   }
 
-  /* ── Ad callbacks ── */
   const onReviveReward = useCallback(() => {
     triggerHaptic('success');
     setRevivesUsed(r => r + 1);
@@ -257,12 +255,12 @@ export default function TowerClimbPage() {
     setFloor(0); setScore(0); setHasShield(false);
     setRevivesUsed(0); setShieldsUsed(0);
     setMultiplier(1); setMultiplierFloors(0);
-    cursorRef.current = 0; dirRef.current = 1; speedRef.current = 2;
-    setSpeed(2); setCursorPos(0);
+    cursorRef.current = 0; dirRef.current = 1;
+    speedRef.current = 2.5; // ← faster initial speed
+    setSpeed(2.5); setCursorPos(0);
     setTargetZone(30 + Math.random() * 40);
     setGameState('playing');
     setShowResult(null);
-    /* Increment local count immediately */
     setGamesPlayedToday(p => p + 1);
     triggerHaptic('impact');
     if (user) logAdWatch(user.id, 'tower_start', 0);
@@ -275,7 +273,6 @@ export default function TowerClimbPage() {
   const { showAd: showShieldAd }     = useRewardedAd(onShieldReward);
   const { showAd: showMultiplierAd } = useRewardedAd(onMultiplierReward);
 
-  /* ── Animation loop ── */
   useEffect(() => {
     if (gameState !== 'playing') { cancelAnimationFrame(animRef.current); return; }
     function animate() {
@@ -293,13 +290,19 @@ export default function TowerClimbPage() {
     if (gameState !== 'playing') return;
     triggerHaptic('impact');
     const currentFloor = floorRef.current;
-    const zoneSize  = Math.max(8, 25 - currentFloor * 0.5);
+
+    /* ── HARDER zone: shrinks faster, smaller minimum ── */
+    const zoneSize  = Math.max(6, 22 - currentFloor * 0.7);
     const zoneStart = targetZone - zoneSize / 2;
     const zoneEnd   = targetZone + zoneSize / 2;
 
     if (cursorRef.current >= zoneStart && cursorRef.current <= zoneEnd) {
-      const pts = currentFloor * 1 * multiplierRef.current;
-      scoreRef.current += pts;
+      /* ── REDUCED points: floor×0.25 instead of floor×1 ── */
+      const rawPts = Math.max(1, Math.floor(currentFloor * 0.25)) * multiplierRef.current;
+      /* Cap so score never exceeds MAX_SCORE_PER_GAME */
+      const pts = Math.min(rawPts, MAX_SCORE_PER_GAME - scoreRef.current);
+
+      if (pts > 0) scoreRef.current += pts;
       floorRef.current += 1;
       setScore(scoreRef.current);
       setFloor(floorRef.current);
@@ -311,7 +314,9 @@ export default function TowerClimbPage() {
         setMultiplierFloors(multiplierFloorsRef.current);
         if (multiplierFloorsRef.current <= 0) { multiplierRef.current = 1; setMultiplier(1); }
       }
-      const newSpeed = Math.min(7, 2 + floorRef.current * 0.15);
+
+      /* ── FASTER speed ramp ── */
+      const newSpeed = Math.min(9, 2.5 + floorRef.current * 0.22);
       speedRef.current = newSpeed;
       setSpeed(newSpeed);
       setTargetZone(10 + Math.random() * 80);
@@ -335,7 +340,7 @@ export default function TowerClimbPage() {
 
   async function endGame() {
     const finalFloor = floorRef.current;
-    const finalScore = scoreRef.current;
+    const finalScore = Math.min(scoreRef.current, MAX_SCORE_PER_GAME); // enforce cap
     setGameState('gameover');
     cancelAnimationFrame(animRef.current);
     if (!user) return;
@@ -369,7 +374,7 @@ export default function TowerClimbPage() {
         }).eq('user_id', user.id);
         await supabase.from('transactions').insert({
           user_id: user.id, type: 'tower_climb', points: finalScore,
-          description: `🏗️ Tower Climb: Floor ${finalFloor}`,
+          description: `🏗️ Tower Climb: Floor ${finalFloor} (+${finalScore} pts)`,
         });
       }
       await refreshBalance();
@@ -380,9 +385,11 @@ export default function TowerClimbPage() {
     loadLeaderboard();
   }
 
-  const zoneSize = Math.max(8, 25 - floor * 0.5);
-  const speedPct = Math.min(100, ((speed - 2) / 5) * 100);
+  /* ── Use updated zoneSize for display ── */
+  const zoneSize    = Math.max(6, 22 - floor * 0.7);
+  const speedPct    = Math.min(100, ((speed - 2.5) / 6.5) * 100);
   const nextRemaining = MAX_DAILY_GAMES - gamesPlayedToday;
+  const scoreCapped = score >= MAX_SCORE_PER_GAME;
 
   /* ── LEADERBOARD ── */
   if (showLeaderboard) return (
@@ -440,7 +447,6 @@ export default function TowerClimbPage() {
           <div className="tc-game-title">TOWER<br/>CLIMB</div>
           <div className="tc-game-sub">TAP · RISE · SURVIVE</div>
 
-          {/* ── Daily limit pips ── */}
           <div className="tc-limit-wrap">
             <div className="tc-limit-label">
               Daily Runs &nbsp;
@@ -456,7 +462,12 @@ export default function TowerClimbPage() {
             </div>
           </div>
 
-          {/* ── Maxed banner ── */}
+          {/* Max score info */}
+          <div className="tc-cap-banner">
+            <div className="tc-cap-label">Max per run</div>
+            <div className="tc-cap-val">{MAX_SCORE_PER_GAME} PTS</div>
+          </div>
+
           {isMaxed && (
             <div className="tc-maxed">
               <div className="tc-maxed-icon">🔒</div>
@@ -509,12 +520,16 @@ export default function TowerClimbPage() {
           </div>
 
           <div className="tc-result-label">POINTS EARNED</div>
-          <div className="tc-result-pts">+{score} PTS</div>
+          <div className="tc-result-pts">
+            +{Math.min(score, MAX_SCORE_PER_GAME)} PTS
+            {score >= MAX_SCORE_PER_GAME && (
+              <span style={{ fontSize:11, color:'#ffbe00', marginLeft:8, letterSpacing:1 }}>MAX</span>
+            )}
+          </div>
           {floor >= bestFloor && floor > 0 && (
             <div className="tc-result-record">🎉 NEW RECORD!</div>
           )}
 
-          {/* Remaining indicator */}
           <div style={{ textAlign:'center', marginBottom:'12px' }}>
             <div className="tc-remaining" style={{
               background: nextRemaining <= 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,190,0,0.06)',
@@ -563,9 +578,12 @@ export default function TowerClimbPage() {
             <div style={{ textAlign:'right' }}>
               <div className="tc-hud-label">SCORE</div>
               <div className="tc-hud-score">{score}</div>
-              <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.2)', letterSpacing:'2px', marginTop:'4px' }}>
-                BEST {bestFloor}
-              </div>
+              {scoreCapped
+                ? <div className="tc-hud-cap">🔒 MAX REACHED</div>
+                : <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.2)', letterSpacing:'2px', marginTop:'4px' }}>
+                    CAP {MAX_SCORE_PER_GAME}
+                  </div>
+              }
             </div>
           </div>
 
