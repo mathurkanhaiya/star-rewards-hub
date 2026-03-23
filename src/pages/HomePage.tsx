@@ -111,12 +111,12 @@ const AD_REWARD           = 30;
 const AD_COOLDOWN_SEC     = 10;
 const AD_INIT_DELAY_SEC   = 3;   // delay before ad button available on load
 const DROP_COOLDOWN_SEC   = 5;
-const MONETAG_MAX_DAY     = 10;
-const MONETAG_COOLDOWN    = 15;
-const MONETAG_REWARD      = 25;
-const GIGAPUB_MAX_DAY     = 10;
-const GIGAPUB_COOLDOWN    = 15;
-const GIGAPUB_REWARD      = 25;
+const MONETAG_MAX_DAY     = 20;
+const MONETAG_COOLDOWN    = 5;
+const MONETAG_REWARD      = 15;
+const GIGAPUB_MAX_DAY     = 20;
+const GIGAPUB_COOLDOWN    = 5;
+const GIGAPUB_REWARD      = 15;
 
 const DAILY_DROP = [
   { day: 1, pts: 100, color: '#4ade80', label: 'D1' },
