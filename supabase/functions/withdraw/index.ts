@@ -7,14 +7,14 @@ const corsHeaders = {
 };
 
 const TON_TIERS: Record<number, number> = {
-  5000:  0.075,
-  10000: 0.15,
-  15000: 0.225,
-  20000: 0.3,
+  5000:  0.05,
+  10000: 0.1,
+  15000: 0.15,
+  20000: 0.2,
 };
 
 /* 5000 pts = ₹10 → 10/5000 = 0.002 */
-const UPI_RATE = 0.002;
+const UPI_RATE = 0.0012;
 
 async function sendTelegramMessage(chatId: number, text: string) {
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
