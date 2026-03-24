@@ -764,14 +764,12 @@ export default function HomePage() {
           <button className={`hp-tab ${activeTab==="history"?"active":""}`} onClick={()=>setActiveTab("history")}>History</button>
         </div>
 
-        {/* EARN TAB — only AdsgramTask (Gigapub + Monetag removed) */}
+        {/* EARN TAB — only header (AdsgramTask + Monetag + Gigapub removed) */}
         {activeTab === "earn" && (
           <div>
             <div style={{textAlign:'center',padding:'14px 0 12px',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.1)',textTransform:'uppercase'}}>
               ✦ More Ways to Earn ✦
             </div>
-
-            <AdsgramTask blockId="task-25198" />
           </div>
         )}
 
