@@ -66,9 +66,9 @@ const X2_DURATION_SEC     = 10;
 const FAST_DURATION_SEC   = 60;
 const FAST_REGEN_MULT     = 2;
 const FARM_DURATION_MS    = 15 * 60 * 1000;
-const FARM_REWARD         = 50;
+const FARM_REWARD         = 100;
 const AD_MAX_PER_DAY      = 20;
-const AD_REWARD           = 25;
+const AD_REWARD           = 50;
 const AD_COOLDOWN_SEC     = 10;
 const AD_INIT_DELAY_SEC   = 10;
 const DROP_COOLDOWN_SEC   = 5;
@@ -696,7 +696,7 @@ export default function HomePage() {
               <div className={`hp-farm-sub ${isFarming || farmReady ? 'live' : ''}`}>
                 {farmReady ? '✦ Ready to claim!'
                   : isFarming ? `⏱ ${farmTimeLeft} remaining`
-                  : 'Start Farming → 15 min → +50 pts'}
+                  : 'Start Farming → 15 min → +100 pts'}
               </div>
             </div>
             <div className="hp-farm-badge">+{FARM_REWARD} PTS</div>
@@ -736,7 +736,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="hp-ad-badge" style={{color:'#ffbe00',background:'rgba(255,190,0,0.08)',border:'1px solid rgba(255,190,0,0.2)'}}>
-              +50 PTS
+              +100 PTS
             </div>
           </div>
           <div className="hp-ad-prog-track">
@@ -754,7 +754,7 @@ export default function HomePage() {
             ) : adCooldown > 0 ? (
               <span className="hp-cd-txt">⏳ {adCooldown <= AD_INIT_DELAY_SEC && adsToday === 0 ? `READY IN ${adCooldown}s` : `NEXT AD IN ${adCooldown}s`}</span>
             ) : (
-              '🎬  WATCH AD  +50 PTS'
+              '🎬  WATCH AD  +100 PTS'
             )}
           </button>
         </div>
