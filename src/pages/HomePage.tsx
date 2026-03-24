@@ -735,7 +735,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="hp-ad-badge" style={{color:'#ffbe00',background:'rgba(255,190,0,0.08)',border:'1px solid rgba(255,190,0,0.2)'}}>
-              +{AD_REWARD} PTS
+              +50 PTS
             </div>
           </div>
           <div className="hp-ad-prog-track">
