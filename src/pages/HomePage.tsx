@@ -66,10 +66,10 @@ const FAST_DURATION_SEC   = 60;
 const FAST_REGEN_MULT     = 2;
 const FARM_DURATION_MS    = 15 * 60 * 1000;
 const FARM_REWARD         = 50;
-const AD_MAX_PER_DAY      = 15;
-const AD_REWARD           = 50;
-const AD_COOLDOWN_SEC     = 10;
-const AD_INIT_DELAY_SEC   = 5;
+const AD_MAX_PER_DAY      = 20;
+const AD_REWARD           = 25;
+const AD_COOLDOWN_SEC     = 30;
+const AD_INIT_DELAY_SEC   = 10;
 const DROP_COOLDOWN_SEC   = 5;
 
 const DAILY_DROP = [
