@@ -4,20 +4,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { submitWithdrawal } from '@/lib/api';
 
 const TON_TIERS = [
-  { pts: 5000,  ton: 0.075 },
-  { pts: 10000, ton: 0.15 },
-  { pts: 15000, ton: 0.225 },
-  { pts: 20000, ton: 0.30 },
+  { pts: 5000,  ton: 0.05 },
+  { pts: 10000, ton: 0.1 },
+  { pts: 15000, ton: 0.15 },
+  { pts: 20000, ton: 0.2 },
 ];
 
 const UPI_TIERS = [
-  { pts: 5000,  inr: 10 },
-  { pts: 10000, inr: 20 },
-  { pts: 15000, inr: 30 },
-  { pts: 20000, inr: 40 },
+  { pts: 5000,  inr: 5 },
+  { pts: 10000, inr: 10 },
+  { pts: 15000, inr: 15 },
+  { pts: 20000, inr: 20 },
 ];
 
-const REQUIRED_ADS = 4;
+const REQUIRED_ADS = 15;
 
 function isValidTon(addr: string) {
   return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
