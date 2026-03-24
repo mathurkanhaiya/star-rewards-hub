@@ -3,7 +3,6 @@ import { useApp } from "@/context/AppContext";
 import { getTransactions, logAdWatch } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
-import AdsgramTask from "@/components/AdsgramTask";
 
 type HapticType = "impact" | "success" | "error";
 interface Transaction { id: string; type: string; points: number; }
@@ -41,7 +40,6 @@ function AnimatedNumber({ value = 0 }: { value: number }) {
 function txLabel(type: string): string {
   const map: Record<string, string> = {
     tap_earn: "Tap Earn", farm_claim: "Farm Reward", ad_watch: "Ad Watch",
-    monetag_watch: "Monetag Ad", gigapub_watch: "Gigapub Ad",
     adsgram_reward: "Adsgram Ad", tower_climb: "Tower Climb", lucky_box: "Lucky Box",
     dice_roll: "Dice Roll", card_flip: "Card Flip", number_guess: "Number Guess",
     daily_reward: "Daily Reward", daily_drop: "Daily Drop",
@@ -53,7 +51,6 @@ function txLabel(type: string): string {
 function txIcon(type: string): string {
   const map: Record<string, string> = {
     tap_earn: "👆", farm_claim: "🌾", ad_watch: "🎬",
-    monetag_watch: "📱", gigapub_watch: "📺",
     adsgram_reward: "🎬", tower_climb: "🏗️", lucky_box: "🎁",
     dice_roll: "🎲", card_flip: "🃏", number_guess: "🎯",
     daily_reward: "🔥", daily_drop: "🎁", referral_bonus: "👥", task_complete: "✅",
@@ -61,65 +58,19 @@ function txIcon(type: string): string {
   return map[type] || "💰";
 }
 
-/* ── Monetag SDK — only show_10742752 ── */
-async function callMonetagAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    try {
-      const fn = (window as any)['show_10742752'];
-      if (typeof fn === 'function') {
-        Promise.resolve(fn())
-          .then(() => resolve(true))
-          .catch(() => resolve(false));
-      } else {
-        resolve(false);
-      }
-    } catch { resolve(false); }
-  });
-}
-
-/* ── Gigapub SDK — only showGiga(), never Monetag ── */
-async function callGigapubAd(): Promise<boolean> {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const tryShow = () => {
-      const fn = (window as any)['showGiga'];
-      if (typeof fn === 'function') {
-        fn()
-          .then(() => resolve(true))
-          .catch((e: any) => {
-            console.warn('Gigapub ad error:', e);
-            resolve(false);
-          });
-      } else if (attempts < 20) {
-        attempts++;
-        setTimeout(tryShow, 150);
-      } else {
-        resolve(false);
-      }
-    };
-    tryShow();
-  });
-}
-
 /* ── Constants ── */
-const MAX_ENERGY        = 50;
-const REGEN_PER_SEC     = 50 / 3600;
-const X2_DURATION_SEC   = 10;
-const FAST_DURATION_SEC = 60;
-const FAST_REGEN_MULT   = 2;
-const FARM_DURATION_MS  = 15 * 60 * 1000;
-const FARM_REWARD       = 50;
-const AD_MAX_PER_DAY    = 15;
-const AD_REWARD         = 50;
-const AD_COOLDOWN_SEC   = 10;
-const AD_INIT_DELAY_SEC = 5;
-const DROP_COOLDOWN_SEC = 5;
-const MONETAG_MAX_DAY   = 20;
-const MONETAG_COOLDOWN  = 5;
-const MONETAG_REWARD    = 15;
-const GIGAPUB_MAX_DAY   = 20;
-const GIGAPUB_COOLDOWN  = 5;
-const GIGAPUB_REWARD    = 15;
+const MAX_ENERGY          = 50;
+const REGEN_PER_SEC       = 50 / 3600;
+const X2_DURATION_SEC     = 10;
+const FAST_DURATION_SEC   = 60;
+const FAST_REGEN_MULT     = 2;
+const FARM_DURATION_MS    = 15 * 60 * 1000;
+const FARM_REWARD         = 50;
+const AD_MAX_PER_DAY      = 15;
+const AD_REWARD           = 50;
+const AD_COOLDOWN_SEC     = 10;
+const AD_INIT_DELAY_SEC   = 5;
+const DROP_COOLDOWN_SEC   = 5;
 
 const DAILY_DROP = [
   { day: 1, pts: 100, color: '#4ade80', label: 'D1' },
@@ -161,6 +112,7 @@ const CSS = `
 
 .hp-msg { display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; border-radius:13px; margin-bottom:12px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); font-family:'Orbitron',monospace; font-size:10px; font-weight:700; color:#4ade80; letter-spacing:1px; animation:hpMsgIn 0.3s ease; }
 
+/* TAP */
 .hp-tap-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px 16px 14px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s ease; }
 .hp-tap-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.45),transparent); }
 .hp-tap-card::after  { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px); background-size:28px 28px; pointer-events:none; border-radius:22px; }
@@ -202,6 +154,7 @@ const CSS = `
 .hp-boost-sub   { font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:0.5px; margin-top:1px; }
 .hp-boost-timer { font-family:'Orbitron',monospace; font-size:9px; font-weight:700; margin-top:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
+/* DAILY DROP */
 .hp-drop-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,190,0,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.05s ease both; }
 .hp-drop-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
 .hp-drop-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
@@ -230,6 +183,7 @@ const CSS = `
 .hp-drop-btn.claimed  { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.3); cursor:not-allowed; }
 .hp-drop-btn.claimed::after { display:none; }
 
+/* FARM */
 .hp-farm-card { background:rgba(255,255,255,0.02); border:1px solid rgba(74,222,128,0.15); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.1s ease both; }
 .hp-farm-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(74,222,128,0.4),transparent); }
 .hp-farm-card.farming { animation:hpFarmPulse 2.5s ease-in-out infinite; }
@@ -251,14 +205,10 @@ const CSS = `
 .hp-farm-btn.wait  { background:rgba(255,255,255,0.03); border:1px solid rgba(74,222,128,0.12); color:rgba(74,222,128,0.35); cursor:not-allowed; }
 .hp-farm-btn.wait::after { display:none; }
 
+/* AD CARD */
 .hp-ad-card { background:rgba(255,255,255,0.02); border-radius:22px; padding:16px; margin-bottom:12px; position:relative; overflow:hidden; animation:hpFadeIn 0.4s 0.15s ease both; }
 .hp-ad-card.gold   { border:1px solid rgba(255,190,0,0.15); }
 .hp-ad-card.gold::before   { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,190,0,0.4),transparent); }
-.hp-ad-card.cyan   { border:1px solid rgba(34,211,238,0.15); }
-.hp-ad-card.cyan::before   { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(34,211,238,0.4),transparent); }
-.hp-ad-card.purple { border:1px solid rgba(167,139,250,0.15); }
-.hp-ad-card.purple::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(167,139,250,0.4),transparent); }
-
 .hp-ad-top   { display:flex; align-items:center; gap:12px; margin-bottom:11px; }
 .hp-ad-icon  { width:42px; height:42px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
 .hp-ad-info  { flex:1; min-width:0; }
@@ -272,16 +222,16 @@ const CSS = `
 .hp-ad-btn:active   { transform:scale(0.97); }
 .hp-ad-btn:disabled { opacity:0.5; cursor:not-allowed; }
 .hp-ad-btn.gold-btn   { background:linear-gradient(135deg,#ffbe00,#f59e0b,#d97706); color:#1a0800; box-shadow:0 5px 20px rgba(255,190,0,0.3); }
-.hp-ad-btn.cyan-btn   { background:linear-gradient(135deg,#22d3ee,#0891b2); color:#001a20; box-shadow:0 5px 20px rgba(34,211,238,0.3); }
-.hp-ad-btn.purple-btn { background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#0a0010; box-shadow:0 5px 20px rgba(167,139,250,0.3); }
 .hp-ad-btn.ghost { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.35); box-shadow:none; }
 .hp-ad-btn.ghost::after { display:none; }
 .hp-cd-txt { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; animation:hpCdFlash 1s ease-in-out infinite; }
 
+/* Tabs */
 .hp-tabs { display:flex; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:4px; gap:4px; margin-bottom:12px; }
 .hp-tab  { flex:1; padding:8px; border-radius:10px; border:none; background:none; font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.2s,color 0.2s; }
 .hp-tab.active { background:#ffbe00; color:#1a0800; box-shadow:0 2px 12px rgba(255,190,0,0.3); }
 
+/* History */
 .hp-tx-empty { text-align:center; padding:28px 0; font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
 .hp-tx { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:14px; padding:11px 14px; margin-bottom:7px; }
 .hp-tx-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,190,0,0.08); border:1px solid rgba(255,190,0,0.15); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
@@ -312,11 +262,13 @@ export default function HomePage() {
     return MAX_ENERGY;
   });
 
+  /* ── Boosts ── */
   const [x2SecsLeft,   setX2SecsLeft]   = useState(() => loadBoost("boostX2Exp"));
   const [fastSecsLeft, setFastSecsLeft] = useState(() => loadBoost("boostFastExp"));
   const x2Active   = x2SecsLeft   > 0;
   const fastActive = fastSecsLeft > 0;
 
+  /* ── Float pts ── */
   const [floatPts, setFloatPts] = useState<FloatPt[]>([]);
 
   /* ── Farm ── */
@@ -330,33 +282,18 @@ export default function HomePage() {
   const [farmClaiming, setFarmClaiming] = useState(false);
 
   /* ── Daily Drop ── */
-  const [dropStreak, setDropStreak]             = useState(0);
-  const [dropClaimedToday, setDropClaimedToday] = useState(false);
-  const [dropClaiming, setDropClaiming]         = useState(false);
-  const [dropLoading, setDropLoading]           = useState(true);
-  const [dropCooldown, setDropCooldown]         = useState(DROP_COOLDOWN_SEC);
+  const [dropStreak, setDropStreak]               = useState(0);
+  const [dropClaimedToday, setDropClaimedToday]   = useState(false);
+  const [dropClaiming, setDropClaiming]           = useState(false);
+  const [dropLoading, setDropLoading]             = useState(true);
+  const [dropCooldown, setDropCooldown]           = useState(DROP_COOLDOWN_SEC);
   const dropClaimingRef = useRef(false);
 
   /* ── Main Ads ── */
   const [adsToday, setAdsToday]     = useState(0);
   const [adCooldown, setAdCooldown] = useState(AD_INIT_DELAY_SEC);
   const [adLoading, setAdLoading]   = useState(false);
-  const isAdRunning   = useRef(false);
-  const adCredited    = useRef(false); // ← double-reward guard
-
-  /* ── Monetag ── */
-  const [monetagToday, setMonetagToday]       = useState(0);
-  const [monetagCooldown, setMonetagCooldown] = useState(AD_INIT_DELAY_SEC + 1);
-  const [monetagLoading, setMonetagLoading]   = useState(false);
-  const monetagRunning  = useRef(false);
-  const monetagCredited = useRef(false); // ← double-reward guard
-
-  /* ── Gigapub ── */
-  const [gigapubToday, setGigapubToday]       = useState(0);
-  const [gigapubCooldown, setGigapubCooldown] = useState(AD_INIT_DELAY_SEC + 2);
-  const [gigapubLoading, setGigapubLoading]   = useState(false);
-  const gigapubRunning  = useRef(false);
-  const gigapubCredited = useRef(false); // ← double-reward guard
+  const isAdRunning = useRef(false);
 
   /* ── Load ── */
   useEffect(() => {
@@ -369,17 +306,9 @@ export default function HomePage() {
   async function loadTodayAds() {
     if (!user) return;
     const start = new Date(); start.setUTCHours(0,0,0,0);
-    const [mainRes, monetagRes, gigapubRes] = await Promise.all([
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'ad_watch').gte('created_at', start.toISOString()),
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'monetag_watch').gte('created_at', start.toISOString()),
-      supabase.from('ad_logs').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('ad_type', 'gigapub_watch').gte('created_at', start.toISOString()),
-    ]);
-    setAdsToday(mainRes.count || 0);
-    setMonetagToday(monetagRes.count || 0);
-    setGigapubToday(gigapubRes.count || 0);
+    const { count } = await supabase.from('ad_logs').select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('ad_type', 'ad_watch').gte('created_at', start.toISOString());
+    setAdsToday(count || 0);
   }
 
   async function loadDropState() {
@@ -399,7 +328,10 @@ export default function HomePage() {
         .order('claim_date', { ascending: false })
         .limit(8);
 
-      if (!claims || claims.length === 0) { setDropStreak(0); return; }
+      if (!claims || claims.length === 0) {
+        setDropStreak(0);
+        return;
+      }
 
       let streak = 0;
       const now = new Date(); now.setUTCHours(0,0,0,0);
@@ -448,8 +380,6 @@ export default function HomePage() {
   useEffect(() => {
     const t = setInterval(() => {
       setAdCooldown(p => Math.max(0, p - 1));
-      setMonetagCooldown(p => Math.max(0, p - 1));
-      setGigapubCooldown(p => Math.max(0, p - 1));
     }, 1000);
     return () => clearInterval(t);
   }, []);
@@ -492,7 +422,6 @@ export default function HomePage() {
     refreshBalance();
   }
 
-  /* ══ TAP ══ */
   async function handleTap(e: React.MouseEvent<HTMLButtonElement>) {
     if (!user || energy < 1) return;
     triggerHaptic("impact");
@@ -508,10 +437,10 @@ export default function HomePage() {
     const y = rect ? e.clientY - rect.top - 30 : 20;
     setFloatPts(p => [...p, { id, x, y, val: pts }]);
     setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 900);
+
     await creditBalance(pts, 'tap_earn', `👆 Tap${x2Active ? ' (2x)' : ''}`);
   }
 
-  /* ══ BOOSTS ══ */
   const onX2Reward = useCallback(() => {
     const exp = Date.now() + X2_DURATION_SEC * 1000;
     saveBoost("boostX2Exp", exp);
@@ -528,12 +457,12 @@ export default function HomePage() {
   }, []);
   const { showAd: showFastAd } = useRewardedAd(onFastReward);
 
-  /* ══ DAILY DROP ══ */
   async function handleClaimDrop() {
     if (!user || dropClaimedToday || dropClaiming || dropLoading || dropCooldown > 0) return;
     if (dropClaimingRef.current) return;
     dropClaimingRef.current = true;
     triggerHaptic("success"); setDropClaiming(true);
+
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data: existing } = await supabase
@@ -541,27 +470,38 @@ export default function HomePage() {
         .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
       if (existing) {
         setDropClaimedToday(true);
+        setDropClaiming(false);
+        dropClaimingRef.current = false;
         return;
       }
+
       const dayIndex = Math.min(dropStreak, 6);
       const reward   = DAILY_DROP[dayIndex].pts;
+
       const { error: claimError } = await supabase.from('daily_claims').insert({
         user_id: user.id, claim_date: today, claimed_at: new Date().toISOString(),
       });
-      if (claimError) { setDropClaimedToday(true); return; }
+      if (claimError) {
+        setDropClaimedToday(true);
+        setDropClaiming(false);
+        dropClaimingRef.current = false;
+        return;
+      }
+
       await creditBalance(reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex+1}: +${reward} pts`);
+
       setDropClaimedToday(true);
       setDropStreak(p => p + 1);
       showMsg(`+${reward} pts 🎁 Day ${dayIndex+1}!`);
       getTransactions(user.id).then(setTransactions);
-    } catch { showMsg("Error claiming. Try again."); }
-    finally {
+    } catch {
+      showMsg("Error claiming. Try again.");
+    } finally {
       setDropClaiming(false);
       dropClaimingRef.current = false;
     }
   }
 
-  /* ══ FARM ══ */
   const onFarmStartReward = useCallback(() => {
     const now = Date.now();
     setFarmStart(now); setFarmProgress(0); setFarmReady(false);
@@ -594,10 +534,8 @@ export default function HomePage() {
     setFarmClaiming(false);
   }
 
-  /* ══ MAIN AD — Adsgram only, strict double-reward guard ══ */
   const onAdReward = useCallback(async () => {
-    if (!user || adCredited.current) return; // ← block double fire
-    adCredited.current = true;
+    if (!user) return;
     triggerHaptic("success");
     await logAdWatch(user.id, "ad_watch", AD_REWARD);
     await creditBalance(AD_REWARD, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD} pts`);
@@ -605,65 +543,15 @@ export default function HomePage() {
     setAdCooldown(AD_COOLDOWN_SEC);
     showMsg(`+${AD_REWARD} pts 🎬`);
     getTransactions(user.id).then(setTransactions);
-  }, [user]);
+  }, [user, refreshBalance]);
   const { showAd: showMainAd } = useRewardedAd(onAdReward);
 
   async function handleWatchAd() {
     if (!user || isAdRunning.current || adCooldown > 0 || adsToday >= AD_MAX_PER_DAY) return;
     isAdRunning.current = true;
-    adCredited.current  = false; // ← reset before each new ad
     triggerHaptic("impact"); setAdLoading(true);
     try { await showMainAd(); } catch { showMsg("Ad failed."); }
-    setAdLoading(false);
-    isAdRunning.current = false;
-  }
-
-  /* ══ MONETAG — only show_10742752, strict guard ══ */
-  async function handleMonetagAd() {
-    if (!user || monetagRunning.current || monetagCooldown > 0 || monetagToday >= MONETAG_MAX_DAY) return;
-    monetagRunning.current  = true;
-    monetagCredited.current = false; // ← reset before each new ad
-    triggerHaptic("impact"); setMonetagLoading(true);
-    try {
-      const ok = await callMonetagAd();
-      if (ok && !monetagCredited.current) {
-        monetagCredited.current = true; // ← mark credited immediately
-        await logAdWatch(user.id, "monetag_watch", MONETAG_REWARD);
-        await creditBalance(MONETAG_REWARD, 'monetag_watch', `📱 Monetag Ad: +${MONETAG_REWARD} pts`);
-        setMonetagToday(p => p + 1);
-        setMonetagCooldown(MONETAG_COOLDOWN);
-        showMsg(`+${MONETAG_REWARD} pts 📱`);
-        getTransactions(user.id).then(setTransactions);
-      } else if (!ok) {
-        showMsg("Ad not available. Try again.");
-      }
-    } catch { showMsg("Ad failed."); }
-    setMonetagLoading(false);
-    monetagRunning.current = false;
-  }
-
-  /* ══ GIGAPUB — only showGiga(), strict guard ══ */
-  async function handleGigapubAd() {
-    if (!user || gigapubRunning.current || gigapubCooldown > 0 || gigapubToday >= GIGAPUB_MAX_DAY) return;
-    gigapubRunning.current  = true;
-    gigapubCredited.current = false; // ← reset before each new ad
-    triggerHaptic("impact"); setGigapubLoading(true);
-    try {
-      const ok = await callGigapubAd();
-      if (ok && !gigapubCredited.current) {
-        gigapubCredited.current = true; // ← mark credited immediately
-        await logAdWatch(user.id, "gigapub_watch", GIGAPUB_REWARD);
-        await creditBalance(GIGAPUB_REWARD, 'gigapub_watch', `📺 Gigapub Ad: +${GIGAPUB_REWARD} pts`);
-        setGigapubToday(p => p + 1);
-        setGigapubCooldown(GIGAPUB_COOLDOWN);
-        showMsg(`+${GIGAPUB_REWARD} pts 📺`);
-        getTransactions(user.id).then(setTransactions);
-      } else if (!ok) {
-        showMsg("Ad not available. Try again.");
-      }
-    } catch { showMsg("Ad failed."); }
-    setGigapubLoading(false);
-    gigapubRunning.current = false;
+    setAdLoading(false); isAdRunning.current = false;
   }
 
   const energyPct   = (energy / MAX_ENERGY) * 100;
@@ -696,14 +584,14 @@ export default function HomePage() {
                 <span className="hp-tap-btn-sub">{x2Active ? '+2 PTS' : '+1 PT'}</span>
               </button>
               {floatPts.map(f => (
-                <div key={f.id} className="hp-float-pts" style={{ left:f.x, top:f.y }}>+{f.val}</div>
+                <div key={f.id} className="hp-float-pts" style={{ left: f.x, top: f.y }}>+{f.val}</div>
               ))}
             </div>
             <div className="hp-energy-wrap">
               <div className="hp-energy-labels">
                 <span>ENERGY</span>
                 <span style={{ color: energyColor }}>
-                  {energy >= MAX_ENERGY ? '⚡ FULL' : fastActive ? '⚡ FAST ×2' : `+${(REGEN_PER_SEC*60).toFixed(1)}/min`}
+                  {energy >= MAX_ENERGY ? '⚡ FULL' : fastActive ? '⚡ FAST ×2' : `+${(REGEN_PER_SEC * 60).toFixed(1)}/min`}
                 </span>
               </div>
               <div className="hp-energy-track">
@@ -720,7 +608,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="hp-boost-row">
-            <button className={`hp-boost-btn x2 ${x2Active?'on':''}`}
+            <button className={`hp-boost-btn x2 ${x2Active ? 'on' : ''}`}
               onClick={() => { if (!x2Active) showX2Ad(); }} disabled={x2Active}>
               <div className="hp-boost-row-inner">
                 <span className="hp-boost-icon">⚡</span>
@@ -730,7 +618,7 @@ export default function HomePage() {
                 ? <div className="hp-boost-timer" style={{color:'#fbbf24'}}>{fmtBoost(x2SecsLeft)}</div>
                 : <div className="hp-boost-sub">Watch ad • 10s</div>}
             </button>
-            <button className={`hp-boost-btn fast ${fastActive?'on':''}`}
+            <button className={`hp-boost-btn fast ${fastActive ? 'on' : ''}`}
               onClick={() => { if (!fastActive) showFastAd(); }} disabled={fastActive}>
               <div className="hp-boost-row-inner">
                 <span className="hp-boost-icon">🔋</span>
@@ -751,9 +639,10 @@ export default function HomePage() {
               <span className="hp-drop-title">Daily Drop</span>
             </div>
             <div className="hp-drop-streak">
-              🔥 {dropStreak > 0 ? `${Math.min(dropStreak,7)} Day${dropStreak>1?'s':''}` : 'New'}
+              🔥 {dropStreak > 0 ? `${Math.min(dropStreak, 7)} Day${dropStreak > 1 ? 's' : ''}` : 'New'}
             </div>
           </div>
+
           {dropLoading ? (
             <div className="hp-drop-loading">
               <div className="hp-drop-spin"/>
@@ -769,7 +658,7 @@ export default function HomePage() {
                 return (
                   <div key={d.day}
                     className={`hp-drop-day ${claimed?'claimed':''} ${locked?'locked':''} ${isJackpot?'jackpot':''}`}
-                    style={current ? { borderColor:d.color, boxShadow:`0 0 12px ${d.color}30` }
+                    style={current ? { borderColor: d.color, boxShadow:`0 0 12px ${d.color}30` }
                       : isJackpot && !locked ? { borderColor:'#a78bfa50' } : {}}
                   >
                     {claimed && <div className="hp-drop-check">✓</div>}
@@ -782,24 +671,28 @@ export default function HomePage() {
               })}
             </div>
           )}
+
           <button className={`hp-drop-btn ${dropBtnClass}`}
             onClick={handleClaimDrop} disabled={dropBtnDisabled}>
             {dropClaiming ? (
               <span className="hp-dots" style={{color:'#001a0a'}}><span/><span/><span/></span>
-            ) : dropClaimedToday ? '✅  Claimed Today!'
-            : dropLoading || dropCooldown > 0 ? (
+            ) : dropClaimedToday ? (
+              '✅  Claimed Today!'
+            ) : dropLoading || dropCooldown > 0 ? (
               <span className="hp-cd-txt">⏳ {dropLoading ? 'Loading...' : `Available in ${dropCooldown}s`}</span>
-            ) : `🎁  CLAIM +${DAILY_DROP[todayDayIdx]?.pts || 100} PTS`}
+            ) : (
+              `🎁  CLAIM +${DAILY_DROP[todayDayIdx]?.pts || 100} PTS`
+            )}
           </button>
         </div>
 
         {/* FARM */}
-        <div className={`hp-farm-card ${isFarming?'farming':''}`}>
+        <div className={`hp-farm-card ${isFarming ? 'farming' : ''}`}>
           <div className="hp-farm-top">
             <div className="hp-farm-icon">🌾</div>
             <div className="hp-farm-info">
               <div className="hp-farm-title">FARMING</div>
-              <div className={`hp-farm-sub ${isFarming||farmReady?'live':''}`}>
+              <div className={`hp-farm-sub ${isFarming || farmReady ? 'live' : ''}`}>
                 {farmReady ? '✦ Ready to claim!'
                   : isFarming ? `⏱ ${farmTimeLeft} remaining`
                   : 'Start Farming → 15 min → +50 pts'}
@@ -809,7 +702,7 @@ export default function HomePage() {
           </div>
           <div className="hp-farm-prog-labels">
             <span>{farmReady ? 'Complete!' : isFarming ? 'Farming...' : 'Idle'}</span>
-            <span style={{color: farmReady?'#ffbe00':'#4ade80'}}>{Math.round(farmProgress)}%</span>
+            <span style={{color: farmReady ? '#ffbe00' : '#4ade80'}}>{Math.round(farmProgress)}%</span>
           </div>
           <div className="hp-farm-track">
             <div className="hp-farm-fill" style={{
@@ -831,7 +724,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* WATCH ADS — Adsgram */}
+        {/* WATCH ADS (Adsgram) */}
         <div className="hp-ad-card gold">
           <div className="hp-ad-top">
             <div className="hp-ad-icon" style={{background:'rgba(255,190,0,0.1)',border:'1px solid rgba(255,190,0,0.25)'}}>🎬</div>
@@ -855,10 +748,13 @@ export default function HomePage() {
           >
             {adLoading ? (
               <span className="hp-dots" style={{color:'#1a0800'}}><span/><span/><span/></span>
-            ) : adsToday >= AD_MAX_PER_DAY ? '✅ COME BACK TOMORROW'
-            : adCooldown > 0 ? (
+            ) : adsToday >= AD_MAX_PER_DAY ? (
+              '✅ COME BACK TOMORROW'
+            ) : adCooldown > 0 ? (
               <span className="hp-cd-txt">⏳ {adCooldown <= AD_INIT_DELAY_SEC && adsToday === 0 ? `READY IN ${adCooldown}s` : `NEXT AD IN ${adCooldown}s`}</span>
-            ) : '🎬  WATCH AD  +50 PTS'}
+            ) : (
+              '🎬  WATCH AD  +50 PTS'
+            )}
           </button>
         </div>
 
@@ -868,77 +764,16 @@ export default function HomePage() {
           <button className={`hp-tab ${activeTab==="history"?"active":""}`} onClick={()=>setActiveTab("history")}>History</button>
         </div>
 
-        {/* EARN TAB */}
+        {/* EARN TAB — only header (AdsgramTask + Monetag + Gigapub removed) */}
         {activeTab === "earn" && (
           <div>
             <div style={{textAlign:'center',padding:'14px 0 12px',fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'3px',color:'rgba(255,255,255,0.1)',textTransform:'uppercase'}}>
               ✦ More Ways to Earn ✦
             </div>
-
-            <AdsgramTask blockId="task-25198" />
-
-            {/* MONETAG */}
-            <div className="hp-ad-card cyan" style={{marginTop:10}}>
-              <div className="hp-ad-top">
-                <div className="hp-ad-icon" style={{background:'rgba(34,211,238,0.1)',border:'1px solid rgba(34,211,238,0.25)'}}>📱</div>
-                <div className="hp-ad-info">
-                  <div className="hp-ad-title">MONETAG ADS</div>
-                  <div className="hp-ad-sub">
-                    {monetagToday >= MONETAG_MAX_DAY ? '✅ Daily limit reached' : `${monetagToday} / ${MONETAG_MAX_DAY} today`}
-                  </div>
-                </div>
-                <div className="hp-ad-badge" style={{color:'#22d3ee',background:'rgba(34,211,238,0.08)',border:'1px solid rgba(34,211,238,0.2)'}}>
-                  +{MONETAG_REWARD} PTS
-                </div>
-              </div>
-              <div className="hp-ad-prog-track">
-                <div className="hp-ad-prog-fill" style={{width:`${(monetagToday/MONETAG_MAX_DAY)*100}%`,background:'linear-gradient(90deg,#22d3ee,#0891b2)'}}/>
-              </div>
-              <button
-                className={`hp-ad-btn ${monetagToday >= MONETAG_MAX_DAY || monetagCooldown > 0 ? 'ghost' : 'cyan-btn'}`}
-                onClick={handleMonetagAd}
-                disabled={monetagLoading || monetagCooldown > 0 || monetagToday >= MONETAG_MAX_DAY}
-              >
-                {monetagLoading ? (
-                  <span className="hp-dots" style={{color:'#001a20'}}><span/><span/><span/></span>
-                ) : monetagToday >= MONETAG_MAX_DAY ? '✅ COME BACK TOMORROW'
-                : monetagCooldown > 0 ? (
-                  <span className="hp-cd-txt">⏳ {monetagCooldown <= AD_INIT_DELAY_SEC+1 && monetagToday === 0 ? `READY IN ${monetagCooldown}s` : `NEXT IN ${monetagCooldown}s`}</span>
-                ) : '📱  WATCH AD  +15 PTS'}
-              </button>
-            </div>
-
-            {/* GIGAPUB */}
-            <div className="hp-ad-card purple" style={{marginTop:10}}>
-              <div className="hp-ad-top">
-                <div className="hp-ad-icon" style={{background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.25)'}}>📺</div>
-                <div className="hp-ad-info">
-                  <div className="hp-ad-title">GIGAPUB ADS</div>
-                  <div className="hp-ad-sub">
-                    {gigapubToday >= GIGAPUB_MAX_DAY ? '✅ Daily limit reached' : `${gigapubToday} / ${GIGAPUB_MAX_DAY} today`}
-                  </div>
-                </div>
-                <div className="hp-ad-badge" style={{color:'#a78bfa',background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)'}}>
-                  +{GIGAPUB_REWARD} PTS
-                </div>
-              </div>
-              <div className="hp-ad-prog-track">
-                <div className="hp-ad-prog-fill" style={{width:`${(gigapubToday/GIGAPUB_MAX_DAY)*100}%`,background:'linear-gradient(90deg,#a78bfa,#7c3aed)'}}/>
-              </div>
-              <button
-                className={`hp-ad-btn ${gigapubToday >= GIGAPUB_MAX_DAY || gigapubCooldown > 0 ? 'ghost' : 'purple-btn'}`}
-                onClick={handleGigapubAd}
-                disabled={gigapubLoading || gigapubCooldown > 0 || gigapubToday >= GIGAPUB_MAX_DAY}
-              >
-                {gigapubLoading ? (
-                  <span className="hp-dots" style={{color:'#0a0010'}}><span/><span/><span/></span>
-                ) : gigapubToday >= GIGAPUB_MAX_DAY ? '✅ COME BACK TOMORROW'
-                : gigapubCooldown > 0 ? (
-                  <span className="hp-cd-txt">⏳ {gigapubCooldown <= AD_INIT_DELAY_SEC+2 && gigapubToday === 0 ? `READY IN ${gigapubCooldown}s` : `NEXT IN ${gigapubCooldown}s`}</span>
-                ) : '📺  WATCH AD  +15 PTS'}
-              </button>
-            </div>
           </div>
+             
+             <AdsgramTask blockId="task-25198" />
+
         )}
 
         {/* HISTORY TAB */}
