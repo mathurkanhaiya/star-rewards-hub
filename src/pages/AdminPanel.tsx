@@ -458,12 +458,12 @@ export default function AdminPanel() {
             <AdminUsersTab
               users={users}
               onBan={async (id, banned) => {
-                await adminBanUser(id, banned);
+                await adminBanUser(id, banned, telegramUser?.id);
                 showMsg(banned ? 'User banned' : 'User unbanned');
                 loadDashboard();
               }}
               onAdjustBalance={async (id, pts, reason) => {
-                const result = await adminAdjustBalance(id, pts, reason);
+                const result = await adminAdjustBalance(id, pts, reason, telegramUser?.id);
                 result.success ? showMsg('Balance adjusted ✓') : showMsg('Failed', 'error');
                 loadDashboard();
               }}
@@ -475,12 +475,12 @@ export default function AdminPanel() {
             <AdminWithdrawalsTab
               withdrawals={withdrawals}
               onApprove={async id => {
-                await adminUpdateWithdrawal(id, 'approved');
+                await adminUpdateWithdrawal(id, 'approved', undefined, telegramUser?.id);
                 showMsg('Withdrawal approved ✓');
                 loadDashboard();
               }}
               onReject={async id => {
-                await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin');
+                await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin', telegramUser?.id);
                 showMsg('Withdrawal rejected', 'error');
                 loadDashboard();
               }}

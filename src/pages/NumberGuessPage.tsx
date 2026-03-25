@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
-import { supabase } from '@/integrations/supabase/client';
+import { playNumberGuess } from '@/lib/api';
 
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
@@ -229,34 +229,30 @@ export default function NumberGuessPage() {
     triggerHaptic('impact');
 
     const diff = Math.abs(n - target);
-    const tier = getTier(diff);
-    const pct  = Math.max(5, Math.round(100 - (diff / 9) * 95));
-
-    setGuess(n);
-    setReward(tier.pts);
-    setActiveTier(tier);
-    setProxPct(pct);
-    setPhase('result');
-
-    /* Count game */
-    setGamesPlayedToday(p => p + 1);
-    triggerHaptic(diff === 0 ? 'success' : diff <= 2 ? 'success' : 'error');
+    let tier = getTier(diff);
+    let pct  = Math.max(5, Math.round(100 - (diff / 9) * 95));
 
     if (user) {
-      const { data: bal } = await supabase
-        .from('balances').select('points,total_earned').eq('user_id', user.id).single();
-      if (bal) {
-        await supabase.from('balances').update({
-          points: bal.points + tier.pts,
-          total_earned: bal.total_earned + tier.pts,
-        }).eq('user_id', user.id);
-        await supabase.from('transactions').insert({
-          user_id: user.id, type: 'number_guess', points: tier.pts,
-          description: `🎯 Number Guess: ${tier.label} (picked ${n}, answer ${target}) +${tier.pts} pts`,
-        });
+      const result = await playNumberGuess(user.id, n);
+      if (result.success) {
+        const serverDiff = result.diff ?? diff;
+        const serverPts  = result.pts ?? tier.pts;
+        tier = getTier(serverDiff);
+        pct  = Math.round(100 - (serverDiff / 9) * 100);
+        triggerHaptic(serverDiff === 0 ? 'success' : serverDiff <= 2 ? 'success' : 'error');
+        setReward(serverPts);
+        setActiveTier({ ...tier, pts: serverPts });
+        setGamesPlayedToday(p => p + 1);
+        refreshBalance();
+      } else if (result.message?.toLowerCase().includes('limit')) {
+        setPhase('locked');
+        return;
       }
-      refreshBalance();
     }
+
+    setGuess(n);
+    setProxPct(pct);
+    setPhase('result');
   };
 
   const tier = activeTier;

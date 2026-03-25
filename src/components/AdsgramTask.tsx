@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { supabase } from "@/integrations/supabase/client";
+import { logAdWatch } from "@/lib/api";
 
 interface AdsgramTaskProps {
   blockId: string;
@@ -30,33 +30,11 @@ export default function AdsgramTask({
       setState("done");
       onReward?.((e as CustomEvent).detail);
 
-      // ── Credit balance ──
+      // ── Credit balance via secure backend ──
       if (user) {
         try {
-          const { data: bal } = await supabase
-            .from("balances")
-            .select("points, total_earned")
-            .eq("user_id", user.id)
-            .single();
-
-          if (bal) {
-            await supabase
-              .from("balances")
-              .update({
-                points: bal.points + rewardAmount,
-                total_earned: bal.total_earned + rewardAmount,
-              })
-              .eq("user_id", user.id);
-
-            await supabase.from("transactions").insert({
-              user_id: user.id,
-              type: "adsgram_task",
-              points: rewardAmount,
-              description: `🎬 Adsgram Task: +${rewardAmount} pts`,
-            });
-
-            await refreshBalance();
-          }
+          await logAdWatch(user.id, "adsgram_task");
+          await refreshBalance();
         } catch (err) {
           console.error("Failed to credit reward:", err);
         }

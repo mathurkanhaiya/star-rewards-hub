@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import { getTransactions, logAdWatch } from "@/lib/api";
+import { getTransactions, logAdWatch, getAdCount, claimFarm, claimDailyDrop } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
 import AdsgramTask from "@/components/AdsgramTask";
@@ -306,10 +306,8 @@ export default function HomePage() {
 
   async function loadTodayAds() {
     if (!user) return;
-    const start = new Date(); start.setUTCHours(0,0,0,0);
-    const { count } = await supabase.from('ad_logs').select('id', { count:'exact', head:true })
-      .eq('user_id', user.id).eq('ad_type', 'ad_watch').gte('created_at', start.toISOString());
-    setAdsToday(count || 0);
+    const data = await getAdCount(user.id);
+    setAdsToday(data.adsToday || 0);
   }
 
   async function loadDropState() {
@@ -408,19 +406,9 @@ export default function HomePage() {
     return s >= 60 ? `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}` : `${s}s`;
   }
 
-  async function creditBalance(pts: number, type: string, desc: string) {
-    if (!user) return;
-    const { data: bal } = await supabase
-      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
-    if (bal) {
-      await supabase.from('balances').update({
-        points: bal.points + pts, total_earned: bal.total_earned + pts,
-      }).eq('user_id', user.id);
-      await supabase.from('transactions').insert({
-        user_id: user.id, type, points: pts, description: desc,
-      });
-    }
-    refreshBalance();
+  async function creditBalance(_pts: number, _type: string, _desc: string) {
+    // Balance is now credited server-side. Just refresh from source of truth.
+    await refreshBalance();
   }
 
   async function handleTap(e: React.MouseEvent<HTMLButtonElement>) {
@@ -465,36 +453,17 @@ export default function HomePage() {
     triggerHaptic("success"); setDropClaiming(true);
 
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const { data: existing } = await supabase
-        .from('daily_claims').select('id')
-        .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
-      if (existing) {
+      const result = await claimDailyDrop(user.id);
+      if (result.success) {
         setDropClaimedToday(true);
-        setDropClaiming(false);
-        dropClaimingRef.current = false;
-        return;
+        setDropStreak(p => p + 1);
+        showMsg(`+${result.points} pts 🎁 Day ${(result.dayIndex ?? dropStreak) + 1}!`);
+        refreshBalance();
+        getTransactions(user.id).then(setTransactions);
+      } else {
+        showMsg(result.message || "Already claimed today!");
+        if (result.message?.toLowerCase().includes('already')) setDropClaimedToday(true);
       }
-
-      const dayIndex = Math.min(dropStreak, 6);
-      const reward   = DAILY_DROP[dayIndex].pts;
-
-      const { error: claimError } = await supabase.from('daily_claims').insert({
-        user_id: user.id, claim_date: today, claimed_at: new Date().toISOString(),
-      });
-      if (claimError) {
-        setDropClaimedToday(true);
-        setDropClaiming(false);
-        dropClaimingRef.current = false;
-        return;
-      }
-
-      await creditBalance(reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex+1}: +${reward} pts`);
-
-      setDropClaimedToday(true);
-      setDropStreak(p => p + 1);
-      showMsg(`+${reward} pts 🎁 Day ${dayIndex+1}!`);
-      getTransactions(user.id).then(setTransactions);
     } catch {
       showMsg("Error claiming. Try again.");
     } finally {
@@ -512,14 +481,19 @@ export default function HomePage() {
   const { showAd: showFarmStartAd } = useRewardedAd(onFarmStartReward);
 
   const onFarmClaimReward = useCallback(async () => {
-    if (!user) return;
+    if (!user || !farmStart) return;
     triggerHaptic("success");
-    await creditBalance(FARM_REWARD, 'farm_claim', `🌾 Farm: +${FARM_REWARD} pts`);
-    setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
-    localStorage.removeItem("farmStart");
-    showMsg(`+${FARM_REWARD} pts 🌾`);
-    getTransactions(user.id).then(setTransactions);
-  }, [user, refreshBalance]);
+    const result = await claimFarm(user.id, farmStart);
+    if (result.success) {
+      setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
+      localStorage.removeItem("farmStart");
+      showMsg(`+${result.points || FARM_REWARD} pts 🌾`);
+      refreshBalance();
+      getTransactions(user.id).then(setTransactions);
+    } else {
+      showMsg(result.message || "Farm claim failed");
+    }
+  }, [user, farmStart, refreshBalance]);
   const { showAd: showFarmClaimAd } = useRewardedAd(onFarmClaimReward);
 
   async function handleFarmStart() {
@@ -538,12 +512,16 @@ export default function HomePage() {
   const onAdReward = useCallback(async () => {
     if (!user) return;
     triggerHaptic("success");
-    await logAdWatch(user.id, "ad_watch", AD_REWARD);
-    await creditBalance(AD_REWARD, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD} pts`);
-    setAdsToday(p => p + 1);
-    setAdCooldown(AD_COOLDOWN_SEC);
-    showMsg(`+${AD_REWARD} pts 🎬`);
-    getTransactions(user.id).then(setTransactions);
+    const result = await logAdWatch(user.id, "ad_watch");
+    if (result.success) {
+      setAdsToday(p => p + 1);
+      setAdCooldown(AD_COOLDOWN_SEC);
+      showMsg(`+${result.points || AD_REWARD} pts 🎬`);
+      refreshBalance();
+      getTransactions(user.id).then(setTransactions);
+    } else {
+      showMsg(result.message || "Ad reward failed");
+    }
   }, [user, refreshBalance]);
   const { showAd: showMainAd } = useRewardedAd(onAdReward);
 

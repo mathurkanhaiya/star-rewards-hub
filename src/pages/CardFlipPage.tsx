@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
-import { supabase } from '@/integrations/supabase/client';
+import { playCardFlip } from '@/lib/api';
 
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
@@ -226,15 +226,6 @@ export default function CardFlipPage() {
   }, [user]);
 
   async function loadTodayCount() {
-    setLimitLoading(true);
-    const start = new Date(); start.setUTCHours(0,0,0,0);
-    const { count } = await supabase
-      .from('transactions')
-      .select('id', { count:'exact', head:true })
-      .eq('user_id', user!.id)
-      .eq('type', 'card_flip')
-      .gte('created_at', start.toISOString());
-    setGamesPlayedToday(count || 0);
     setLimitLoading(false);
   }
 
@@ -277,27 +268,24 @@ export default function CardFlipPage() {
         match = 'none'; color = '#94a3b8'; triggerHaptic('error');
       }
 
+      if (user) {
+        const result = await playCardFlip(user.id);
+        if (result.success) {
+          pts = result.pts ?? pts;
+          match = (result.matchType as MatchType) ?? match;
+          if (match === 'triple') { color = '#fbbf24'; triggerHaptic('success'); }
+          else if (match === 'pair') { color = '#a78bfa'; triggerHaptic('success'); }
+          else { color = '#94a3b8'; triggerHaptic('error'); }
+          setGamesPlayedToday(p => p + 1);
+          refreshBalance();
+        } else if (result.message?.toLowerCase().includes('limit')) {
+          setPhase('locked');
+          return;
+        }
+      }
+
       setReward(pts); setMatchType(match); setResultColor(color);
       setPhase('result');
-
-      /* Count this game + credit balance */
-      setGamesPlayedToday(p => p + 1);
-
-      if (user) {
-        const { data: bal } = await supabase
-          .from('balances').select('points,total_earned').eq('user_id', user.id).single();
-        if (bal) {
-          await supabase.from('balances').update({
-            points: bal.points + pts,
-            total_earned: bal.total_earned + pts,
-          }).eq('user_id', user.id);
-          await supabase.from('transactions').insert({
-            user_id: user.id, type: 'card_flip', points: pts,
-            description: `🃏 Card Flip: ${match === 'triple' ? 'Triple Match' : match === 'pair' ? 'Pair' : 'No Match'} +${pts} pts`,
-          });
-        }
-        refreshBalance();
-      }
     }
   };
 
