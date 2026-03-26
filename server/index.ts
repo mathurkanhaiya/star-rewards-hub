@@ -120,34 +120,30 @@ async function payCommission(earnerUserId: string, pts: number) {
     const { data: earner } = await db.from('users').select('referred_by').eq('id', earnerUserId).single();
     if (!earner?.referred_by) return;
 
+    // Read pcts from cache (no network call)
+    const l1Pct = parseFloat(getSettingSync('referral_commission_l1_pct', '10'));
+    const l2Pct = parseFloat(getSettingSync('referral_commission_l2_pct', '5'));
+    const l3Pct = parseFloat(getSettingSync('referral_commission_l3_pct', '2.5'));
+
     // L1
     const { data: l1 } = await db.from('users').select('id, telegram_id, referred_by').eq('telegram_id', earner.referred_by).single();
     if (!l1) return;
-    const l1Pct  = parseFloat(await getSetting('referral_commission_l1_pct', '10'));
-    const l1Pts  = Math.floor(pts * l1Pct / 100);
-    if (l1Pts > 0) {
-      await creditPoints(l1.id, l1Pts, 'commission_l1', `💰 L1 commission from referral earn: +${l1Pts} ADR`);
-    }
+    const l1Pts = Math.floor(pts * l1Pct / 100);
+    if (l1Pts > 0) await creditPoints(l1.id, l1Pts, 'commission_l1', `💰 L1 commission: +${l1Pts} ADR`);
 
     // L2
     if (!l1.referred_by) return;
     const { data: l2 } = await db.from('users').select('id, telegram_id, referred_by').eq('telegram_id', l1.referred_by).single();
     if (!l2) return;
-    const l2Pct  = parseFloat(await getSetting('referral_commission_l2_pct', '5'));
-    const l2Pts  = Math.floor(pts * l2Pct / 100);
-    if (l2Pts > 0) {
-      await creditPoints(l2.id, l2Pts, 'commission_l2', `💰 L2 commission from referral earn: +${l2Pts} ADR`);
-    }
+    const l2Pts = Math.floor(pts * l2Pct / 100);
+    if (l2Pts > 0) await creditPoints(l2.id, l2Pts, 'commission_l2', `💰 L2 commission: +${l2Pts} ADR`);
 
     // L3
     if (!l2.referred_by) return;
     const { data: l3 } = await db.from('users').select('id, telegram_id').eq('telegram_id', l2.referred_by).single();
     if (!l3) return;
-    const l3Pct  = parseFloat(await getSetting('referral_commission_l3_pct', '2.5'));
-    const l3Pts  = Math.floor(pts * l3Pct / 100);
-    if (l3Pts > 0) {
-      await creditPoints(l3.id, l3Pts, 'commission_l3', `💰 L3 commission from referral earn: +${l3Pts} ADR`);
-    }
+    const l3Pts = Math.floor(pts * l3Pct / 100);
+    if (l3Pts > 0) await creditPoints(l3.id, l3Pts, 'commission_l3', `💰 L3 commission: +${l3Pts} ADR`);
   } catch { /* silent – never block the primary earn */ }
 }
 
@@ -1355,6 +1351,7 @@ app.post('/api/admin/setting', strictLimiter, async (req, res) => {
   const { data: existing } = await db.from('settings').select('id').eq('key', key).single();
   if (existing) await db.from('settings').update({ value, updated_at: new Date().toISOString() }).eq('key', key);
   else await db.from('settings').insert({ key, value });
+  invalidateSettingsCache();
   return ok(res);
 });
 
@@ -1478,10 +1475,34 @@ async function getBotUser(telegramId: number) {
   return data as any;
 }
 
-async function getSetting(key: string, def: string): Promise<string> {
-  const { data } = await db.from('settings').select('value').eq('key', key).single();
-  return data?.value || def;
+// ── Settings cache — one Supabase round-trip per minute, not per call ──────
+let settingsCache: Record<string, string> = {};
+let settingsCacheAt = 0;
+const SETTINGS_TTL = 60_000; // 1 minute
+
+async function loadSettingsCache() {
+  const { data } = await db.from('settings').select('key, value');
+  if (data) {
+    settingsCache = {};
+    for (const row of data as any[]) settingsCache[row.key] = row.value;
+  }
+  settingsCacheAt = Date.now();
 }
+
+// Pre-warm on startup
+loadSettingsCache().catch(() => {});
+
+async function getSetting(key: string, def: string): Promise<string> {
+  if (Date.now() - settingsCacheAt > SETTINGS_TTL) await loadSettingsCache();
+  return settingsCache[key] ?? def;
+}
+
+function getSettingSync(key: string, def: string): string {
+  return settingsCache[key] ?? def;
+}
+
+// Invalidate cache after admin changes a setting
+function invalidateSettingsCache() { settingsCacheAt = 0; }
 
 async function handleBotMessage(msg: any) {
   const chatId: number = msg.chat.id;
@@ -1489,6 +1510,10 @@ async function handleBotMessage(msg: any) {
   const text: string = (msg.text || '').trim();
   if (!text.startsWith('/')) return;
 
+  // Ensure settings in memory (single call if stale, no-op if fresh)
+  if (Date.now() - settingsCacheAt > SETTINGS_TTL) loadSettingsCache().catch(() => {});
+
+  // Parallel: fetch user + their balance in one query
   const user = fromId ? await getBotUser(fromId) : null;
   const balance = (user?.balances as any[])?.[0] || { points: 0 };
 
@@ -1612,8 +1637,13 @@ async function handleBotMessage(msg: any) {
   if (text.startsWith('/beg')) {
     if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
 
-    // Verify bio
-    const bio = await getTgBio(chatId);
+    // Parallel: bio check + cooldown check + read settings all at once
+    const cooldownHours = parseInt(getSettingSync('beg_cooldown_hours', '12'), 10);
+    const [bio, lastBegResult] = await Promise.all([
+      getTgBio(chatId),
+      db.from('beg_logs').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+
     if (!bio.includes('@Adsrewartsbot')) {
       return sendTg(chatId,
         `🔒 <b>Bio Verification Required</b>\n\nTo use <b>/beg</b> you must have exactly <code>@Adsrewartsbot</code> in your Telegram bio.\n\n` +
@@ -1622,20 +1652,17 @@ async function handleBotMessage(msg: any) {
       );
     }
 
-    // Cooldown check
-    const cooldownHours = parseInt(await getSetting('beg_cooldown_hours', '12'), 10);
-    const cutoff = new Date(Date.now() - cooldownHours * 3600000).toISOString();
-    const { data: lastBeg } = await db.from('beg_logs').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
-    if (lastBeg && new Date(lastBeg.created_at) > new Date(cutoff)) {
+    const lastBeg = lastBegResult.data;
+    if (lastBeg && new Date(lastBeg.created_at) > new Date(Date.now() - cooldownHours * 3600000)) {
       const nextMs = new Date(lastBeg.created_at).getTime() + cooldownHours * 3600000;
       const waitM = Math.ceil((nextMs - Date.now()) / 60000);
       return sendTg(chatId, `⏳ <b>Slow down!</b>\n\nYou can /beg again in <b>${waitM} minute${waitM !== 1 ? 's' : ''}</b>.`, { reply_markup: MINI_APP_BTN });
     }
 
-    // 50/50 roll
+    // 50/50 roll — settings already in memory
     const won = Math.random() < 0.5;
-    const minPts = parseInt(await getSetting('beg_reward_min', '10'), 10);
-    const maxPts = parseInt(await getSetting('beg_reward_max', '50'), 10);
+    const minPts = parseInt(getSettingSync('beg_reward_min', '10'), 10);
+    const maxPts = parseInt(getSettingSync('beg_reward_max', '50'), 10);
     const prize  = won ? Math.floor(Math.random() * (maxPts - minPts + 1)) + minPts : 0;
 
     await db.from('beg_logs').insert({ user_id: user.id, won, points_earned: prize });
@@ -1657,8 +1684,14 @@ async function handleBotMessage(msg: any) {
   if (text.startsWith('/claim')) {
     if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
 
-    // Verify bio
-    const bio = await getTgBio(chatId);
+    // Parallel: bio + existing-claim check
+    const today = new Date().toISOString().split('T')[0];
+    const [bio, existingResult, claimsResult] = await Promise.all([
+      getTgBio(chatId),
+      db.from('daily_claims').select('id').eq('user_id', user.id).eq('claim_date', today).maybeSingle(),
+      db.from('daily_claims').select('claim_date').eq('user_id', user.id).order('claim_date', { ascending: false }).limit(8),
+    ]);
+
     if (!bio.includes('@Adsrewartsbot')) {
       return sendTg(chatId,
         `🔒 <b>Bio Verification Required</b>\n\nTo use <b>/claim</b> you must have <code>@Adsrewartsbot</code> in your Telegram bio.\n\n` +
@@ -1667,15 +1700,13 @@ async function handleBotMessage(msg: any) {
       );
     }
 
-    // 24h cooldown via daily_claims table
-    const today = new Date().toISOString().split('T')[0];
-    const { data: existing } = await db.from('daily_claims').select('id').eq('user_id', user.id).eq('claim_date', today).maybeSingle();
-    if (existing) {
+    // Use pre-fetched results from parallel Promise.all above
+    if (existingResult.data) {
       return sendTg(chatId, `✅ <b>Already claimed today!</b>\n\nCome back tomorrow for your next daily drop. 🌙`, { reply_markup: MINI_APP_BTN });
     }
 
-    // Streak
-    const { data: claims } = await db.from('daily_claims').select('claim_date').eq('user_id', user.id).order('claim_date', { ascending: false }).limit(8);
+    // Streak from pre-fetched claims
+    const claims = claimsResult.data;
     let streak = 0;
     const now2 = new Date(); now2.setUTCHours(0, 0, 0, 0);
     for (let i = 0; i < (claims || []).length; i++) {
@@ -1716,9 +1747,10 @@ async function handleBotMessage(msg: any) {
 async function handlePvpCommand(chatId: number, msg: any, user: any, balance: any, game: string, amount: number) {
   const emoji = PVP_EMOJIS[game] || '🎮';
   const gameName = PVP_NAMES[game] || game.toUpperCase();
-  const minBet = parseInt(await getSetting('pvp_min_bet', '100'), 10);
-  const housePct = parseFloat(await getSetting('pvp_house_fee_pct', '3'));
-  const timeoutMin = parseInt(await getSetting('pvp_challenge_timeout_min', '5'), 10);
+  // Use sync cache — settings already in memory
+  const minBet    = parseInt(getSettingSync('pvp_min_bet', '100'), 10);
+  const housePct  = parseFloat(getSettingSync('pvp_house_fee_pct', '3'));
+  const timeoutMin = parseInt(getSettingSync('pvp_challenge_timeout_min', '5'), 10);
 
   if (amount < minBet) {
     return sendTg(chatId, `${emoji} Minimum bet is <b>${minBet} ADR</b>.\nUsage: <code>/${game} ${minBet}</code>`);
