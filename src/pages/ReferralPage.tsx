@@ -383,7 +383,7 @@ const CSS = `
 }
 `;
 
-export default function ReferralPage({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+export default function ReferralPage() {
   const { user } = useApp();
   const [referrals, setReferrals] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
@@ -494,23 +494,6 @@ export default function ReferralPage({ onNavigate }: { onNavigate?: (page: strin
             </div>
           </div>
         </div>
-
-        {/* REFERRAL CONTEST BANNER */}
-        {onNavigate && (
-          <div style={{margin:'10px 0',cursor:'pointer'}} onClick={() => onNavigate('referralcontest')}>
-            <div style={{
-              background:'linear-gradient(135deg,rgba(74,222,128,0.08),rgba(34,197,94,0.05))',
-              border:'1px solid rgba(74,222,128,0.18)',borderRadius:14,
-              padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',
-            }}>
-              <div>
-                <div style={{fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'2px',color:'rgba(74,222,128,0.6)',marginBottom:2}}>🏆 LIVE EVENT</div>
-                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.85)'}}>Referral Race Contest</div>
-              </div>
-              <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:'rgba(74,222,128,0.5)'}}>VIEW →</div>
-            </div>
-          </div>
-        )}
 
         {/* ── How it works ── */}
         <div className="rp-how">

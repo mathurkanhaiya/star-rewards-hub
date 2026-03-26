@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AppUser, UserBalance, TelegramUser, Notification } from '@/types/telegram';
-import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead, verifyAdminSession } from '@/lib/api';
+import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead } from '@/lib/api';
 import { showInterstitialAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -11,9 +11,6 @@ interface AppContextType {
   settings: Record<string, string>;
   isLoading: boolean;
   isAdmin: boolean;
-  isTelegram: boolean;
-  adminVerified: boolean;
-  setAdminVerified: (v: boolean) => void;
   notifications: Notification[];
   unreadCount: number;
   refreshBalance: () => Promise<void>;
@@ -29,9 +26,6 @@ const AppContext = createContext<AppContextType>({
   settings: {},
   isLoading: true,
   isAdmin: false,
-  isTelegram: false,
-  adminVerified: false,
-  setAdminVerified: () => {},
   notifications: [],
   unreadCount: 0,
   refreshBalance: async () => {},
@@ -44,6 +38,13 @@ export const useApp = () => useContext(AppContext);
 
 const ADMIN_ID = 2139807311;
 
+const MOCK_TELEGRAM_USER: TelegramUser = {
+  id: 2139807311,
+  first_name: 'Admin',
+  last_name: 'User',
+  username: 'adminuser',
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -52,26 +53,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [adminVerified, setAdminVerifiedState] = useState(false);
 
-  const isTelegram = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
   const isAdmin = telegramUser?.id === ADMIN_ID;
-
-  const setAdminVerified = useCallback((v: boolean) => {
-    setAdminVerifiedState(v);
-    if (!v) sessionStorage.removeItem('admin_token');
-  }, []);
-
-  // Restore admin session from sessionStorage on mount
-  useEffect(() => {
-    const token = sessionStorage.getItem('admin_token');
-    if (token) {
-      verifyAdminSession(token).then(res => {
-        if (res.success) setAdminVerifiedState(true);
-        else sessionStorage.removeItem('admin_token');
-      });
-    }
-  }, []);
 
   useEffect(() => {
     initApp();
@@ -121,33 +104,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function initApp() {
     setIsLoading(true);
     try {
-      // Only run inside Telegram Mini App — browser gets guest mode (zeros, no user)
-      if (!window.Telegram?.WebApp) {
-        const s = await getSettings();
-        setSettings(s);
-        return;
+      let tgUser: TelegramUser | null = null;
+      
+      if (window.Telegram?.WebApp) {
+        const twa = window.Telegram.WebApp;
+        twa.ready();
+        twa.expand();
+        tgUser = twa.initDataUnsafe?.user || null;
       }
 
-      const twa = window.Telegram.WebApp;
-      twa.ready();
-      twa.expand();
-
-      const tgUser: TelegramUser | null = twa.initDataUnsafe?.user || null;
       if (!tgUser) {
-        const s = await getSettings();
-        setSettings(s);
-        return;
+        tgUser = MOCK_TELEGRAM_USER;
       }
 
       setTelegramUser(tgUser);
 
-      const referralCode = twa.initDataUnsafe?.start_param || undefined;
+      let referralCode: string | undefined;
+      if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
+        referralCode = window.Telegram.WebApp.initDataUnsafe.start_param;
+      }
 
       const appUser = await initUser(
         { id: tgUser.id, first_name: tgUser.first_name, last_name: tgUser.last_name, username: tgUser.username, photo_url: tgUser.photo_url },
         referralCode
       );
-
+      
       setUser(appUser);
 
       if (appUser) {
@@ -204,8 +185,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      telegramUser, user, balance, settings, isLoading, isAdmin, isTelegram,
-      adminVerified, setAdminVerified,
+      telegramUser, user, balance, settings, isLoading, isAdmin,
       notifications, unreadCount, refreshBalance, refreshUser, refreshNotifications, markRead,
     }}>
       {children}

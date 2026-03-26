@@ -13,8 +13,8 @@ interface AdController {
   destroy: () => void;
 }
 
-const INTERSTITIAL_ID = 'int-25929';
-const REWARDED_ID = '25930';
+const INTERSTITIAL_ID = 'int-23322';
+const REWARDED_ID = '23390';
 
 export function useRewardedAd(onReward: () => void) {
   const adRef = useRef<AdController | null>(null);

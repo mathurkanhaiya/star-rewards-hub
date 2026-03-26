@@ -556,9 +556,9 @@ export default function AdminPanel() {
               <button
                 className="ad-broadcast-btn"
                 onClick={async () => {
-                  if (!broadcastText.trim()) return;
+                  if (!broadcastText.trim() || !telegramUser) return;
                   setBroadcasting(true);
-                  const result = await adminSendBroadcast(broadcastText);
+                  const result = await adminSendBroadcast(broadcastText, telegramUser.id);
                   result.success ? showMsg('Broadcast sent 📢') : showMsg('Failed', 'error');
                   setBroadcastText('');
                   setBroadcasting(false);

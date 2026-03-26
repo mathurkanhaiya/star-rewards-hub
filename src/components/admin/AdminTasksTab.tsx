@@ -344,7 +344,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
 
             <div className="at-grid2">
               <div>
-                <label className="at-label">Reward (ADR)</label>
+                <label className="at-label">Reward Points</label>
                 <input
                   className="at-input"
                   type="number"
@@ -513,7 +513,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
                   </div>
                   <div className="at-task-title">{t.title}</div>
                   <div className="at-task-meta">
-                    <span style={{ color: '#ffbe00' }}>✦ +{t.reward_points} ADR</span>
+                    <span style={{ color: '#ffbe00' }}>✦ +{t.reward_points} pts</span>
                     {t.reward_stars > 0 && <span>⭐ {t.reward_stars}</span>}
                     {t.is_repeatable && <span style={{ color: '#22d3ee' }}>↺ repeat</span>}
                     {t.link && <span>🔗 linked</span>}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import { getTransactions, logAdWatch, getAdCount, claimFarm, claimDailyDrop, claimTap } from "@/lib/api";
+import { getTransactions, logAdWatch } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
 import AdsgramTask from "@/components/AdsgramTask";
@@ -244,7 +244,7 @@ const CSS = `
 .hp-dots span:nth-child(2){animation-delay:0.2s} .hp-dots span:nth-child(3){animation-delay:0.4s}
 `;
 
-export default function HomePage({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+export default function HomePage() {
   const { user, balance, refreshBalance } = useApp();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [activeTab, setActiveTab]       = useState<"earn" | "history">("earn");
@@ -296,10 +296,6 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
   const [adLoading, setAdLoading]   = useState(false);
   const isAdRunning = useRef(false);
 
-  /* ── Tap buffer (batch API calls) ── */
-  const tapBufRef   = useRef<{ count: number; x2: boolean }>({ count: 0, x2: false });
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   /* ── Load ── */
   useEffect(() => {
     if (!user) return;
@@ -310,8 +306,10 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
 
   async function loadTodayAds() {
     if (!user) return;
-    const data = await getAdCount(user.id);
-    setAdsToday(data.adsToday || 0);
+    const start = new Date(); start.setUTCHours(0,0,0,0);
+    const { count } = await supabase.from('ad_logs').select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('ad_type', 'ad_watch').gte('created_at', start.toISOString());
+    setAdsToday(count || 0);
   }
 
   async function loadDropState() {
@@ -410,12 +408,18 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
     return s >= 60 ? `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}` : `${s}s`;
   }
 
-  // Flush buffered taps to the backend
-  async function flushTaps() {
-    if (!user || tapBufRef.current.count === 0) return;
-    const { count, x2 } = tapBufRef.current;
-    tapBufRef.current = { count: 0, x2: false };
-    await claimTap(user.id, count, x2);
+  async function creditBalance(pts: number, type: string, desc: string) {
+    if (!user) return;
+    const { data: bal } = await supabase
+      .from('balances').select('points,total_earned').eq('user_id', user.id).single();
+    if (bal) {
+      await supabase.from('balances').update({
+        points: bal.points + pts, total_earned: bal.total_earned + pts,
+      }).eq('user_id', user.id);
+      await supabase.from('transactions').insert({
+        user_id: user.id, type, points: pts, description: desc,
+      });
+    }
     refreshBalance();
   }
 
@@ -435,19 +439,7 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
     setFloatPts(p => [...p, { id, x, y, val: pts }]);
     setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 900);
 
-    // Accumulate tap in buffer
-    tapBufRef.current.count += 1;
-    tapBufRef.current.x2 = x2Active;
-
-    // Flush every 10 taps immediately, otherwise flush after 1.5s idle
-    if (tapBufRef.current.count >= 10) {
-      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = null;
-      flushTaps();
-    } else {
-      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = setTimeout(() => { flushTaps(); tapTimerRef.current = null; }, 1500);
-    }
+    await creditBalance(pts, 'tap_earn', `👆 Tap${x2Active ? ' (2x)' : ''}`);
   }
 
   const onX2Reward = useCallback(() => {
@@ -473,17 +465,36 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
     triggerHaptic("success"); setDropClaiming(true);
 
     try {
-      const result = await claimDailyDrop(user.id);
-      if (result.success) {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabase
+        .from('daily_claims').select('id')
+        .eq('user_id', user.id).eq('claim_date', today).maybeSingle();
+      if (existing) {
         setDropClaimedToday(true);
-        setDropStreak(p => p + 1);
-        showMsg(`+${result.points} pts 🎁 Day ${(result.dayIndex ?? dropStreak) + 1}!`);
-        refreshBalance();
-        getTransactions(user.id).then(setTransactions);
-      } else {
-        showMsg(result.message || "Already claimed today!");
-        if (result.message?.toLowerCase().includes('already')) setDropClaimedToday(true);
+        setDropClaiming(false);
+        dropClaimingRef.current = false;
+        return;
       }
+
+      const dayIndex = Math.min(dropStreak, 6);
+      const reward   = DAILY_DROP[dayIndex].pts;
+
+      const { error: claimError } = await supabase.from('daily_claims').insert({
+        user_id: user.id, claim_date: today, claimed_at: new Date().toISOString(),
+      });
+      if (claimError) {
+        setDropClaimedToday(true);
+        setDropClaiming(false);
+        dropClaimingRef.current = false;
+        return;
+      }
+
+      await creditBalance(reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex+1}: +${reward} pts`);
+
+      setDropClaimedToday(true);
+      setDropStreak(p => p + 1);
+      showMsg(`+${reward} pts 🎁 Day ${dayIndex+1}!`);
+      getTransactions(user.id).then(setTransactions);
     } catch {
       showMsg("Error claiming. Try again.");
     } finally {
@@ -501,19 +512,14 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
   const { showAd: showFarmStartAd } = useRewardedAd(onFarmStartReward);
 
   const onFarmClaimReward = useCallback(async () => {
-    if (!user || !farmStart) return;
+    if (!user) return;
     triggerHaptic("success");
-    const result = await claimFarm(user.id, farmStart);
-    if (result.success) {
-      setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
-      localStorage.removeItem("farmStart");
-      showMsg(`+${result.points || FARM_REWARD} pts 🌾`);
-      refreshBalance();
-      getTransactions(user.id).then(setTransactions);
-    } else {
-      showMsg(result.message || "Farm claim failed");
-    }
-  }, [user, farmStart, refreshBalance]);
+    await creditBalance(FARM_REWARD, 'farm_claim', `🌾 Farm: +${FARM_REWARD} pts`);
+    setFarmStart(null); setFarmProgress(0); setFarmReady(false); setFarmTimeLeft("");
+    localStorage.removeItem("farmStart");
+    showMsg(`+${FARM_REWARD} pts 🌾`);
+    getTransactions(user.id).then(setTransactions);
+  }, [user, refreshBalance]);
   const { showAd: showFarmClaimAd } = useRewardedAd(onFarmClaimReward);
 
   async function handleFarmStart() {
@@ -532,16 +538,12 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
   const onAdReward = useCallback(async () => {
     if (!user) return;
     triggerHaptic("success");
-    const result = await logAdWatch(user.id, "ad_watch");
-    if (result.success) {
-      setAdsToday(p => p + 1);
-      setAdCooldown(AD_COOLDOWN_SEC);
-      showMsg(`+${result.points || AD_REWARD} pts 🎬`);
-      refreshBalance();
-      getTransactions(user.id).then(setTransactions);
-    } else {
-      showMsg(result.message || "Ad reward failed");
-    }
+    await logAdWatch(user.id, "ad_watch", AD_REWARD);
+    await creditBalance(AD_REWARD, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD} pts`);
+    setAdsToday(p => p + 1);
+    setAdCooldown(AD_COOLDOWN_SEC);
+    showMsg(`+${AD_REWARD} pts 🎬`);
+    getTransactions(user.id).then(setTransactions);
   }, [user, refreshBalance]);
   const { showAd: showMainAd } = useRewardedAd(onAdReward);
 
@@ -757,23 +759,6 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
           </button>
         </div>
 
-        {/* ADS CONTEST BANNER */}
-        {onNavigate && (
-          <div style={{margin:'10px 0 4px',cursor:'pointer'}} onClick={() => onNavigate('adcontest')}>
-            <div style={{
-              background:'linear-gradient(135deg,rgba(255,190,0,0.08),rgba(255,140,0,0.05))',
-              border:'1px solid rgba(255,190,0,0.18)',borderRadius:14,
-              padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',
-            }}>
-              <div>
-                <div style={{fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'2px',color:'rgba(255,190,0,0.6)',marginBottom:2}}>🏆 LIVE EVENT</div>
-                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.85)'}}>Ads Watching Contest</div>
-              </div>
-              <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:'rgba(255,190,0,0.5)'}}>VIEW →</div>
-            </div>
-          </div>
-        )}
-
         {/* TABS */}
         <div className="hp-tabs">
           <button className={`hp-tab ${activeTab==="earn"?"active":""}`} onClick={()=>setActiveTab("earn")}>Earn</button>
@@ -787,7 +772,7 @@ export default function HomePage({ onNavigate }: { onNavigate?: (page: string) =
               ✦ More Ways to Earn ✦
             </div>
 
-            <AdsgramTask blockId="task-25931" />
+            <AdsgramTask blockId="task-25198" />
           </div>
         )}
 

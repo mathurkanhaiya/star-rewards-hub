@@ -299,7 +299,7 @@ const CSS = `
 .rc-howto-sub  { font-size:10px; color:rgba(255,255,255,0.25); letter-spacing:0.5px; margin-top:1px; }
 `;
 
-export default function ReferralContestPage({ onBack }: { onBack?: () => void }) {
+export default function ReferralContestPage() {
   const { user } = useApp();
 
   const [contest, setContest]     = useState<Contest | null>(null);
@@ -442,14 +442,6 @@ export default function ReferralContestPage({ onBack }: { onBack?: () => void })
         <div className="rc-grid" />
         <div className="rc-content">
 
-          {/* Back button */}
-          {onBack && (
-            <button onClick={onBack} style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-              color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: 'Orbitron, monospace',
-              letterSpacing: 2, padding: '6px 14px', cursor: 'pointer', marginBottom: 12,
-            }}>← BACK</button>
-          )}
           {/* ── Header ── */}
           <div className="rc-header">
             <div className="rc-eyebrow">Live · Competition</div>

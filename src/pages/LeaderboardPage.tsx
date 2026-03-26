@@ -588,7 +588,7 @@ export default function LeaderboardPage() {
                         <div className="lb-row-pts-val">
                           <AnimatedPoints value={totalPoints} />
                         </div>
-                        <div className="lb-row-pts-lbl">ADR</div>
+                        <div className="lb-row-pts-lbl">pts</div>
                       </div>
                     </div>
                   );

@@ -1,57 +1,0 @@
-1. Fixes (Immediate Priority)
-•  Tap Reward Add Fix Ensure the tap handler correctly adds ADR rewards (with any multipliers, daily limits, or energy system applied). Double-check the backend calculation and database update logic to prevent zero/repeated rewards.
-•  Admin Panel – Update Settings Error Fix the form submission/validation for settings update. Common causes: missing CSRF, database column mismatch, or unhandled exceptions in the controller. Add proper error logging and user-friendly messages (e.g., “Settings updated successfully” or specific field errors).
-2. New Features
-A. Ad Watch Leaderboard as Contest (Homepage)
-•  On the homepage, add a new section “Ad Watch Leaderboard” (or “Watch & Earn Contest”).
-•  This section only appears if the admin has created at least one active/running Ad Watch Contest.
-•  Show a leaderboard of top users based on ad watches completed during the contest period.
-•  Clicking it opens the full leaderboard or contest details.
-B. Invite Contest Leaderboard (Raffer / Referral Page)
-•  In the Raffer / Referral page, add a dedicated “Invite Contest Leaderboard”.
-•  Admin can create Invite Contests (with duration, prize pool in ADR, etc.).
-•  Leaderboard shows top inviters (by successful invites) only for the active contest.
-•  Display it prominently below the normal referral stats.
-C. New Withdraw Method: USDT (Polygon)
-•  Add USDT on Polygon as a withdrawal option in the user’s withdraw section.
-•  Fields needed: Wallet Address (Polygon), Amount (ADR → USDT conversion if applicable).
-•  Backend: Integrate Polygon RPC or a bridge/exchange API for sending USDT.
-•  Store withdrawal requests with network = “polygon”, currency = “USDT”.
-•  Admin panel should have approval + manual/automated payout for this method.
-•  Add minimum withdraw limit, fees, and confirmation steps.
-D. Full Real-Time Admin Panel Settings (Mirror Bot Settings)
-•  Make the Admin Panel have every single setting available in the bot (tapping rewards, energy, farming rates, contest configs, house fees, etc.).
-•  Changes in admin panel should apply in real-time (or with minimal delay) to the bot and mini app.
-•  Best approach: Store all settings in a single JSON/document in the database (or Redis cache). Both bot and mini app read from this central config. Admin updates → clear cache or push update.
-E. Connect Mini App Deeply with Bot Commands
-Implement these bot commands (they should work seamlessly with the mini app data):
-•  /balance → Shows current ADR balance (and maybe farming status).
-•  /farm → Displays farming status: “Farming in progress…” or “Farming completed! Claim X ADR” with real-time remaining time if possible.
-•  /leaderboard → Top earners by total lifetime withdrawn ADR. Show only UID or display name (no @username for privacy).
-•  /ricklb → Rich list: Top users by current balance.
-•  /invitelb → Top inviters leaderboard (by number of successful referrals).
-•  /contest → Checks for any running contest. If yes, shows its leaderboard (ad watch, invite, or general). If none, says “No active contest at the moment.”
-Pro Tip: Use the same backend API endpoints for both mini app and bot commands to avoid duplication.
-3. New PVP Games (Bot-Only)
-All PVP games will be available only through the bot (not in mini app for now).
-Core Mechanics (Same for all games)
-•  /dice <amount> (minimum 100 ADR)
-	•  Bot creates a public challenge: 🎲 DEADLOX has challenged 100 ADR! Anyone can accept with /dice 100
-	•  When someone accepts: 🤼 Match-up: DEADLOX vs KNIGHT
-	•  Bot rolls: 🎲 DEADLOX rolled 4 🎲 KNIGHT rolled 2
-	•  Result: 🏆 DEADLOX wins 198 ADR! (amount × 2 minus small house fee) Or if tie: “It’s a tie! Both get refund.”
-•  House fee: Small percentage (e.g., 2-5%) deducted from the pot. Configurable in admin settings.
-Additional Games (Same Logic)
-•  /dart <amount>
-•  /football <amount>
-•  /bowling <amount>
-Each uses its own emoji/theme but identical flow:
-1.  Challenge creation
-2.  Accept by same command + amount
-3.  Bot “rolls” (random outcome 1-6 or similar)
-4.  Declare winner + payout (or tie refund)
-Implementation Notes:
-•  Use Telegram’s built-in Dice emoji where possible for visual appeal (🎲, 🎯 for dart, ⚽ for football, 🎳 for bowling).
-•  Store active challenges in database with timeout (e.g., 5-10 minutes to accept).
-•  Handle concurrency (only one active challenge per user at a time).
-•  Log all games for fairness/audit

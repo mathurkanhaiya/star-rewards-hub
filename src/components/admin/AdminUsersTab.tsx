@@ -448,7 +448,7 @@ export default function AdminUsersTab({ users, onBan, onAdjustBalance }: Props) 
             { label: 'Total',   val: globalStats.total,    color: '#ef4444' },
             { label: 'Banned',  val: globalStats.banned,   color: '#f97316' },
             { label: 'New 7d',  val: globalStats.newToday, color: '#4ade80' },
-            { label: 'Tot ADR', val: `${(globalStats.totalPts/1000).toFixed(0)}k`, color: '#ffbe00', isStr: true },
+            { label: 'Tot PTS', val: `${(globalStats.totalPts/1000).toFixed(0)}k`, color: '#ffbe00', isStr: true },
           ].map((s, i) => (
             <div key={i} className="au-stat" style={{ background:`${s.color}08`, border:`1px solid ${s.color}18` }}>
               <div className="au-stat-val" style={{ color: s.color }}>
@@ -639,7 +639,7 @@ export default function AdminUsersTab({ users, onBan, onAdjustBalance }: Props) 
                       <div className="au-total-banner">
                         <div className="au-total-label">Total Earned</div>
                         <div className="au-total-val">
-                          {panel.activity.totalEarned.toLocaleString()} ADR
+                          {panel.activity.totalEarned.toLocaleString()} PTS
                         </div>
                       </div>
 

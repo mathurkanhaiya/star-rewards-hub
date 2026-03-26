@@ -6,7 +6,6 @@ import { useState } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import BottomNav from "@/components/BottomNav";
 import Header from "@/components/Header";
-import AdminOTPLogin from "@/components/AdminOTPLogin";
 import HomePage from "@/pages/HomePage";
 import TasksPage from "@/pages/TasksPage";
 import SpinPage from "@/pages/SpinPage";
@@ -21,16 +20,13 @@ import LuckyBoxPage from "@/pages/LuckyBoxPage";
 import DiceRollPage from "@/pages/DiceRollPage";
 import CardFlipPage from "@/pages/CardFlipPage";
 import NumberGuessPage from "@/pages/NumberGuessPage";
-import AdContestPage from "@/pages/AdContestPage";
-import ReferralContestPage from "@/pages/ReferralContestPage";
 
 const queryClient = new QueryClient();
 
 type Page =
   | "home" | "tasks" | "spin" | "referral" | "leaderboard"
   | "wallet" | "notifications" | "admin" | "games"
-  | "tower" | "dice" | "cardflip" | "numberguess" | "luckybox"
-  | "adcontest" | "referralcontest";
+  | "tower" | "dice" | "cardflip" | "numberguess" | "luckybox";
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600&display=swap');
@@ -209,24 +205,31 @@ const CSS = `
 `;
 
 function AppContent() {
-  const { isLoading, user, isAdmin, adminVerified, setAdminVerified } = useApp();
+  const { isLoading, user, isAdmin } = useApp();
   const [currentPage, setCurrentPage] = useState<Page>("home");
-  const [showOTPLogin, setShowOTPLogin] = useState(false);
 
-  function handleAdminNavigate() {
-    if (adminVerified) {
-      setCurrentPage('admin');
-    } else {
-      setShowOTPLogin(true);
-    }
-  }
+  const tg = (window as any)?.Telegram?.WebApp;
+  const isTelegram = typeof window !== "undefined" && tg && tg.initDataUnsafe?.user;
 
-  function handleNavigate(page: Page) {
-    if (page === 'admin') {
-      handleAdminNavigate();
-    } else {
-      setCurrentPage(page);
-    }
+  if (!isTelegram) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: '#06080f',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>✈️</div>
+        <div style={{
+          fontFamily: "'Orbitron', monospace", fontSize: 14,
+          fontWeight: 700, letterSpacing: '2px', color: '#fff', marginBottom: 8,
+        }}>
+          TELEGRAM ONLY
+        </div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}>
+          Open inside Telegram
+        </div>
+      </div>
+    );
   }
 
   if (isLoading) {
@@ -294,22 +297,20 @@ function AppContent() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case "home":          return <HomePage onNavigate={handleNavigate} />;
+      case "home":          return <HomePage />;
       case "tasks":         return <TasksPage />;
       case "spin":          return <SpinPage />;
-      case "referral":      return <ReferralPage onNavigate={handleNavigate} />;
+      case "referral":      return <ReferralPage />;
       case "leaderboard":   return <LeaderboardPage />;
       case "wallet":        return <WalletPage />;
       case "notifications": return <NotificationsPage />;
-      case "admin":         return (isAdmin && adminVerified) ? <AdminPanel /> : <HomePage />;
-      case "games":         return <GamesPage onNavigate={handleNavigate} />;
+      case "admin":         return isAdmin ? <AdminPanel /> : <HomePage />;
+      case "games":         return <GamesPage onNavigate={setCurrentPage} />;
       case "tower":         return <TowerClimbPage />;
       case "luckybox":      return <LuckyBoxPage />;
       case "dice":          return <DiceRollPage />;
       case "cardflip":      return <CardFlipPage />;
       case "numberguess":   return <NumberGuessPage />;
-      case "adcontest":     return <AdContestPage onBack={() => setCurrentPage('home')} />;
-      case "referralcontest": return <ReferralContestPage onBack={() => setCurrentPage('referral')} />;
       default:              return <HomePage />;
     }
   };
@@ -323,18 +324,6 @@ function AppContent() {
         background: "radial-gradient(ellipse at top left, hsl(220 40% 8%) 0%, hsl(220 30% 3%) 60%)",
       }}
     >
-      {/* OTP Login overlay */}
-      {showOTPLogin && (
-        <AdminOTPLogin
-          onSuccess={() => {
-            setAdminVerified(true);
-            setShowOTPLogin(false);
-            setCurrentPage('admin');
-          }}
-          onCancel={() => setShowOTPLogin(false)}
-        />
-      )}
-
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -350,7 +339,7 @@ function AppContent() {
           <nav className="px-4 mb-2">
             <div className="flex gap-1">
               <button
-                onClick={() => handleNavigate("leaderboard")}
+                onClick={() => setCurrentPage("leaderboard")}
                 className="px-3 py-1 rounded-lg text-xs transition-all"
                 style={{
                   background: "hsl(220 25% 10%)",
@@ -364,7 +353,7 @@ function AppContent() {
           </nav>
         )}
         <main className="pt-1 pb-2">{renderPage()}</main>
-        <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />
+        <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />
       </div>
     </div>
   );

@@ -146,8 +146,7 @@ const CSS = `
 `;
 
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
-  const { isAdmin, isTelegram, unreadCount } = useApp();
-  const showAdmin = isAdmin && isTelegram;
+  const { isAdmin, unreadCount } = useApp();
 
   const activePage: Page =
     ['tower','dice','cardflip','numberguess','luckybox'].includes(currentPage)
@@ -185,8 +184,8 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
             <div className="bn-pip"/>
           </button>
 
-          {/* Admin — only visible inside Telegram Mini App */}
-          {showAdmin && (
+          {/* Admin */}
+          {isAdmin && (
             <button
               className={`bn-item ${activePage === 'admin' ? 'active' : ''}`}
               onClick={() => onNavigate('admin')}

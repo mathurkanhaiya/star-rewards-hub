@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useRewardedAd } from '@/hooks/useAdsgram';
-import { playDiceRoll } from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 
 function triggerHaptic(type: 'success' | 'error' | 'impact') {
   if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
@@ -177,6 +177,15 @@ export default function DiceRollPage() {
   }, [user]);
 
   async function loadTodayCount() {
+    setLimitLoading(true);
+    const start = new Date(); start.setUTCHours(0,0,0,0);
+    const { count } = await supabase
+      .from('transactions')
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', user!.id)
+      .eq('type', 'dice_roll')
+      .gte('created_at', start.toISOString());
+    setGamesPlayedToday(count || 0);
     setLimitLoading(false);
   }
 
@@ -214,33 +223,36 @@ export default function DiceRollPage() {
 
     await new Promise(r => setTimeout(r, 1400));
 
-    let d1 = Math.floor(Math.random() * 6) + 1;
-    let d2 = Math.floor(Math.random() * 6) + 1;
-    let pts  = calcReward(d1, d2);
-    let tier = getTier(d1 + d2);
-
-    if (user) {
-      const result = await playDiceRoll(user.id);
-      if (result.success) {
-        d1 = result.d1 ?? d1;
-        d2 = result.d2 ?? d2;
-        pts = result.pts ?? pts;
-        tier = getTier(d1 + d2);
-        triggerHaptic(pts >= 60 ? 'success' : 'impact');
-        setGamesPlayedToday(p => p + 1);
-        refreshBalance();
-      } else if (result.message?.toLowerCase().includes('limit')) {
-        setRolling(false);
-        setPhase('locked');
-        return;
-      }
-    }
+    const d1 = Math.floor(Math.random() * 6) + 1;
+    const d2 = Math.floor(Math.random() * 6) + 1;
+    const pts  = calcReward(d1, d2);
+    const tier = getTier(d1 + d2);
 
     setDice([d1, d2]);
     setReward(pts);
     setRolling(false);
     setActiveTier(tier);
     setPhase('result');
+
+    /* Count game + credit balance */
+    setGamesPlayedToday(p => p + 1);
+    triggerHaptic(pts >= 60 ? 'success' : 'impact');
+
+    if (user) {
+      const { data: bal } = await supabase
+        .from('balances').select('points,total_earned').eq('user_id', user.id).single();
+      if (bal) {
+        await supabase.from('balances').update({
+          points: bal.points + pts,
+          total_earned: bal.total_earned + pts,
+        }).eq('user_id', user.id);
+        await supabase.from('transactions').insert({
+          user_id: user.id, type: 'dice_roll', points: pts,
+          description: `🎲 Dice Roll: ${tier.label} (${d1}+${d2}=${d1+d2}) +${pts} pts`,
+        });
+      }
+      refreshBalance();
+    }
   };
 
   const sum  = dice[0] + dice[1];

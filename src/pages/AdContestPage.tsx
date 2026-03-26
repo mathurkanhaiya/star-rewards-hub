@@ -227,7 +227,7 @@ const CSS = `
 .acp-loading-txt { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.15); }
 `;
 
-export default function AdContestPage({ onBack }: { onBack?: () => void }) {
+export default function AdContestPage() {
   const { user } = useApp();
 
   const [contest, setContest]     = useState<Contest | null>(null);
@@ -353,14 +353,6 @@ export default function AdContestPage({ onBack }: { onBack?: () => void }) {
         <div className="acp-grid" />
         <div className="acp-content">
 
-          {/* Back button */}
-          {onBack && (
-            <button onClick={onBack} style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-              color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: 'Orbitron, monospace',
-              letterSpacing: 2, padding: '6px 14px', cursor: 'pointer', marginBottom: 12,
-            }}>← BACK</button>
-          )}
           {/* Header */}
           <div className="acp-header">
             <div className="acp-eyebrow">Live · Competition</div>

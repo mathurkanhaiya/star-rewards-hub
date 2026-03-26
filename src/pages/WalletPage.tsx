@@ -17,14 +17,7 @@ const UPI_TIERS = [
   { pts: 20000, inr: 20 },
 ];
 
-const REQUIRED_ADS = 0;
-
-const USDT_TIERS = [
-  { pts: 5000,  usdt: 0.05 },
-  { pts: 10000, usdt: 0.1 },
-  { pts: 20000, usdt: 0.15 },
-  { pts: 50000, usdt: 0.15 },
-];
+const REQUIRED_ADS = 15;
 
 function isValidTon(addr: string) {
   return /^UQ[A-Za-z0-9_-]{46,}$/.test(addr);
@@ -34,11 +27,7 @@ function isValidUpi(upi: string) {
   return /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(upi.trim());
 }
 
-function isValidPolygon(addr: string) {
-  return /^0x[0-9a-fA-F]{40}$/.test(addr.trim());
-}
-
-type ModalMode = 'ton' | 'upi' | 'usdt' | null;
+type ModalMode = 'ton' | 'upi' | null;
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Rajdhani:wght@500;600;700&display=swap');
@@ -156,12 +145,10 @@ export default function WalletPage() {
   const { user, balance, refreshBalance } = useApp();
   const [adCount, setAdCount]           = useState(0);
   const [modalMode, setModalMode]       = useState<ModalMode>(null);
-  const [selectedTonTier,  setSelectedTonTier]  = useState<typeof TON_TIERS[0]  | null>(null);
-  const [selectedUpiTier,  setSelectedUpiTier]  = useState<typeof UPI_TIERS[0]  | null>(null);
-  const [selectedUsdtTier, setSelectedUsdtTier] = useState<typeof USDT_TIERS[0] | null>(null);
+  const [selectedTonTier, setSelectedTonTier] = useState<typeof TON_TIERS[0] | null>(null);
+  const [selectedUpiTier, setSelectedUpiTier] = useState<typeof UPI_TIERS[0] | null>(null);
   const [wallet, setWallet]             = useState('');
   const [upiId, setUpiId]               = useState('');
-  const [polygonAddr, setPolygonAddr]   = useState('');
   const [message, setMessage]           = useState('');
   const [msgType, setMsgType]           = useState<'error' | 'success'>('error');
   const [submitting, setSubmitting]     = useState(false);
@@ -198,45 +185,13 @@ export default function WalletPage() {
     setUpiId('');
   }
 
-  function openUsdtModal(tier: typeof USDT_TIERS[0]) {
-    setSelectedUsdtTier(tier);
-    setModalMode('usdt');
-    setMessage('');
-    setPolygonAddr('');
-  }
-
   function closeModal() {
     setModalMode(null);
     setSelectedTonTier(null);
     setSelectedUpiTier(null);
-    setSelectedUsdtTier(null);
     setMessage('');
     setWallet('');
     setUpiId('');
-    setPolygonAddr('');
-  }
-
-  async function handleUsdtWithdraw() {
-    if (!selectedUsdtTier || submitting) return;
-    if (!isValidPolygon(polygonAddr.trim())) {
-      setMessage('Invalid Polygon address (must start with 0x…)'); setMsgType('error'); return;
-    }
-    if (pts < selectedUsdtTier.pts) {
-      setMessage('Not enough points'); setMsgType('error'); return;
-    }
-    if (!adsComplete) {
-      setMessage(`Watch ${REQUIRED_ADS - adCount} more ads today`); setMsgType('error'); return;
-    }
-    setSubmitting(true);
-    const res = await submitWithdrawal(user!.id, 'usdt_polygon', selectedUsdtTier.pts, polygonAddr.trim());
-    if (res.success) {
-      setMessage('USDT withdrawal submitted!'); setMsgType('success');
-      refreshBalance();
-      setTimeout(() => { closeModal(); setSubmitting(false); }, 1800);
-    } else {
-      setMessage(res.message || 'Failed to submit'); setMsgType('error');
-      setSubmitting(false);
-    }
   }
 
   async function handleTonWithdraw() {
@@ -386,50 +341,6 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* ── USDT POLYGON SECTION ── */}
-        <div style={{ marginBottom: 20 }}>
-          <div className="wp-section-label" style={{ marginBottom: 10 }}>
-            💵 Withdraw USDT (Polygon)
-          </div>
-          <div style={{
-            background: 'rgba(74,222,128,0.03)',
-            border: '1px solid rgba(74,222,128,0.12)',
-            borderRadius: 14,
-            padding: '10px 14px',
-            marginBottom: 10,
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.3)',
-            letterSpacing: '0.3px',
-          }}>
-            ⚡ Polygon network · Low fees · Processed within 48h · Minimum 5,000 pts
-          </div>
-          <div className="wp-tier-grid">
-            {USDT_TIERS.map((t, i) => {
-              const notEnoughPts = pts < t.pts;
-              const locked = notEnoughPts || !adsComplete;
-              return (
-                <div key={i}
-                  className={`wp-tier ${locked ? 'locked' : 'unlocked'}`}
-                  style={!locked ? { background:'rgba(74,222,128,0.04)', border:'1px solid rgba(74,222,128,0.2)' } : {}}
-                  onClick={() => !locked && openUsdtModal(t)}
-                >
-                  {locked && <div className="wp-tier-lock">🔒</div>}
-                  <div className="wp-tier-pts">{t.pts.toLocaleString()} pts</div>
-                  <div className="wp-tier-ton"
-                    style={!locked ? { color:'#4ade80', textShadow:'0 0 16px rgba(74,222,128,0.4)', fontSize:17 } : { fontSize:17 }}>
-                    {t.usdt} USDT
-                  </div>
-                  {locked && (
-                    <div className="wp-tier-reason">
-                      {notEnoughPts ? 'Need more points' : 'Complete daily ads'}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {/* ── TON MODAL ── */}
         {modalMode === 'ton' && selectedTonTier && (
           <div className="wp-modal-overlay"
@@ -509,55 +420,6 @@ export default function WalletPage() {
                 <button className="wp-confirm-btn upi-btn"
                   onClick={handleUpiWithdraw} disabled={submitting}>
                   {submitting ? '···' : '🇮🇳 CONFIRM UPI WITHDRAW'}
-                </button>
-                <button className="wp-cancel-btn" onClick={closeModal}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── USDT POLYGON MODAL ── */}
-        {modalMode === 'usdt' && selectedUsdtTier && (
-          <div className="wp-modal-overlay"
-            onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
-            <div className="wp-modal" style={{ borderColor: 'rgba(74,222,128,0.2)' }}>
-              <div className="wp-modal-inner">
-                <div className="wp-modal-title" style={{ color:'#4ade80' }}>💵 USDT Polygon</div>
-                <div className="wp-modal-sub">
-                  {selectedUsdtTier.pts.toLocaleString()} pts → {selectedUsdtTier.usdt} USDT
-                </div>
-                <div className="wp-modal-ton" style={{ color:'#4ade80', textShadow:'0 0 24px rgba(74,222,128,0.4)' }}>
-                  {selectedUsdtTier.usdt} USDT
-                </div>
-
-                <div style={{
-                  background: 'rgba(74,222,128,0.04)',
-                  border: '1px solid rgba(74,222,128,0.12)',
-                  borderRadius: 10,
-                  padding: '8px 12px',
-                  marginBottom: 14,
-                  fontSize: 10,
-                  color: 'rgba(255,255,255,0.35)',
-                  letterSpacing: '0.5px',
-                }}>
-                  ⚡ Polygon (MATIC) network — gas fees are minimal. Processed within 48h.
-                </div>
-
-                <div className="wp-input-label">Polygon Wallet Address (0x…)</div>
-                <input className="wp-input"
-                  value={polygonAddr} onChange={e => setPolygonAddr(e.target.value)}
-                  placeholder="0x..." autoComplete="off" spellCheck={false}/>
-
-                <div className="wp-modal-ads">
-                  <div className="wp-modal-ads-label">Daily Ads</div>
-                  <div className="wp-modal-ads-val">{adCount} / {REQUIRED_ADS} {adsComplete ? '✓' : ''}</div>
-                </div>
-
-                {message && <div className={`wp-msg ${msgType}`}>{message}</div>}
-
-                <button className="wp-confirm-btn" style={{ background:'linear-gradient(135deg,#4ade80,#22c55e,#16a34a)', color:'#052e16' }}
-                  onClick={handleUsdtWithdraw} disabled={submitting}>
-                  {submitting ? '···' : '💵 CONFIRM USDT WITHDRAW'}
                 </button>
                 <button className="wp-cancel-btn" onClick={closeModal}>Cancel</button>
               </div>
