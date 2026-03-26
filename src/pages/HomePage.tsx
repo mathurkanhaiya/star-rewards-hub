@@ -60,7 +60,7 @@ function txIcon(type: string): string {
 }
 
 /* ── Constants ── */
-const MAX_ENERGY          = 50;
+const MAX_ENERGY          = 500;
 const REGEN_PER_SEC       = 50 / 3600;
 const X2_DURATION_SEC     = 10;
 const FAST_DURATION_SEC   = 60;
