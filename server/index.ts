@@ -8,7 +8,7 @@ const app = express();
 const PORT = 3001;
 
 // ── Supabase admin client (SERVICE ROLE — never sent to browser) ─────────────
-const SUPABASE_URL = 'https://utfkqzmrcdfbnjdkjais.supabase.co';
+const SUPABASE_URL = 'https://sxuffcmantqbfhcxvwij.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const TELEGRAM_BOT_TOKEN   = process.env.TELEGRAM_BOT_TOKEN || '';
 const ADMIN_TELEGRAM_ID    = parseInt(process.env.ADMIN_TELEGRAM_ID || '0', 10);
