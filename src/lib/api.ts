@@ -296,6 +296,21 @@ export async function getAdWatchLeaderboard(contestId?: string) {
   return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 10);
 }
 
+export async function requestAdminOTP(telegramId: number) {
+  try { return await post('/admin/request-otp', { telegramId }); }
+  catch { return { success: false, message: 'Failed to send OTP' }; }
+}
+
+export async function verifyAdminOTP(telegramId: number, otp: string) {
+  try { return await post('/admin/verify-otp', { telegramId, otp }); }
+  catch { return { success: false, message: 'Verification failed' }; }
+}
+
+export async function verifyAdminSession(token: string) {
+  try { return await post('/admin/verify-session', { token }); }
+  catch { return { success: false }; }
+}
+
 export async function getReferralLeaderboard() {
   const { data } = await supabase.from('referrals').select('referrer_id, users:referrer_id(first_name, username, photo_url)').eq('is_verified', true).limit(500);
   if (!data) return [];

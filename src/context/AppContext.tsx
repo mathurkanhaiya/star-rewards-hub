@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AppUser, UserBalance, TelegramUser, Notification } from '@/types/telegram';
-import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead } from '@/lib/api';
+import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead, verifyAdminSession } from '@/lib/api';
 import { showInterstitialAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -11,6 +11,9 @@ interface AppContextType {
   settings: Record<string, string>;
   isLoading: boolean;
   isAdmin: boolean;
+  isTelegram: boolean;
+  adminVerified: boolean;
+  setAdminVerified: (v: boolean) => void;
   notifications: Notification[];
   unreadCount: number;
   refreshBalance: () => Promise<void>;
@@ -26,6 +29,9 @@ const AppContext = createContext<AppContextType>({
   settings: {},
   isLoading: true,
   isAdmin: false,
+  isTelegram: false,
+  adminVerified: false,
+  setAdminVerified: () => {},
   notifications: [],
   unreadCount: 0,
   refreshBalance: async () => {},
@@ -53,8 +59,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [adminVerified, setAdminVerifiedState] = useState(false);
 
+  const isTelegram = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
   const isAdmin = telegramUser?.id === ADMIN_ID;
+
+  const setAdminVerified = useCallback((v: boolean) => {
+    setAdminVerifiedState(v);
+    if (!v) sessionStorage.removeItem('admin_token');
+  }, []);
+
+  // Restore admin session from sessionStorage on mount
+  useEffect(() => {
+    const token = sessionStorage.getItem('admin_token');
+    if (token) {
+      verifyAdminSession(token).then(res => {
+        if (res.success) setAdminVerifiedState(true);
+        else sessionStorage.removeItem('admin_token');
+      });
+    }
+  }, []);
 
   useEffect(() => {
     initApp();
@@ -185,7 +209,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      telegramUser, user, balance, settings, isLoading, isAdmin,
+      telegramUser, user, balance, settings, isLoading, isAdmin, isTelegram,
+      adminVerified, setAdminVerified,
       notifications, unreadCount, refreshBalance, refreshUser, refreshNotifications, markRead,
     }}>
       {children}

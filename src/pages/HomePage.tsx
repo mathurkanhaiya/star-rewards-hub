@@ -750,7 +750,7 @@ export default function HomePage() {
               ✦ More Ways to Earn ✦
             </div>
 
-            <AdsgramTask blockId="task-25198" />
+            <AdsgramTask blockId="task-25931" />
           </div>
         )}
 

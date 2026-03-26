@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import BottomNav from "@/components/BottomNav";
 import Header from "@/components/Header";
+import AdminOTPLogin from "@/components/AdminOTPLogin";
 import HomePage from "@/pages/HomePage";
 import TasksPage from "@/pages/TasksPage";
 import SpinPage from "@/pages/SpinPage";
@@ -205,8 +206,25 @@ const CSS = `
 `;
 
 function AppContent() {
-  const { isLoading, user, isAdmin } = useApp();
+  const { isLoading, user, isAdmin, adminVerified, setAdminVerified } = useApp();
   const [currentPage, setCurrentPage] = useState<Page>("home");
+  const [showOTPLogin, setShowOTPLogin] = useState(false);
+
+  function handleAdminNavigate() {
+    if (adminVerified) {
+      setCurrentPage('admin');
+    } else {
+      setShowOTPLogin(true);
+    }
+  }
+
+  function handleNavigate(page: Page) {
+    if (page === 'admin') {
+      handleAdminNavigate();
+    } else {
+      setCurrentPage(page);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -280,8 +298,8 @@ function AppContent() {
       case "leaderboard":   return <LeaderboardPage />;
       case "wallet":        return <WalletPage />;
       case "notifications": return <NotificationsPage />;
-      case "admin":         return isAdmin ? <AdminPanel /> : <HomePage />;
-      case "games":         return <GamesPage onNavigate={setCurrentPage} />;
+      case "admin":         return (isAdmin && adminVerified) ? <AdminPanel /> : <HomePage />;
+      case "games":         return <GamesPage onNavigate={handleNavigate} />;
       case "tower":         return <TowerClimbPage />;
       case "luckybox":      return <LuckyBoxPage />;
       case "dice":          return <DiceRollPage />;
@@ -300,6 +318,18 @@ function AppContent() {
         background: "radial-gradient(ellipse at top left, hsl(220 40% 8%) 0%, hsl(220 30% 3%) 60%)",
       }}
     >
+      {/* OTP Login overlay */}
+      {showOTPLogin && (
+        <AdminOTPLogin
+          onSuccess={() => {
+            setAdminVerified(true);
+            setShowOTPLogin(false);
+            setCurrentPage('admin');
+          }}
+          onCancel={() => setShowOTPLogin(false)}
+        />
+      )}
+
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -315,7 +345,7 @@ function AppContent() {
           <nav className="px-4 mb-2">
             <div className="flex gap-1">
               <button
-                onClick={() => setCurrentPage("leaderboard")}
+                onClick={() => handleNavigate("leaderboard")}
                 className="px-3 py-1 rounded-lg text-xs transition-all"
                 style={{
                   background: "hsl(220 25% 10%)",
@@ -329,7 +359,7 @@ function AppContent() {
           </nav>
         )}
         <main className="pt-1 pb-2">{renderPage()}</main>
-        <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />
+        <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />
       </div>
     </div>
   );

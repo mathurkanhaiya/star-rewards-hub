@@ -1187,6 +1187,56 @@ app.post('/api/admin/end-contest', strictLimiter, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// Admin OTP Login
+// ════════════════════════════════════════════════════════════════════════════
+const otpStore   = new Map<number, { otp: string; expiresAt: number }>();
+const adminSessions = new Map<string, { expiresAt: number }>();
+
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+app.post('/api/admin/request-otp', strictLimiter, async (req, res) => {
+  const telegramId = parseInt(req.body?.telegramId || '0');
+  if (!ADMIN_TELEGRAM_ID || telegramId !== ADMIN_TELEGRAM_ID) {
+    return fail(res, 'Unauthorized', 403);
+  }
+  const otp = generateOTP();
+  otpStore.set(ADMIN_TELEGRAM_ID, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+  await sendTg(
+    ADMIN_TELEGRAM_ID,
+    `🔐 <b>Admin Login OTP</b>\n\nYour one-time code:\n<code>${otp}</code>\n\n⏱ Expires in <b>5 minutes</b>.\n⚠️ Never share this code with anyone.`
+  );
+  return ok(res, { sent: true });
+});
+
+app.post('/api/admin/verify-otp', strictLimiter, async (req, res) => {
+  const telegramId = parseInt(req.body?.telegramId || '0');
+  const otp = String(req.body?.otp || '');
+  if (!ADMIN_TELEGRAM_ID || telegramId !== ADMIN_TELEGRAM_ID) {
+    return fail(res, 'Unauthorized', 403);
+  }
+  const stored = otpStore.get(ADMIN_TELEGRAM_ID);
+  if (!stored || stored.otp !== otp || Date.now() > stored.expiresAt) {
+    return fail(res, 'Invalid or expired OTP', 401);
+  }
+  otpStore.delete(ADMIN_TELEGRAM_ID);
+  const token = crypto.randomUUID();
+  adminSessions.set(token, { expiresAt: Date.now() + 4 * 60 * 60 * 1000 });
+  return ok(res, { token });
+});
+
+app.post('/api/admin/verify-session', async (req, res) => {
+  const token = String(req.body?.token || '');
+  const session = adminSessions.get(token);
+  if (!session || Date.now() > session.expiresAt) {
+    adminSessions.delete(token);
+    return fail(res, 'Session expired', 401);
+  }
+  return ok(res, { valid: true });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // Serve frontend in production
 // ════════════════════════════════════════════════════════════════════════════
 const distPath = path.join(process.cwd(), 'dist');
