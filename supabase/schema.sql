@@ -2,7 +2,10 @@
 
 
 -- ENUM
-CREATE TYPE IF NOT EXISTS public.app_role AS ENUM ('admin', 'moderator', 'user');
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── USERS ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.users (
