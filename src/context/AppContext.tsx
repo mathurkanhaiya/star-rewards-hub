@@ -44,13 +44,6 @@ export const useApp = () => useContext(AppContext);
 
 const ADMIN_ID = 2139807311;
 
-const MOCK_TELEGRAM_USER: TelegramUser = {
-  id: 2139807311,
-  first_name: 'Admin',
-  last_name: 'User',
-  username: 'adminuser',
-};
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -128,31 +121,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function initApp() {
     setIsLoading(true);
     try {
-      let tgUser: TelegramUser | null = null;
-      
-      if (window.Telegram?.WebApp) {
-        const twa = window.Telegram.WebApp;
-        twa.ready();
-        twa.expand();
-        tgUser = twa.initDataUnsafe?.user || null;
+      // Only run inside Telegram Mini App — browser gets guest mode (zeros, no user)
+      if (!window.Telegram?.WebApp) {
+        const s = await getSettings();
+        setSettings(s);
+        return;
       }
 
+      const twa = window.Telegram.WebApp;
+      twa.ready();
+      twa.expand();
+
+      const tgUser: TelegramUser | null = twa.initDataUnsafe?.user || null;
       if (!tgUser) {
-        tgUser = MOCK_TELEGRAM_USER;
+        const s = await getSettings();
+        setSettings(s);
+        return;
       }
 
       setTelegramUser(tgUser);
 
-      let referralCode: string | undefined;
-      if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
-        referralCode = window.Telegram.WebApp.initDataUnsafe.start_param;
-      }
+      const referralCode = twa.initDataUnsafe?.start_param || undefined;
 
       const appUser = await initUser(
         { id: tgUser.id, first_name: tgUser.first_name, last_name: tgUser.last_name, username: tgUser.username, photo_url: tgUser.photo_url },
         referralCode
       );
-      
+
       setUser(appUser);
 
       if (appUser) {
