@@ -442,7 +442,7 @@ export default function TasksPage() {
                       <div className="tp-card-desc">{task.description}</div>
                     )}
                     <div className="tp-card-reward" style={{ color: tc.color }}>
-                      ✦ +{task.reward_points} PTS
+                      ✦ +{task.reward_points} ADR
                     </div>
                   </div>
 

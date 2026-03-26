@@ -418,7 +418,7 @@ export default function CardFlipPage() {
                       }}>
                         +{reward}
                       </div>
-                      <div className="cf-pts-label">Points Earned</div>
+                      <div className="cf-pts-label">ADR Earned</div>
                     </div>
 
                     {/* Remaining plays */}

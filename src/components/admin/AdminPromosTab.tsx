@@ -73,7 +73,7 @@ export default function AdminPromosTab({ onMessage }: Props) {
             type="number"
             value={reward}
             onChange={e => setReward(e.target.value)}
-            placeholder="Reward pts"
+            placeholder="Reward ADR"
             className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-gray-700 text-white text-sm"
           />
           <input
@@ -106,7 +106,7 @@ export default function AdminPromosTab({ onMessage }: Props) {
             <div>
               <div className="font-bold text-white">{p.title}</div>
               <div className="text-xs text-gray-400">
-                🎁 {p.reward_points} pts • {p.total_claimed}/{p.max_claims} claimed
+                🎁 {p.reward_points} ADR • {p.total_claimed}/{p.max_claims} claimed
               </div>
             </div>
             <span className={`text-xs px-2 py-1 rounded-full ${p.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>

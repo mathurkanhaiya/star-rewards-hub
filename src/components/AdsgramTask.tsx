@@ -271,8 +271,8 @@ export default function AdsgramTask({
         {state === "done" && (
           <div className="ags-done-overlay">
             <div className="ags-done-icon">✦</div>
-            <div className="ags-done-label">+{rewardAmount} PTS</div>
-            <div className="ags-done-sub">Points credited</div>
+            <div className="ags-done-label">+{rewardAmount} ADR</div>
+            <div className="ags-done-sub">ADR credited</div>
           </div>
         )}
       </div>

@@ -24,6 +24,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 // ── Security middleware ──────────────────────────────────────────────────────
+app.set('trust proxy', 1); // Replit runs behind a reverse proxy — required for rate limiting + IP detection
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: '*', methods: ['GET', 'POST'] }));
 app.use(express.json({ limit: '16kb' }));
@@ -758,7 +759,7 @@ app.post('/api/daily-reward', strictLimiter, async (req, res) => {
   payCommission(uid, totalPoints).catch(() => {});
 
   const { data: user } = await db.from('users').select('telegram_id').eq('id', uid).single();
-  if (user) await sendTg(user.telegram_id, `🎁 <b>Daily Reward!</b>\n\n+${totalPoints} points\n🔥 Streak: Day ${streak}`, { reply_markup: MINI_APP_BTN });
+  if (user) await sendTg(user.telegram_id, `🎁 <b>Daily Reward!</b>\n\n+${totalPoints} ADR\n🔥 Streak: Day ${streak}`, { reply_markup: MINI_APP_BTN });
 
   return ok(res, { points: totalPoints, streak });
 });
@@ -796,7 +797,7 @@ app.post('/api/daily-drop', strictLimiter, async (req, res) => {
   const { error: claimError } = await db.from('daily_claims').insert({ user_id: uid, claim_date: today, day_streak: streak + 1, points_earned: reward });
   if (claimError) return err(res, 'Already claimed');
 
-  await creditPoints(uid, reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex + 1}: +${reward} pts`);
+  await creditPoints(uid, reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex + 1}: +${reward} ADR`);
   payCommission(uid, reward).catch(() => {});
 
   return ok(res, { points: reward, streak: streak + 1, dayIndex });
@@ -917,7 +918,7 @@ app.post('/api/complete-task', strictLimiter, async (req, res) => {
   payCommission(uid, points).catch(() => {});
 
   const { data: user } = await db.from('users').select('telegram_id').eq('id', uid).single();
-  if (user) await sendTg(user.telegram_id, `✅ <b>Task Completed!</b>\n\n${task.title}\n+${points} points earned! 🎉`, { reply_markup: MINI_APP_BTN });
+  if (user) await sendTg(user.telegram_id, `✅ <b>Task Completed!</b>\n\n${task.title}\n+${points} ADR earned! 🎉`, { reply_markup: MINI_APP_BTN });
 
   return ok(res, { points });
 });
@@ -938,7 +939,7 @@ app.post('/api/log-ad', strictLimiter, async (req, res) => {
   if ((count || 0) >= AD_MAX_PER_DAY) return err(res, 'Daily ad limit reached');
 
   await db.from('ad_logs').insert({ user_id: uid, ad_type: adType.slice(0, 64), reward_given: AD_REWARD_PTS, provider: 'adsgram' });
-  await creditPoints(uid, AD_REWARD_PTS, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD_PTS} pts`);
+  await creditPoints(uid, AD_REWARD_PTS, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD_PTS} ADR`);
 
   // Pay referral commissions
   payCommission(uid, AD_REWARD_PTS).catch(() => {});
@@ -1003,7 +1004,7 @@ app.post('/api/tap', strictLimiter, async (req, res) => {
   const capped = Math.min(pts, TAP_DAILY_LIMIT - todayPts);
   if (capped <= 0) return err(res, 'Daily tap limit reached');
 
-  await creditPoints(uid, capped, 'tap_earn', `👆 Tap${x2 ? ' (2x)' : ''}: +${capped} pts`);
+  await creditPoints(uid, capped, 'tap_earn', `👆 Tap${x2 ? ' (2x)' : ''}: +${capped} ADR`);
   payCommission(uid, capped).catch(() => {});
   return ok(res, { points: capped });
 });
@@ -1722,7 +1723,7 @@ async function handleBotMessage(msg: any) {
     const { error: claimErr } = await db.from('daily_claims').insert({ user_id: user.id, claim_date: today, day_streak: streak + 1, points_earned: reward });
     if (claimErr) return sendTg(chatId, `✅ Already claimed today!`, { reply_markup: MINI_APP_BTN });
 
-    await creditPoints(user.id, reward, 'daily_drop', `🎁 Daily Drop (bot claim) Day ${dayIdx + 1}: +${reward} pts`);
+    await creditPoints(user.id, reward, 'daily_drop', `🎁 Daily Drop (bot claim) Day ${dayIdx + 1}: +${reward} ADR`);
     payCommission(user.id, reward).catch(() => {});
 
     return sendTg(chatId,
