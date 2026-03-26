@@ -1,7 +1,19 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
 
-const EDGE_FN = `https://utfkqzmrcdfbnjdkjais.supabase.co/functions/v1`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://utfkqzmrcdfbnjdkjais.supabase.co';
+const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 export async function initUser(telegramUser: {
   id: number;
@@ -11,9 +23,9 @@ export async function initUser(telegramUser: {
   photo_url?: string;
 }, referralCode?: string): Promise<AppUser | null> {
   try {
-    const response = await fetch(`${EDGE_FN}/telegram-auth`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/telegram-auth`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ telegramUser, referralCode }),
     });
     const data = await response.json();
@@ -61,9 +73,9 @@ export async function getUserTasks(userId: string) {
 
 export async function completeTask(userId: string, taskId: string): Promise<{ success: boolean; points?: number; message?: string }> {
   try {
-    const response = await fetch(`${EDGE_FN}/complete-task`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/complete-task`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ userId, taskId }),
     });
     return await response.json();
@@ -74,9 +86,9 @@ export async function completeTask(userId: string, taskId: string): Promise<{ su
 
 export async function claimDailyReward(userId: string): Promise<{ success: boolean; points?: number; streak?: number; message?: string }> {
   try {
-    const response = await fetch(`${EDGE_FN}/daily-reward`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/daily-reward`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ userId }),
     });
     return await response.json();
@@ -87,9 +99,9 @@ export async function claimDailyReward(userId: string): Promise<{ success: boole
 
 export async function spinWheel(userId: string): Promise<{ success: boolean; result?: string; points?: number; stars?: number; message?: string }> {
   try {
-    const response = await fetch(`${EDGE_FN}/spin-wheel`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/spin-wheel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ userId }),
     });
     return await response.json();
@@ -105,9 +117,9 @@ export async function submitWithdrawal(
   walletAddress?: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const response = await fetch(`${EDGE_FN}/withdraw`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/withdraw`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ userId, method, points, walletAddress }),
     });
     return await response.json();
@@ -154,9 +166,9 @@ export async function getTransactions(userId: string) {
 
 export async function logAdWatch(userId: string, adType: string, rewardGiven: number) {
   try {
-    const response = await fetch(`${EDGE_FN}/log-ad`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/log-ad`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ userId, adType, rewardGiven }),
     });
     return await response.json();
@@ -256,9 +268,9 @@ export async function adminGetWithdrawals() {
 
 export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string) {
   try {
-    const response = await fetch(`${EDGE_FN}/admin-withdrawal`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/admin-withdrawal`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ withdrawalId, status, adminNote }),
     });
     return await response.json();
@@ -368,9 +380,9 @@ export async function adminCreateContest(contest: {
 
 export async function adminEndContest(contestId: string) {
   try {
-    const response = await fetch(`${EDGE_FN}/distribute-contest`, {
+    const response = await fetchWithTimeout(`${EDGE_FN}/distribute-contest`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
       body: JSON.stringify({ contestId }),
     });
     return await response.json();
