@@ -96,6 +96,96 @@ async function editTgMsg(chatId: number, messageId: number, text: string, extra:
   } catch {}
 }
 
+const MINI_APP_URL = 'https://t.me/Adsrewartsbot/app';
+const MINI_APP_BTN = { inline_keyboard: [[{ text: '🎮 Open Mini App', web_app: { url: MINI_APP_URL } }]] };
+
+// Get Telegram user bio via Bot API
+async function getTgBio(telegramId: number): Promise<string> {
+  if (!TELEGRAM_BOT_TOKEN) return '';
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat?chat_id=${telegramId}`);
+    const d = await r.json() as any;
+    return d?.result?.bio || '';
+  } catch { return ''; }
+}
+
+// Multi-level referral commission — called after every real earn
+// COMMISSION_TYPES are excluded from triggering further commissions
+const COMMISSION_TYPES = new Set(['commission_l1', 'commission_l2', 'commission_l3', 'referral_verified']);
+
+async function payCommission(earnerUserId: string, pts: number) {
+  if (pts < 1) return;
+  try {
+    // Fetch referral chain  (up to 3 hops via referred_by on users)
+    const { data: earner } = await db.from('users').select('referred_by').eq('id', earnerUserId).single();
+    if (!earner?.referred_by) return;
+
+    // L1
+    const { data: l1 } = await db.from('users').select('id, telegram_id, referred_by').eq('telegram_id', earner.referred_by).single();
+    if (!l1) return;
+    const l1Pct  = parseFloat(await getSetting('referral_commission_l1_pct', '10'));
+    const l1Pts  = Math.floor(pts * l1Pct / 100);
+    if (l1Pts > 0) {
+      await creditPoints(l1.id, l1Pts, 'commission_l1', `💰 L1 commission from referral earn: +${l1Pts} ADR`);
+    }
+
+    // L2
+    if (!l1.referred_by) return;
+    const { data: l2 } = await db.from('users').select('id, telegram_id, referred_by').eq('telegram_id', l1.referred_by).single();
+    if (!l2) return;
+    const l2Pct  = parseFloat(await getSetting('referral_commission_l2_pct', '5'));
+    const l2Pts  = Math.floor(pts * l2Pct / 100);
+    if (l2Pts > 0) {
+      await creditPoints(l2.id, l2Pts, 'commission_l2', `💰 L2 commission from referral earn: +${l2Pts} ADR`);
+    }
+
+    // L3
+    if (!l2.referred_by) return;
+    const { data: l3 } = await db.from('users').select('id, telegram_id').eq('telegram_id', l2.referred_by).single();
+    if (!l3) return;
+    const l3Pct  = parseFloat(await getSetting('referral_commission_l3_pct', '2.5'));
+    const l3Pts  = Math.floor(pts * l3Pct / 100);
+    if (l3Pts > 0) {
+      await creditPoints(l3.id, l3Pts, 'commission_l3', `💰 L3 commission from referral earn: +${l3Pts} ADR`);
+    }
+  } catch { /* silent – never block the primary earn */ }
+}
+
+// Verify referral after first real user action (ad watch)
+async function verifyReferral(newUserId: string, newUserIp: string, newUserName: string) {
+  try {
+    const { data: ref } = await db.from('referrals')
+      .select('id, referrer_id, is_verified')
+      .eq('referred_id', newUserId)
+      .single();
+    if (!ref || ref.is_verified) return;
+
+    // IP uniqueness check – compare with referrer's reg_ip
+    const { data: referrer } = await db.from('users').select('id, telegram_id, reg_ip, first_name').eq('id', ref.referrer_id).single();
+    if (!referrer) return;
+    if (referrer.reg_ip && referrer.reg_ip === newUserIp) return; // same IP → reject
+
+    // Mark verified
+    await db.from('referrals').update({ is_verified: true }).eq('id', ref.id);
+
+    // Pay $0.015 equivalent to referrer
+    const reward = parseInt(await getSetting('referral_verified_reward', '150'), 10);
+    await creditPoints(referrer.id, reward, 'referral_verified', `✅ Verified referral: @${newUserName} +${reward} ADR`);
+    await db.from('notifications').insert({
+      user_id: referrer.id,
+      title: '✅ Referral Verified!',
+      message: `@${newUserName} completed their first activity! +${reward} ADR added.`,
+      type: 'referral',
+    });
+    if (referrer.telegram_id) {
+      await sendTg(referrer.telegram_id,
+        `✅ <b>Referral Verified!</b>\n\n@${newUserName} passed verification!\n💰 +${reward} ADR added to your balance.\n\n🔗 You also earn <b>10% lifetime commission</b> on their earnings!`,
+        { reply_markup: MINI_APP_BTN }
+      );
+    }
+  } catch { /* silent */ }
+}
+
 function ok(res: express.Response, data: object = {}) {
   return res.json({ success: true, ...data });
 }
@@ -444,7 +534,34 @@ CREATE TABLE IF NOT EXISTS public.pvp_challenges (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.pvp_challenges ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "pvp_challenges_select" ON public.pvp_challenges FOR SELECT USING (true);`;
+CREATE POLICY "pvp_challenges_select" ON public.pvp_challenges FOR SELECT USING (true);
+
+-- Beg logs (cooldown tracking for /beg command)
+CREATE TABLE IF NOT EXISTS public.beg_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  won boolean NOT NULL DEFAULT false,
+  points_earned int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.beg_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "beg_logs_select" ON public.beg_logs FOR SELECT USING (true);
+
+-- IP tracking for referral verification
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS reg_ip text;
+
+-- New settings
+INSERT INTO public.settings (key, value, description) VALUES
+  ('referral_verified_reward',   '150',  'ADR points per verified referral (~$0.015)'),
+  ('referral_commission_l1_pct', '10',   'L1 lifetime commission %'),
+  ('referral_commission_l2_pct', '5',    'L2 lifetime commission %'),
+  ('referral_commission_l3_pct', '2.5',  'L3 lifetime commission %'),
+  ('beg_cooldown_hours',         '12',   'Hours between /beg commands'),
+  ('beg_reward_min',             '10',   'Min ADR from /beg win'),
+  ('beg_reward_max',             '50',   'Max ADR from /beg win'),
+  ('claim_reward_min',           '50',   'Min ADR from /claim'),
+  ('claim_reward_max',           '200',  'Max ADR from /claim')
+ON CONFLICT (key) DO NOTHING;`;
 
 app.get('/api/setup', (_req, res) => {
   const escaped = SCHEMA_SQL.replace(/`/g, '\\`').replace(/\$/g, '\\$');
@@ -552,6 +669,8 @@ app.post('/api/auth/telegram', strictLimiter, async (req, res) => {
   try {
     const { data: existingUser } = await db.from('users').select('*').eq('telegram_id', telegramUser.id).single();
 
+    const regIp = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '').split(',')[0].trim();
+
     if (existingUser) {
       await db.from('users').update({ last_active_at: new Date().toISOString(), photo_url: telegramUser.photo_url || null }).eq('id', existingUser.id);
       return ok(res, { user: existingUser });
@@ -559,11 +678,12 @@ app.post('/api/auth/telegram', strictLimiter, async (req, res) => {
 
     const referralCodeGen = String(telegramUser.id);
     let referrerId: string | null = null;
+    let referrerTgId: number | null = null;
     if (referralCode && referralCode !== String(telegramUser.id)) {
       const refId = parseInt(String(referralCode), 10);
       if (!isNaN(refId)) {
-        const { data: referrer } = await db.from('users').select('id').eq('telegram_id', refId).single();
-        if (referrer) referrerId = referrer.id;
+        const { data: referrer } = await db.from('users').select('id, telegram_id').eq('telegram_id', refId).single();
+        if (referrer) { referrerId = referrer.id; referrerTgId = referrer.telegram_id; }
       }
     }
 
@@ -575,6 +695,7 @@ app.post('/api/auth/telegram', strictLimiter, async (req, res) => {
       photo_url:     telegramUser.photo_url ? String(telegramUser.photo_url).slice(0, 512): null,
       referral_code: referralCodeGen,
       referred_by:   referralCode ? parseInt(String(referralCode), 10) : null,
+      reg_ip:        regIp || null,
     }).select().single();
 
     if (userError || !newUser) throw userError || new Error('Failed to create user');
@@ -583,24 +704,23 @@ app.post('/api/auth/telegram', strictLimiter, async (req, res) => {
     await db.from('balances').insert({ user_id: newUser.id, points: 200 });
     await db.from('transactions').insert({ user_id: newUser.id, type: 'bonus', points: 200, description: '🎉 Welcome bonus' });
 
-    await sendTg(telegramUser.id, `🎉 <b>Welcome!</b>\n\nYou received <b>200 points</b> as a welcome bonus!\n\nComplete tasks, spin the wheel, and invite friends to earn more! 🚀`);
+    await sendTg(telegramUser.id,
+      `🎉 <b>Welcome to ADS REWARDS!</b>\n\nYou received <b>200 ADR</b> as a welcome bonus!\n\n👥 Invite friends to earn <b>$0.015 per verified referral</b> + lifetime commissions!`,
+      { reply_markup: MINI_APP_BTN }
+    );
 
-    // Referral
+    // Referral — stored as UNVERIFIED; reward paid only after first real activity
     if (referrerId) {
-      const { data: settings } = await db.from('settings').select('key, value');
-      const s: Record<string, string> = {};
-      (settings || []).forEach((x: any) => { s[x.key] = x.value; });
-      const referralBonus  = parseInt(s.points_per_referral || '500', 10);
-      const referredBonus  = parseInt(s.referral_bonus_referred || '200', 10);
+      const displayName = telegramUser.username || telegramUser.first_name || 'User';
+      await db.from('referrals').insert({ referrer_id: referrerId, referred_id: newUser.id, points_earned: 0, is_verified: false });
 
-      await db.from('referrals').insert({ referrer_id: referrerId, referred_id: newUser.id, points_earned: referralBonus, is_verified: true });
-      await creditPoints(referrerId, referralBonus, 'referral', `👥 Referral bonus from @${telegramUser.username || telegramUser.first_name}`);
-      await creditPoints(newUser.id, referredBonus, 'referral', '🔗 Joined via referral bonus');
-      await db.from('notifications').insert({ user_id: referrerId, title: '👥 New Referral!', message: `@${telegramUser.username || telegramUser.first_name} joined using your link! +${referralBonus} points!`, type: 'referral' });
+      await db.from('notifications').insert({ user_id: referrerId, title: '👥 New Referral Joined!', message: `@${displayName} joined via your link. Reward unlocks after their first verified activity.`, type: 'referral' });
 
-      const { data: referrerUser } = await db.from('users').select('telegram_id').eq('id', referrerId).single();
-      if (referrerUser) {
-        await sendTg(referrerUser.telegram_id, `👥 <b>New Referral!</b>\n\n@${telegramUser.username || telegramUser.first_name} joined using your link!\n+${referralBonus} points added! 🎉`);
+      if (referrerTgId) {
+        await sendTg(referrerTgId,
+          `👥 <b>New Referral Joined!</b>\n\n@${displayName} signed up using your link! 🎉\n\n💰 Your <b>$0.015 reward (150 ADR)</b> unlocks once they complete their first real activity (watch an ad).\n\n🔗 L1 commission: <b>10% lifetime</b> on their earnings!`,
+          { reply_markup: MINI_APP_BTN }
+        );
       }
 
       // Track invite contests
@@ -639,9 +759,10 @@ app.post('/api/daily-reward', strictLimiter, async (req, res) => {
 
   await db.from('daily_claims').insert({ user_id: uid, claim_date: today, day_streak: streak, points_earned: totalPoints });
   await creditPoints(uid, totalPoints, 'daily', `🎁 Daily reward (Day ${streak} streak)`);
+  payCommission(uid, totalPoints).catch(() => {});
 
   const { data: user } = await db.from('users').select('telegram_id').eq('id', uid).single();
-  if (user) await sendTg(user.telegram_id, `🎁 <b>Daily Reward!</b>\n\n+${totalPoints} points\n🔥 Streak: Day ${streak}`);
+  if (user) await sendTg(user.telegram_id, `🎁 <b>Daily Reward!</b>\n\n+${totalPoints} points\n🔥 Streak: Day ${streak}`, { reply_markup: MINI_APP_BTN });
 
   return ok(res, { points: totalPoints, streak });
 });
@@ -680,6 +801,7 @@ app.post('/api/daily-drop', strictLimiter, async (req, res) => {
   if (claimError) return err(res, 'Already claimed');
 
   await creditPoints(uid, reward, 'daily_drop', `🎁 Daily Drop Day ${dayIndex + 1}: +${reward} pts`);
+  payCommission(uid, reward).catch(() => {});
 
   return ok(res, { points: reward, streak: streak + 1, dayIndex });
 });
@@ -727,9 +849,10 @@ app.post('/api/spin-wheel', strictLimiter, async (req, res) => {
 
   if (prize.type !== 'empty' && prize.points > 0) {
     await creditPoints(uid, prize.points, 'spin', `🎡 Spin: ${prize.points} points won!`);
+    payCommission(uid, prize.points).catch(() => {});
     if (prize.points >= 200) {
       const { data: user } = await db.from('users').select('telegram_id').eq('id', uid).single();
-      if (user) await sendTg(user.telegram_id, `🎡 <b>Spin Win!</b>\n\nYou won <b>${prize.points} points</b>! 🎉`);
+      if (user) await sendTg(user.telegram_id, `🎡 <b>Spin Win!</b>\n\nYou won <b>${prize.points} points</b>! 🎉`, { reply_markup: MINI_APP_BTN });
     }
   }
 
@@ -795,9 +918,10 @@ app.post('/api/complete-task', strictLimiter, async (req, res) => {
 
   await db.from('user_tasks').insert({ user_id: uid, task_id: taskId, points_earned: points, next_available_at: nextAvailable });
   await creditPoints(uid, points, 'task_complete', `✅ Task: ${task.title}`);
+  payCommission(uid, points).catch(() => {});
 
   const { data: user } = await db.from('users').select('telegram_id').eq('id', uid).single();
-  if (user) await sendTg(user.telegram_id, `✅ <b>Task Completed!</b>\n\n${task.title}\n+${points} points earned! 🎉`);
+  if (user) await sendTg(user.telegram_id, `✅ <b>Task Completed!</b>\n\n${task.title}\n+${points} points earned! 🎉`, { reply_markup: MINI_APP_BTN });
 
   return ok(res, { points });
 });
@@ -819,6 +943,17 @@ app.post('/api/log-ad', strictLimiter, async (req, res) => {
 
   await db.from('ad_logs').insert({ user_id: uid, ad_type: adType.slice(0, 64), reward_given: AD_REWARD_PTS, provider: 'adsgram' });
   await creditPoints(uid, AD_REWARD_PTS, 'ad_watch', `🎬 Ad Watch: +${AD_REWARD_PTS} pts`);
+
+  // Pay referral commissions
+  payCommission(uid, AD_REWARD_PTS).catch(() => {});
+
+  // Referral verification — triggered by first ad watch
+  const { data: userForVerify } = await db.from('users').select('reg_ip, username, first_name').eq('id', uid).single();
+  if (userForVerify) {
+    const userIp  = userForVerify.reg_ip || '';
+    const userName = userForVerify.username || userForVerify.first_name || 'User';
+    verifyReferral(uid, userIp, userName).catch(() => {});
+  }
 
   // Track ads_watch contests
   const now = new Date().toISOString();
@@ -873,6 +1008,7 @@ app.post('/api/tap', strictLimiter, async (req, res) => {
   if (capped <= 0) return err(res, 'Daily tap limit reached');
 
   await creditPoints(uid, capped, 'tap_earn', `👆 Tap${x2 ? ' (2x)' : ''}: +${capped} pts`);
+  payCommission(uid, capped).catch(() => {});
   return ok(res, { points: capped });
 });
 
@@ -897,6 +1033,7 @@ app.post('/api/farm-claim', strictLimiter, async (req, res) => {
   if ((count || 0) > 0) return err(res, 'Farm already claimed recently');
 
   await creditPoints(uid, FARM_REWARD_PTS, 'farm_claim', `🌾 Farm: +${FARM_REWARD_PTS} pts`);
+  payCommission(uid, FARM_REWARD_PTS).catch(() => {});
   return ok(res, { points: FARM_REWARD_PTS });
 });
 
@@ -1361,68 +1498,70 @@ async function handleBotMessage(msg: any) {
     const miniAppUrl = `https://t.me/Adsrewartsbot/app${refCode ? `?startapp=${refCode}` : ''}`;
     return sendTg(chatId,
       `🚀 <b>Welcome to ADS REWARDS!</b>\n\n` +
-      `Watch ads, complete tasks, and earn ADR points.\n\n` +
-      (user ? `💰 Your balance: <b>${balance.points.toLocaleString()} ADR</b>` : `👉 Open the Mini App to get started!`),
+      `Watch ads, complete tasks, and earn ADR points.\n` +
+      `👥 Invite friends to earn <b>$0.015 per verified referral</b> + lifetime commissions!\n\n` +
+      (user ? `💰 Your balance: <b>${balance.points.toLocaleString()} ADR</b>` : `👉 Open the Mini App to get started!`) +
+      `\n\n📋 Commands: /balance /beg /claim /farm /leaderboard`,
       { reply_markup: { inline_keyboard: [[{ text: '🎮 Open Mini App', web_app: { url: miniAppUrl } }]] } }
     );
   }
 
   // /balance — show ADR balance
   if (text.startsWith('/balance')) {
-    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
     return sendTg(chatId,
       `💰 <b>Your ADR Balance</b>\n\n` +
       `🪙 Points: <b>${balance.points.toLocaleString()} ADR</b>\n` +
       `📈 Total Earned: <b>${(user.total_points || 0).toLocaleString()} ADR</b>\n` +
-      `🏆 Level: <b>${user.level || 1}</b>`
+      `🏆 Level: <b>${user.level || 1}</b>`,
+      { reply_markup: MINI_APP_BTN }
     );
   }
 
   // /farm — show farm status
   if (text.startsWith('/farm')) {
-    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
     const farmMs = 15 * 60 * 1000;
     const { data: lastClaim } = await db.from('transactions').select('created_at').eq('user_id', user.id).eq('type', 'farm_claim').order('created_at', { ascending: false }).limit(1).single();
     if (!lastClaim) {
-      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ Ready to farm! Open the app to start.`);
+      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ Ready to farm! Open the app to start.`, { reply_markup: MINI_APP_BTN });
     }
     const elapsed = Date.now() - new Date(lastClaim.created_at).getTime();
     if (elapsed >= farmMs) {
-      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ <b>Farming complete!</b> Claim your reward in the app.`);
+      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ <b>Farming complete!</b> Claim your reward in the app.`, { reply_markup: MINI_APP_BTN });
     }
     const rem = farmMs - elapsed;
     const mins = Math.floor(rem / 60000);
     const secs = Math.floor((rem % 60000) / 1000);
-    return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n⏳ Farming in progress…\n⏱ Time left: <b>${mins}m ${secs}s</b>`);
+    return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n⏳ Farming in progress…\n⏱ Time left: <b>${mins}m ${secs}s</b>`, { reply_markup: MINI_APP_BTN });
   }
 
   // /leaderboard — top earners by lifetime points
   if (text.startsWith('/leaderboard')) {
     const { data: rows } = await db.from('users').select('first_name, total_points').order('total_points', { ascending: false }).limit(10);
-    if (!rows || rows.length === 0) return sendTg(chatId, '📊 No data yet.');
+    if (!rows || rows.length === 0) return sendTg(chatId, '📊 No data yet.', { reply_markup: MINI_APP_BTN });
     const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
     const lines = (rows as any[]).map((r, i) =>
       `${medals[i]} <b>${(r.first_name || 'User').substring(0, 16)}</b> — ${(r.total_points || 0).toLocaleString()} ADR`
     ).join('\n');
-    return sendTg(chatId, `🏆 <b>Top Earners Leaderboard</b>\n\n${lines}`);
+    return sendTg(chatId, `🏆 <b>Top Earners Leaderboard</b>\n\n${lines}`, { reply_markup: MINI_APP_BTN });
   }
 
   // /ricklb — rich list by current balance
   if (text.startsWith('/ricklb')) {
     const { data: rows } = await db.from('balances').select('points, users(first_name)').order('points', { ascending: false }).limit(10);
-    if (!rows || rows.length === 0) return sendTg(chatId, '💰 No data yet.');
+    if (!rows || rows.length === 0) return sendTg(chatId, '💰 No data yet.', { reply_markup: MINI_APP_BTN });
     const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
     const lines = (rows as any[]).map((r, i) =>
       `${medals[i]} <b>${((r.users as any)?.first_name || 'User').substring(0, 16)}</b> — ${(r.points || 0).toLocaleString()} ADR`
     ).join('\n');
-    return sendTg(chatId, `💎 <b>Rich List</b>\n\n${lines}`);
+    return sendTg(chatId, `💎 <b>Rich List</b>\n\n${lines}`, { reply_markup: MINI_APP_BTN });
   }
 
   // /invitelb — top inviters by referral count
   if (text.startsWith('/invitelb')) {
     const { data: rows } = await db.from('referrals').select('referrer_id, users!referrals_referrer_id_fkey(first_name)').order('created_at', { ascending: false });
-    if (!rows || rows.length === 0) return sendTg(chatId, '👥 No referrals yet.');
-    // Count per referrer
+    if (!rows || rows.length === 0) return sendTg(chatId, '👥 No referrals yet.', { reply_markup: MINI_APP_BTN });
     const counts: Record<string, { name: string; count: number }> = {};
     for (const r of rows as any[]) {
       const id = r.referrer_id;
@@ -1434,14 +1573,14 @@ async function handleBotMessage(msg: any) {
     const lines = sorted.map((s, i) =>
       `${medals[i]} <b>${s.name.substring(0, 16)}</b> — ${s.count} invites`
     ).join('\n');
-    return sendTg(chatId, `👥 <b>Invite Leaderboard</b>\n\n${lines}`);
+    return sendTg(chatId, `👥 <b>Invite Leaderboard</b>\n\n${lines}`, { reply_markup: MINI_APP_BTN });
   }
 
   // /contest — show active contest leaderboard
   if (text.startsWith('/contest')) {
     const { data: contests } = await db.from('contests').select('*').eq('is_active', true).gt('ends_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(3);
     if (!contests || contests.length === 0) {
-      return sendTg(chatId, '🏆 No active contest at the moment.\n\nCheck back soon!');
+      return sendTg(chatId, '🏆 No active contest at the moment.\n\nCheck back soon!', { reply_markup: MINI_APP_BTN });
     }
     for (const contest of contests as any[]) {
       const { data: entries } = await db.from('contest_entries').select('user_id, score').eq('contest_id', contest.id).order('score', { ascending: false }).limit(5);
@@ -1469,12 +1608,107 @@ async function handleBotMessage(msg: any) {
     return;
   }
 
+  // /beg — 50/50 chance at 10-50 ADR (requires @Adsrewartsbot in bio, 12h cooldown)
+  if (text.startsWith('/beg')) {
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
+
+    // Verify bio
+    const bio = await getTgBio(chatId);
+    if (!bio.includes('@Adsrewartsbot')) {
+      return sendTg(chatId,
+        `🔒 <b>Bio Verification Required</b>\n\nTo use <b>/beg</b> you must have exactly <code>@Adsrewartsbot</code> in your Telegram bio.\n\n` +
+        `📝 Steps:\n1. Open your Telegram profile\n2. Edit bio → add <code>@Adsrewartsbot</code>\n3. Save and try again!`,
+        { reply_markup: MINI_APP_BTN }
+      );
+    }
+
+    // Cooldown check
+    const cooldownHours = parseInt(await getSetting('beg_cooldown_hours', '12'), 10);
+    const cutoff = new Date(Date.now() - cooldownHours * 3600000).toISOString();
+    const { data: lastBeg } = await db.from('beg_logs').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single();
+    if (lastBeg && new Date(lastBeg.created_at) > new Date(cutoff)) {
+      const nextMs = new Date(lastBeg.created_at).getTime() + cooldownHours * 3600000;
+      const waitM = Math.ceil((nextMs - Date.now()) / 60000);
+      return sendTg(chatId, `⏳ <b>Slow down!</b>\n\nYou can /beg again in <b>${waitM} minute${waitM !== 1 ? 's' : ''}</b>.`, { reply_markup: MINI_APP_BTN });
+    }
+
+    // 50/50 roll
+    const won = Math.random() < 0.5;
+    const minPts = parseInt(await getSetting('beg_reward_min', '10'), 10);
+    const maxPts = parseInt(await getSetting('beg_reward_max', '50'), 10);
+    const prize  = won ? Math.floor(Math.random() * (maxPts - minPts + 1)) + minPts : 0;
+
+    await db.from('beg_logs').insert({ user_id: user.id, won, points_earned: prize });
+    if (won) {
+      await creditPoints(user.id, prize, 'beg', `🙏 /beg win: +${prize} ADR`);
+      return sendTg(chatId,
+        `🎉 <b>Luck is on your side!</b>\n\n🙏 You begged and received <b>${prize} ADR</b>!\n\n⏰ Come back in ${cooldownHours}h to beg again.`,
+        { reply_markup: MINI_APP_BTN }
+      );
+    } else {
+      return sendTg(chatId,
+        `😢 <b>No luck this time…</b>\n\n🙏 You begged but got nothing.\n\n⏰ Try again in ${cooldownHours}h!`,
+        { reply_markup: MINI_APP_BTN }
+      );
+    }
+  }
+
+  // /claim — daily drop reward directly in bot (requires @Adsrewartsbot in bio)
+  if (text.startsWith('/claim')) {
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
+
+    // Verify bio
+    const bio = await getTgBio(chatId);
+    if (!bio.includes('@Adsrewartsbot')) {
+      return sendTg(chatId,
+        `🔒 <b>Bio Verification Required</b>\n\nTo use <b>/claim</b> you must have <code>@Adsrewartsbot</code> in your Telegram bio.\n\n` +
+        `📝 Add it to your bio and try again!`,
+        { reply_markup: MINI_APP_BTN }
+      );
+    }
+
+    // 24h cooldown via daily_claims table
+    const today = new Date().toISOString().split('T')[0];
+    const { data: existing } = await db.from('daily_claims').select('id').eq('user_id', user.id).eq('claim_date', today).maybeSingle();
+    if (existing) {
+      return sendTg(chatId, `✅ <b>Already claimed today!</b>\n\nCome back tomorrow for your next daily drop. 🌙`, { reply_markup: MINI_APP_BTN });
+    }
+
+    // Streak
+    const { data: claims } = await db.from('daily_claims').select('claim_date').eq('user_id', user.id).order('claim_date', { ascending: false }).limit(8);
+    let streak = 0;
+    const now2 = new Date(); now2.setUTCHours(0, 0, 0, 0);
+    for (let i = 0; i < (claims || []).length; i++) {
+      const cd = new Date((claims![i] as any).claim_date);
+      const exp = new Date(now2); exp.setUTCDate(now2.getUTCDate() - (i + 1));
+      if (cd.toISOString().split('T')[0] === exp.toISOString().split('T')[0]) streak++;
+      else break;
+    }
+    const DAILY_DROP_BOT = [100, 120, 130, 140, 150, 160, 170];
+    const dayIdx = streak % 7;
+    const reward = DAILY_DROP_BOT[dayIdx];
+
+    const { error: claimErr } = await db.from('daily_claims').insert({ user_id: user.id, claim_date: today, day_streak: streak + 1, points_earned: reward });
+    if (claimErr) return sendTg(chatId, `✅ Already claimed today!`, { reply_markup: MINI_APP_BTN });
+
+    await creditPoints(user.id, reward, 'daily_drop', `🎁 Daily Drop (bot claim) Day ${dayIdx + 1}: +${reward} pts`);
+    payCommission(user.id, reward).catch(() => {});
+
+    return sendTg(chatId,
+      `🎁 <b>Daily Drop Claimed!</b>\n\n` +
+      `💰 +<b>${reward} ADR</b> added to your balance!\n` +
+      `🔥 Streak: <b>Day ${streak + 1}</b>\n\n` +
+      `📅 Come back tomorrow for Day ${((dayIdx + 1) % 7) + 1}!`,
+      { reply_markup: MINI_APP_BTN }
+    );
+  }
+
   // /dice, /dart, /football, /bowling — PVP games
   const pvpMatch = text.match(/^\/(dice|dart|football|bowling)\s*(\d+)?/i);
   if (pvpMatch) {
     const game = pvpMatch[1].toLowerCase();
     const rawAmount = parseInt(pvpMatch[2] || '0', 10);
-    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!', { reply_markup: MINI_APP_BTN });
     return handlePvpCommand(chatId, msg, user, balance, game, rawAmount);
   }
 }
@@ -1594,7 +1828,7 @@ async function handlePvpCommand(chatId: number, msg: any, user: any, balance: an
   );
 }
 
-// Register bot webhook on startup
+// Register bot webhook + commands on startup
 (async () => {
   if (!TELEGRAM_BOT_TOKEN) return;
   try {
@@ -1610,7 +1844,31 @@ async function handlePvpCommand(chatId: number, msg: any, user: any, balance: an
       body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message'] }),
     });
     console.log(`✅ Bot webhook set: ${webhookUrl}`);
-  } catch (e) { console.warn('Webhook setup failed:', e); }
+
+    // Register bot commands
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          { command: 'start',       description: '🚀 Start the bot & open mini app' },
+          { command: 'balance',     description: '💰 Check your ADR balance' },
+          { command: 'beg',         description: '🙏 Beg for ADR (50/50, requires bio)' },
+          { command: 'claim',       description: '🎁 Claim daily drop reward (requires bio)' },
+          { command: 'farm',        description: '🌾 Check farming status' },
+          { command: 'leaderboard', description: '🏆 Top earners leaderboard' },
+          { command: 'ricklb',      description: '💎 Rich list by balance' },
+          { command: 'invitelb',    description: '👥 Top inviters leaderboard' },
+          { command: 'contest',     description: '🎪 Active contest leaderboard' },
+          { command: 'dice',        description: '🎲 PVP dice game (e.g. /dice 100)' },
+          { command: 'dart',        description: '🎯 PVP darts game' },
+          { command: 'football',    description: '⚽ PVP football game' },
+          { command: 'bowling',     description: '🎳 PVP bowling game' },
+        ],
+      }),
+    });
+    console.log('✅ Bot commands registered');
+  } catch (e) { console.warn('Webhook/command setup failed:', e); }
 })();
 
 // ════════════════════════════════════════════════════════════════════════════

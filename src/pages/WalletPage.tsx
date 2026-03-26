@@ -17,13 +17,13 @@ const UPI_TIERS = [
   { pts: 20000, inr: 20 },
 ];
 
-const REQUIRED_ADS = 15;
+const REQUIRED_ADS = 0;
 
 const USDT_TIERS = [
-  { pts: 5000,  usdt: 1.0 },
-  { pts: 10000, usdt: 2.0 },
-  { pts: 20000, usdt: 4.0 },
-  { pts: 50000, usdt: 10.0 },
+  { pts: 5000,  usdt: 0.05 },
+  { pts: 10000, usdt: 0.1 },
+  { pts: 20000, usdt: 0.15 },
+  { pts: 50000, usdt: 0.15 },
 ];
 
 function isValidTon(addr: string) {
