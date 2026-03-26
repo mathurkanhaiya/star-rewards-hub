@@ -14,6 +14,25 @@ async function post(path: string, body: object) {
   return res.json();
 }
 
+// Admin post: auto-includes session token from sessionStorage
+async function adminPost(path: string, body: object) {
+  const token = sessionStorage.getItem('admin_token') || '';
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'x-admin-token': token } : {}),
+    },
+    body: JSON.stringify({ ...body, ...(token ? { admin_token: token } : {}) }),
+  });
+  return res.json();
+}
+
+export async function claimTap(userId: string, taps: number, x2: boolean) {
+  try { return await post('/tap', { userId, taps, x2 }); }
+  catch { return { success: false }; }
+}
+
 // ── Auth ─────────────────────────────────────────────────────────────────────
 export async function initUser(telegramUser: {
   id: number;
@@ -208,23 +227,23 @@ export async function adminGetWithdrawals() {
   return data || [];
 }
 
-export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string, adminTelegramId?: number) {
-  try { return await post('/admin/withdrawal', { withdrawalId, status, adminNote, adminTelegramId }); }
+export async function adminUpdateWithdrawal(withdrawalId: string, status: string, adminNote?: string) {
+  try { return await adminPost('/admin/withdrawal', { withdrawalId, status, adminNote }); }
   catch { return { success: false, message: 'Error updating withdrawal' }; }
 }
 
-export async function adminUpdateSetting(key: string, value: string, adminTelegramId?: number) {
-  try { return await post('/admin/setting', { key, value, adminTelegramId }); }
+export async function adminUpdateSetting(key: string, value: string) {
+  try { return await adminPost('/admin/setting', { key, value }); }
   catch { return { success: false }; }
 }
 
-export async function adminBanUser(userId: string, banned: boolean, adminTelegramId?: number) {
-  try { return await post('/admin/ban-user', { userId, banned, adminTelegramId }); }
+export async function adminBanUser(userId: string, banned: boolean) {
+  try { return await adminPost('/admin/ban-user', { userId, banned }); }
   catch { return { success: false }; }
 }
 
-export async function adminAdjustBalance(userId: string, points: number, reason: string, adminTelegramId?: number) {
-  try { return await post('/admin/adjust-balance', { userId, points, reason, adminTelegramId }); }
+export async function adminAdjustBalance(userId: string, points: number, reason: string) {
+  try { return await adminPost('/admin/adjust-balance', { userId, points, reason }); }
   catch { return { success: false }; }
 }
 
@@ -257,13 +276,13 @@ export async function adminCreateContest(contest: {
   return { success: !error, data };
 }
 
-export async function adminEndContest(contestId: string, adminTelegramId?: number) {
-  try { return await post('/admin/end-contest', { contestId, adminTelegramId }); }
+export async function adminEndContest(contestId: string) {
+  try { return await adminPost('/admin/end-contest', { contestId }); }
   catch { return { success: false, message: 'Error distributing rewards' }; }
 }
 
-export async function adminSendBroadcast(message: string, adminTelegramId: number) {
-  try { return await post('/admin/broadcast', { message, adminTelegramId }); }
+export async function adminSendBroadcast(message: string) {
+  try { return await adminPost('/admin/broadcast', { message }); }
   catch { return { success: false }; }
 }
 

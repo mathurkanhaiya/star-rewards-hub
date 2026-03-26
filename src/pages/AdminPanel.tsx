@@ -458,12 +458,12 @@ export default function AdminPanel() {
             <AdminUsersTab
               users={users}
               onBan={async (id, banned) => {
-                await adminBanUser(id, banned, telegramUser?.id);
+                await adminBanUser(id, banned);
                 showMsg(banned ? 'User banned' : 'User unbanned');
                 loadDashboard();
               }}
               onAdjustBalance={async (id, pts, reason) => {
-                const result = await adminAdjustBalance(id, pts, reason, telegramUser?.id);
+                const result = await adminAdjustBalance(id, pts, reason);
                 result.success ? showMsg('Balance adjusted ✓') : showMsg('Failed', 'error');
                 loadDashboard();
               }}
@@ -475,12 +475,12 @@ export default function AdminPanel() {
             <AdminWithdrawalsTab
               withdrawals={withdrawals}
               onApprove={async id => {
-                await adminUpdateWithdrawal(id, 'approved', undefined, telegramUser?.id);
+                await adminUpdateWithdrawal(id, 'approved');
                 showMsg('Withdrawal approved ✓');
                 loadDashboard();
               }}
               onReject={async id => {
-                await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin', telegramUser?.id);
+                await adminUpdateWithdrawal(id, 'rejected', 'Rejected by admin');
                 showMsg('Withdrawal rejected', 'error');
                 loadDashboard();
               }}
@@ -556,9 +556,9 @@ export default function AdminPanel() {
               <button
                 className="ad-broadcast-btn"
                 onClick={async () => {
-                  if (!broadcastText.trim() || !telegramUser) return;
+                  if (!broadcastText.trim()) return;
                   setBroadcasting(true);
-                  const result = await adminSendBroadcast(broadcastText, telegramUser.id);
+                  const result = await adminSendBroadcast(broadcastText);
                   result.success ? showMsg('Broadcast sent 📢') : showMsg('Failed', 'error');
                   setBroadcastText('');
                   setBroadcasting(false);

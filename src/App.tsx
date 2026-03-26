@@ -21,13 +21,16 @@ import LuckyBoxPage from "@/pages/LuckyBoxPage";
 import DiceRollPage from "@/pages/DiceRollPage";
 import CardFlipPage from "@/pages/CardFlipPage";
 import NumberGuessPage from "@/pages/NumberGuessPage";
+import AdContestPage from "@/pages/AdContestPage";
+import ReferralContestPage from "@/pages/ReferralContestPage";
 
 const queryClient = new QueryClient();
 
 type Page =
   | "home" | "tasks" | "spin" | "referral" | "leaderboard"
   | "wallet" | "notifications" | "admin" | "games"
-  | "tower" | "dice" | "cardflip" | "numberguess" | "luckybox";
+  | "tower" | "dice" | "cardflip" | "numberguess" | "luckybox"
+  | "adcontest" | "referralcontest";
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600&display=swap');
@@ -291,10 +294,10 @@ function AppContent() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case "home":          return <HomePage />;
+      case "home":          return <HomePage onNavigate={handleNavigate} />;
       case "tasks":         return <TasksPage />;
       case "spin":          return <SpinPage />;
-      case "referral":      return <ReferralPage />;
+      case "referral":      return <ReferralPage onNavigate={handleNavigate} />;
       case "leaderboard":   return <LeaderboardPage />;
       case "wallet":        return <WalletPage />;
       case "notifications": return <NotificationsPage />;
@@ -305,6 +308,8 @@ function AppContent() {
       case "dice":          return <DiceRollPage />;
       case "cardflip":      return <CardFlipPage />;
       case "numberguess":   return <NumberGuessPage />;
+      case "adcontest":     return <AdContestPage onBack={() => setCurrentPage('home')} />;
+      case "referralcontest": return <ReferralContestPage onBack={() => setCurrentPage('referral')} />;
       default:              return <HomePage />;
     }
   };

@@ -74,13 +74,24 @@ async function creditPoints(userId: string, pts: number, type: string, descripti
   await db.from('transactions').insert({ user_id: userId, type, points: pts, description });
 }
 
-async function sendTg(chatId: number, text: string) {
+async function sendTg(chatId: number, text: string, extra: Record<string, any> = {}) {
   if (!TELEGRAM_BOT_TOKEN || !chatId) return;
   try {
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', ...extra }),
+    });
+  } catch {}
+}
+
+async function editTgMsg(chatId: number, messageId: number, text: string, extra: Record<string, any> = {}) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', ...extra }),
     });
   } catch {}
 }
@@ -407,8 +418,33 @@ INSERT INTO public.settings (key, value, description) VALUES
   ('ad_reward_points','50','Points per ad watch'),
   ('ad_max_per_day','20','Max ads per user per day'),
   ('farm_reward_points','100','Points for completing farm'),
-  ('spin_max_per_window','3','Max spins per 4-hour window')
-ON CONFLICT (key) DO NOTHING;`;
+  ('spin_max_per_window','3','Max spins per 4-hour window'),
+  ('tap_daily_limit','2000','Max tap earn points per 24 hours'),
+  ('tap_reward_per_tap','1','Base points per tap (x2 boost doubles this)'),
+  ('pvp_house_fee_pct','3','House fee percentage for PVP games (e.g. 3 = 3%)'),
+  ('pvp_min_bet','100','Minimum ADR for PVP challenges'),
+  ('pvp_challenge_timeout_min','5','Minutes before open challenge expires')
+ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.pvp_challenges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_type text NOT NULL,
+  amount int NOT NULL,
+  challenger_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  challenger_name text NOT NULL,
+  challenger_tg_id bigint NOT NULL,
+  acceptor_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+  acceptor_name text,
+  acceptor_tg_id bigint,
+  status text NOT NULL DEFAULT 'open',
+  chat_id bigint NOT NULL,
+  message_id int,
+  expires_at timestamptz NOT NULL,
+  result jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.pvp_challenges ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "pvp_challenges_select" ON public.pvp_challenges FOR SELECT USING (true);`;
 
 app.get('/api/setup', (_req, res) => {
   const escaped = SCHEMA_SQL.replace(/`/g, '\\`').replace(/\$/g, '\\$');
@@ -808,6 +844,39 @@ app.post('/api/ad-count', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// TAP EARN — batched, server-side reward
+// ════════════════════════════════════════════════════════════════════════════
+const TAP_MAX_BATCH    = 50;   // max taps per API call
+const TAP_DAILY_LIMIT  = 2000; // max tap_earn points per 24 h
+
+app.post('/api/tap', strictLimiter, async (req, res) => {
+  const { userId, taps, x2 } = req.body;
+  const uid = await resolveUserId(userId);
+  if (!uid) return err(res, 'Invalid user', 400);
+
+  const tapCount = parseInt(String(taps), 10);
+  if (!tapCount || tapCount < 1 || tapCount > TAP_MAX_BATCH) return err(res, 'Invalid tap count', 400);
+
+  // Daily limit check
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: recent } = await db
+    .from('transactions')
+    .select('points')
+    .eq('user_id', uid)
+    .eq('type', 'tap_earn')
+    .gte('created_at', cutoff);
+  const todayPts = (recent || []).reduce((s: number, t: any) => s + (t.points || 0), 0);
+  if (todayPts >= TAP_DAILY_LIMIT) return err(res, 'Daily tap limit reached');
+
+  const pts = tapCount * (x2 ? 2 : 1);
+  const capped = Math.min(pts, TAP_DAILY_LIMIT - todayPts);
+  if (capped <= 0) return err(res, 'Daily tap limit reached');
+
+  await creditPoints(uid, capped, 'tap_earn', `👆 Tap${x2 ? ' (2x)' : ''}: +${capped} pts`);
+  return ok(res, { points: capped });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // FARM CLAIM — server validates timing
 // ════════════════════════════════════════════════════════════════════════════
 const FARM_DURATION_MS = 15 * 60 * 1000;
@@ -1074,9 +1143,18 @@ app.post('/api/promo/claim', strictLimiter, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// ADMIN — protected by ADMIN_TELEGRAM_ID
+// ADMIN — protected by session token (from OTP login) or adminTelegramId
 // ════════════════════════════════════════════════════════════════════════════
 async function requireAdmin(req: express.Request, res: express.Response): Promise<number | null> {
+  // Prefer session token check (set after OTP login)
+  const token = String(req.body.admin_token || req.headers['x-admin-token'] || '');
+  if (token) {
+    const session = adminSessions.get(token);
+    if (session && Date.now() <= session.expiresAt) return ADMIN_TELEGRAM_ID || 0;
+    if (session) adminSessions.delete(token);
+    err(res, 'Session expired or invalid', 403); return null;
+  }
+  // Fallback: raw adminTelegramId (legacy)
   const adminId = parseInt(String(req.body.adminTelegramId || req.query.adminTelegramId), 10);
   if (!adminId || adminId !== ADMIN_TELEGRAM_ID) { err(res, 'Unauthorized', 403); return null; }
   return adminId;
@@ -1235,6 +1313,305 @@ app.post('/api/admin/verify-session', async (req, res) => {
   }
   return ok(res, { valid: true });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// BOT WEBHOOK — all bot commands + PVP games
+// ════════════════════════════════════════════════════════════════════════════
+const PVP_EMOJIS: Record<string, string> = {
+  dice: '🎲', dart: '🎯', football: '⚽', bowling: '🎳',
+};
+const PVP_NAMES: Record<string, string> = {
+  dice: 'DICE', dart: 'DART', football: 'FOOTBALL', bowling: 'BOWLING',
+};
+
+function uName(u: any): string {
+  return u?.first_name || u?.username || 'Unknown';
+}
+
+app.post('/api/bot/webhook', async (req, res) => {
+  res.sendStatus(200); // Always respond 200 immediately
+  const update = req.body;
+  try {
+    if (update.message) await handleBotMessage(update.message);
+  } catch (e) { console.error('Bot webhook error:', e); }
+});
+
+async function getBotUser(telegramId: number) {
+  const { data } = await db.from('users').select('*, balances(*)').eq('telegram_id', telegramId).single();
+  return data as any;
+}
+
+async function getSetting(key: string, def: string): Promise<string> {
+  const { data } = await db.from('settings').select('value').eq('key', key).single();
+  return data?.value || def;
+}
+
+async function handleBotMessage(msg: any) {
+  const chatId: number = msg.chat.id;
+  const fromId: number = msg.from?.id;
+  const text: string = (msg.text || '').trim();
+  if (!text.startsWith('/')) return;
+
+  const user = fromId ? await getBotUser(fromId) : null;
+  const balance = (user?.balances as any[])?.[0] || { points: 0 };
+
+  // /start — welcome
+  if (text.startsWith('/start')) {
+    const refCode = text.split(' ')[1] || '';
+    const miniAppUrl = `https://t.me/Adsrewartsbot/app${refCode ? `?startapp=${refCode}` : ''}`;
+    return sendTg(chatId,
+      `🚀 <b>Welcome to ADS REWARDS!</b>\n\n` +
+      `Watch ads, complete tasks, and earn ADR points.\n\n` +
+      (user ? `💰 Your balance: <b>${balance.points.toLocaleString()} ADR</b>` : `👉 Open the Mini App to get started!`),
+      { reply_markup: { inline_keyboard: [[{ text: '🎮 Open Mini App', web_app: { url: miniAppUrl } }]] } }
+    );
+  }
+
+  // /balance — show ADR balance
+  if (text.startsWith('/balance')) {
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    return sendTg(chatId,
+      `💰 <b>Your ADR Balance</b>\n\n` +
+      `🪙 Points: <b>${balance.points.toLocaleString()} ADR</b>\n` +
+      `📈 Total Earned: <b>${(user.total_points || 0).toLocaleString()} ADR</b>\n` +
+      `🏆 Level: <b>${user.level || 1}</b>`
+    );
+  }
+
+  // /farm — show farm status
+  if (text.startsWith('/farm')) {
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    const farmMs = 15 * 60 * 1000;
+    const { data: lastClaim } = await db.from('transactions').select('created_at').eq('user_id', user.id).eq('type', 'farm_claim').order('created_at', { ascending: false }).limit(1).single();
+    if (!lastClaim) {
+      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ Ready to farm! Open the app to start.`);
+    }
+    const elapsed = Date.now() - new Date(lastClaim.created_at).getTime();
+    if (elapsed >= farmMs) {
+      return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n✅ <b>Farming complete!</b> Claim your reward in the app.`);
+    }
+    const rem = farmMs - elapsed;
+    const mins = Math.floor(rem / 60000);
+    const secs = Math.floor((rem % 60000) / 1000);
+    return sendTg(chatId, `🌾 <b>Farm Status</b>\n\n⏳ Farming in progress…\n⏱ Time left: <b>${mins}m ${secs}s</b>`);
+  }
+
+  // /leaderboard — top earners by lifetime points
+  if (text.startsWith('/leaderboard')) {
+    const { data: rows } = await db.from('users').select('first_name, total_points').order('total_points', { ascending: false }).limit(10);
+    if (!rows || rows.length === 0) return sendTg(chatId, '📊 No data yet.');
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+    const lines = (rows as any[]).map((r, i) =>
+      `${medals[i]} <b>${(r.first_name || 'User').substring(0, 16)}</b> — ${(r.total_points || 0).toLocaleString()} ADR`
+    ).join('\n');
+    return sendTg(chatId, `🏆 <b>Top Earners Leaderboard</b>\n\n${lines}`);
+  }
+
+  // /ricklb — rich list by current balance
+  if (text.startsWith('/ricklb')) {
+    const { data: rows } = await db.from('balances').select('points, users(first_name)').order('points', { ascending: false }).limit(10);
+    if (!rows || rows.length === 0) return sendTg(chatId, '💰 No data yet.');
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+    const lines = (rows as any[]).map((r, i) =>
+      `${medals[i]} <b>${((r.users as any)?.first_name || 'User').substring(0, 16)}</b> — ${(r.points || 0).toLocaleString()} ADR`
+    ).join('\n');
+    return sendTg(chatId, `💎 <b>Rich List</b>\n\n${lines}`);
+  }
+
+  // /invitelb — top inviters by referral count
+  if (text.startsWith('/invitelb')) {
+    const { data: rows } = await db.from('referrals').select('referrer_id, users!referrals_referrer_id_fkey(first_name)').order('created_at', { ascending: false });
+    if (!rows || rows.length === 0) return sendTg(chatId, '👥 No referrals yet.');
+    // Count per referrer
+    const counts: Record<string, { name: string; count: number }> = {};
+    for (const r of rows as any[]) {
+      const id = r.referrer_id;
+      if (!counts[id]) counts[id] = { name: r.users?.first_name || 'User', count: 0 };
+      counts[id].count++;
+    }
+    const sorted = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 10);
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+    const lines = sorted.map((s, i) =>
+      `${medals[i]} <b>${s.name.substring(0, 16)}</b> — ${s.count} invites`
+    ).join('\n');
+    return sendTg(chatId, `👥 <b>Invite Leaderboard</b>\n\n${lines}`);
+  }
+
+  // /contest — show active contest leaderboard
+  if (text.startsWith('/contest')) {
+    const { data: contests } = await db.from('contests').select('*').eq('is_active', true).gt('ends_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(3);
+    if (!contests || contests.length === 0) {
+      return sendTg(chatId, '🏆 No active contest at the moment.\n\nCheck back soon!');
+    }
+    for (const contest of contests as any[]) {
+      const { data: entries } = await db.from('contest_entries').select('user_id, score').eq('contest_id', contest.id).order('score', { ascending: false }).limit(5);
+      const userIds = (entries || []).map((e: any) => e.user_id);
+      let userMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: users } = await db.from('users').select('id, first_name').in('id', userIds);
+        (users || []).forEach((u: any) => { userMap[u.id] = u.first_name || 'User'; });
+      }
+      const ends = new Date(contest.ends_at);
+      const diffMs = ends.getTime() - Date.now();
+      const diffH = Math.floor(diffMs / 3600000);
+      const diffM = Math.floor((diffMs % 3600000) / 60000);
+      const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+      const lb = (entries || []).map((e: any, i: number) =>
+        `${medals[i]} ${(userMap[e.user_id] || 'User').substring(0, 16)} — ${(e.score || 0).toLocaleString()} pts`
+      ).join('\n') || 'No entries yet';
+      await sendTg(chatId,
+        `🏆 <b>${contest.title}</b>\n` +
+        `⏳ Ends in: <b>${diffH}h ${diffM}m</b>\n\n` +
+        `<b>Leaderboard:</b>\n${lb}\n\n` +
+        `🎁 Prizes: 1st <b>${contest.reward_1st.toLocaleString()}</b> · 2nd <b>${contest.reward_2nd.toLocaleString()}</b> · 3rd <b>${contest.reward_3rd.toLocaleString()}</b> ADR`
+      );
+    }
+    return;
+  }
+
+  // /dice, /dart, /football, /bowling — PVP games
+  const pvpMatch = text.match(/^\/(dice|dart|football|bowling)\s*(\d+)?/i);
+  if (pvpMatch) {
+    const game = pvpMatch[1].toLowerCase();
+    const rawAmount = parseInt(pvpMatch[2] || '0', 10);
+    if (!user) return sendTg(chatId, '❌ Not registered. Open the Mini App first!');
+    return handlePvpCommand(chatId, msg, user, balance, game, rawAmount);
+  }
+}
+
+async function handlePvpCommand(chatId: number, msg: any, user: any, balance: any, game: string, amount: number) {
+  const emoji = PVP_EMOJIS[game] || '🎮';
+  const gameName = PVP_NAMES[game] || game.toUpperCase();
+  const minBet = parseInt(await getSetting('pvp_min_bet', '100'), 10);
+  const housePct = parseFloat(await getSetting('pvp_house_fee_pct', '3'));
+  const timeoutMin = parseInt(await getSetting('pvp_challenge_timeout_min', '5'), 10);
+
+  if (amount < minBet) {
+    return sendTg(chatId, `${emoji} Minimum bet is <b>${minBet} ADR</b>.\nUsage: <code>/${game} ${minBet}</code>`);
+  }
+  if (balance.points < amount) {
+    return sendTg(chatId, `❌ Insufficient balance!\n\nYou have <b>${balance.points.toLocaleString()} ADR</b> but need <b>${amount} ADR</b>.`);
+  }
+
+  // Check if there's an open challenge to accept
+  const { data: openChallenge } = await db.from('pvp_challenges')
+    .select('*')
+    .eq('game_type', game)
+    .eq('amount', amount)
+    .eq('status', 'open')
+    .neq('challenger_tg_id', user.telegram_id)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (openChallenge) {
+    // Accept the challenge!
+    const c = openChallenge as any;
+
+    // Deduct from both (reserve funds)
+    await db.from('balances').update({ points: balance.points - amount }).eq('user_id', user.id);
+    const { data: challengerBal } = await db.from('balances').select('points').eq('user_id', c.challenger_id).single();
+    await db.from('balances').update({ points: (challengerBal as any).points - amount }).eq('user_id', c.challenger_id);
+
+    // Mark challenge accepted
+    await db.from('pvp_challenges').update({
+      acceptor_id: user.id,
+      acceptor_name: uName(user),
+      acceptor_tg_id: user.telegram_id,
+      status: 'playing',
+    }).eq('id', c.id);
+
+    // "Roll" both sides
+    const r1 = Math.ceil(Math.random() * 6);
+    const r2 = Math.ceil(Math.random() * 6);
+    const pot = amount * 2;
+    const fee = Math.ceil(pot * housePct / 100);
+    const winnerPrize = pot - fee;
+
+    let resultText = '';
+    let winnerId: string | null = null;
+    let winnertgId: number | null = null;
+    let loserPts = 0;
+
+    await sendTg(chatId,
+      `🤼 <b>Match-up: ${c.challenger_name} vs ${uName(user)}</b>\n\n` +
+      `${emoji} ${c.challenger_name}: rolling...\n${emoji} ${uName(user)}: rolling...`
+    );
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    if (r1 > r2) {
+      winnerId = c.challenger_id;
+      winnertgId = c.challenger_tg_id;
+      resultText = `🏆 <b>${c.challenger_name} wins ${winnerPrize.toLocaleString()} ADR!</b>\n${emoji} ${c.challenger_name} rolled <b>${r1}</b>  vs  ${uName(user)} rolled <b>${r2}</b>`;
+    } else if (r2 > r1) {
+      winnerId = user.id;
+      winnertgId = user.telegram_id;
+      resultText = `🏆 <b>${uName(user)} wins ${winnerPrize.toLocaleString()} ADR!</b>\n${emoji} ${c.challenger_name} rolled <b>${r1}</b>  vs  ${uName(user)} rolled <b>${r2}</b>`;
+    } else {
+      // Tie — refund both
+      resultText = `🤝 <b>It's a tie!</b>\n${emoji} Both rolled <b>${r1}</b>\n💸 Both players get their ADR refunded.`;
+      await db.from('balances').update({ points: (challengerBal as any).points }).eq('user_id', c.challenger_id);
+      await db.from('balances').update({ points: balance.points }).eq('user_id', user.id);
+    }
+
+    if (winnerId) {
+      await creditPoints(winnerId, winnerPrize, 'pvp_win', `${emoji} ${gameName} win vs opponent`);
+      await db.from('transactions').insert({ user_id: winnerId === user.id ? c.challenger_id : user.id, type: 'pvp_loss', points: -amount, description: `${emoji} ${gameName} loss` });
+    }
+
+    await db.from('pvp_challenges').update({
+      status: 'completed',
+      result: { r1, r2, winner_id: winnerId, winner_prize: winnerPrize, fee },
+    }).eq('id', c.id);
+
+    await sendTg(chatId, `${emoji} <b>${gameName}</b>\n\n${resultText}\n\n🏦 House fee: ${fee} ADR`);
+    if (winnertgId) await sendTg(winnertgId, `🏆 You won <b>${winnerPrize.toLocaleString()} ADR</b> in ${gameName}!`);
+    return;
+  }
+
+  // No open challenge — create one
+  // Deduct from challenger (reserve)
+  await db.from('balances').update({ points: balance.points - amount }).eq('user_id', user.id);
+
+  const expiresAt = new Date(Date.now() + timeoutMin * 60 * 1000).toISOString();
+  await db.from('pvp_challenges').insert({
+    game_type: game,
+    amount,
+    challenger_id: user.id,
+    challenger_name: uName(user),
+    challenger_tg_id: user.telegram_id,
+    status: 'open',
+    chat_id: chatId,
+    expires_at: expiresAt,
+  });
+
+  return sendTg(chatId,
+    `${emoji} <b>${uName(user)}</b> has challenged <b>${amount} ADR</b>!\n\n` +
+    `Anyone can accept with:\n<code>/${game} ${amount}</code>\n\n` +
+    `⏳ Challenge expires in <b>${timeoutMin} minutes</b>.`
+  );
+}
+
+// Register bot webhook on startup
+(async () => {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    const deployed = process.env.REPLIT_DEPLOYMENT_ID || process.env.REPLIT_DEV_DOMAIN;
+    if (!deployed) return;
+    const baseUrl = process.env.REPLIT_DEPLOYMENT_ID
+      ? `https://${process.env.REPLIT_SLUG}.replit.app`
+      : `https://${process.env.REPLIT_DEV_DOMAIN}`;
+    const webhookUrl = `${baseUrl}/api/bot/webhook`;
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message'] }),
+    });
+    console.log(`✅ Bot webhook set: ${webhookUrl}`);
+  } catch (e) { console.warn('Webhook setup failed:', e); }
+})();
 
 // ════════════════════════════════════════════════════════════════════════════
 // Serve frontend in production

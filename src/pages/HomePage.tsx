@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import { getTransactions, logAdWatch, getAdCount, claimFarm, claimDailyDrop } from "@/lib/api";
+import { getTransactions, logAdWatch, getAdCount, claimFarm, claimDailyDrop, claimTap } from "@/lib/api";
 import { useRewardedAd } from "@/hooks/useAdsgram";
 import { supabase } from "@/integrations/supabase/client";
 import AdsgramTask from "@/components/AdsgramTask";
@@ -244,7 +244,7 @@ const CSS = `
 .hp-dots span:nth-child(2){animation-delay:0.2s} .hp-dots span:nth-child(3){animation-delay:0.4s}
 `;
 
-export default function HomePage() {
+export default function HomePage({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
   const { user, balance, refreshBalance } = useApp();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [activeTab, setActiveTab]       = useState<"earn" | "history">("earn");
@@ -295,6 +295,10 @@ export default function HomePage() {
   const [adCooldown, setAdCooldown] = useState(AD_INIT_DELAY_SEC);
   const [adLoading, setAdLoading]   = useState(false);
   const isAdRunning = useRef(false);
+
+  /* ── Tap buffer (batch API calls) ── */
+  const tapBufRef   = useRef<{ count: number; x2: boolean }>({ count: 0, x2: false });
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── Load ── */
   useEffect(() => {
@@ -406,9 +410,13 @@ export default function HomePage() {
     return s >= 60 ? `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}` : `${s}s`;
   }
 
-  async function creditBalance(_pts: number, _type: string, _desc: string) {
-    // Balance is now credited server-side. Just refresh from source of truth.
-    await refreshBalance();
+  // Flush buffered taps to the backend
+  async function flushTaps() {
+    if (!user || tapBufRef.current.count === 0) return;
+    const { count, x2 } = tapBufRef.current;
+    tapBufRef.current = { count: 0, x2: false };
+    await claimTap(user.id, count, x2);
+    refreshBalance();
   }
 
   async function handleTap(e: React.MouseEvent<HTMLButtonElement>) {
@@ -427,7 +435,19 @@ export default function HomePage() {
     setFloatPts(p => [...p, { id, x, y, val: pts }]);
     setTimeout(() => setFloatPts(p => p.filter(f => f.id !== id)), 900);
 
-    await creditBalance(pts, 'tap_earn', `👆 Tap${x2Active ? ' (2x)' : ''}`);
+    // Accumulate tap in buffer
+    tapBufRef.current.count += 1;
+    tapBufRef.current.x2 = x2Active;
+
+    // Flush every 10 taps immediately, otherwise flush after 1.5s idle
+    if (tapBufRef.current.count >= 10) {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+      flushTaps();
+    } else {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = setTimeout(() => { flushTaps(); tapTimerRef.current = null; }, 1500);
+    }
   }
 
   const onX2Reward = useCallback(() => {
@@ -736,6 +756,23 @@ export default function HomePage() {
             )}
           </button>
         </div>
+
+        {/* ADS CONTEST BANNER */}
+        {onNavigate && (
+          <div style={{margin:'10px 0 4px',cursor:'pointer'}} onClick={() => onNavigate('adcontest')}>
+            <div style={{
+              background:'linear-gradient(135deg,rgba(255,190,0,0.08),rgba(255,140,0,0.05))',
+              border:'1px solid rgba(255,190,0,0.18)',borderRadius:14,
+              padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',
+            }}>
+              <div>
+                <div style={{fontFamily:"'Orbitron',monospace",fontSize:9,letterSpacing:'2px',color:'rgba(255,190,0,0.6)',marginBottom:2}}>🏆 LIVE EVENT</div>
+                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.85)'}}>Ads Watching Contest</div>
+              </div>
+              <div style={{fontFamily:"'Orbitron',monospace",fontSize:10,color:'rgba(255,190,0,0.5)'}}>VIEW →</div>
+            </div>
+          </div>
+        )}
 
         {/* TABS */}
         <div className="hp-tabs">
