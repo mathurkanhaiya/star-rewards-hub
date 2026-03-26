@@ -208,30 +208,6 @@ function AppContent() {
   const { isLoading, user, isAdmin } = useApp();
   const [currentPage, setCurrentPage] = useState<Page>("home");
 
-  const tg = (window as any)?.Telegram?.WebApp;
-  const isTelegram = typeof window !== "undefined" && tg && tg.initDataUnsafe?.user;
-
-  if (!isTelegram) {
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, background: '#06080f',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>✈️</div>
-        <div style={{
-          fontFamily: "'Orbitron', monospace", fontSize: 14,
-          fontWeight: 700, letterSpacing: '2px', color: '#fff', marginBottom: 8,
-        }}>
-          TELEGRAM ONLY
-        </div>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}>
-          Open inside Telegram
-        </div>
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <>

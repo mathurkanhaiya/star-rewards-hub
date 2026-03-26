@@ -45,6 +45,13 @@ const MOCK_TELEGRAM_USER: TelegramUser = {
   username: 'adminuser',
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -64,7 +71,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    // Subscribe to balance changes
     const balanceChannel = supabase
       .channel('balance-changes')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'balances', filter: `user_id=eq.${user.id}` },
@@ -73,7 +79,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
       .subscribe();
 
-    // Subscribe to notifications
     const notifChannel = supabase
       .channel('notification-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
@@ -84,13 +89,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
       .subscribe();
 
-    // Subscribe to settings changes (admin)
     const settingsChannel = supabase
       .channel('settings-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' },
         () => {
-          // Refresh settings when they change
-          getSettings().then(s => setSettings(s));
+          getSettings().then(s => setSettings(s)).catch(() => {});
         })
       .subscribe();
 
@@ -105,11 +108,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       let tgUser: TelegramUser | null = null;
-      
+
       if (window.Telegram?.WebApp) {
         const twa = window.Telegram.WebApp;
-        twa.ready();
-        twa.expand();
+        try { twa.ready(); } catch (_) {}
+        try { twa.expand(); } catch (_) {}
         tgUser = twa.initDataUnsafe?.user || null;
       }
 
@@ -124,28 +127,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         referralCode = window.Telegram.WebApp.initDataUnsafe.start_param;
       }
 
-      const appUser = await initUser(
-        { id: tgUser.id, first_name: tgUser.first_name, last_name: tgUser.last_name, username: tgUser.username, photo_url: tgUser.photo_url },
-        referralCode
+      const appUser = await withTimeout(
+        initUser({ id: tgUser.id, first_name: tgUser.first_name, last_name: tgUser.last_name, username: tgUser.username, photo_url: tgUser.photo_url }, referralCode),
+        8000,
+        null
       );
-      
-      setUser(appUser);
 
-      if (appUser) {
-        const [bal, s, notifs, unread] = await Promise.all([
-          getUserBalance(appUser.id),
-          getSettings(),
-          getNotifications(appUser.id),
-          getUnreadNotifCount(appUser.id),
-        ]);
-        setBalance(bal);
-        setSettings(s);
-        setNotifications(notifs as Notification[]);
-        setUnreadCount(unread);
-      } else {
-        const s = await getSettings();
-        setSettings(s);
-      }
+      const resolvedUser = appUser ?? {
+        id: `local-${tgUser.id}`,
+        telegram_id: tgUser.id,
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name ?? null,
+        username: tgUser.username ?? null,
+        photo_url: tgUser.photo_url ?? null,
+        level: 1,
+        total_points: 0,
+        referral_code: String(tgUser.id),
+        referred_by: null,
+        is_banned: false,
+        last_active_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      } as AppUser;
+
+      setUser(resolvedUser);
+
+      const [bal, s, notifs, unread] = await Promise.all([
+        withTimeout(getUserBalance(resolvedUser.id), 5000, null),
+        withTimeout(getSettings(), 5000, {}),
+        withTimeout(getNotifications(resolvedUser.id), 5000, []),
+        withTimeout(getUnreadNotifCount(resolvedUser.id), 5000, 0),
+      ]);
+      setBalance(bal);
+      setSettings(s as Record<string, string>);
+      setNotifications(notifs as Notification[]);
+      setUnreadCount(unread as number);
 
       showInterstitialAd().catch(() => {});
     } catch (err) {
@@ -157,8 +172,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshBalance = useCallback(async () => {
     if (user) {
-      const bal = await getUserBalance(user.id);
-      setBalance(bal);
+      const bal = await withTimeout(getUserBalance(user.id), 5000, null);
+      if (bal) setBalance(bal);
     }
   }, [user]);
 
@@ -169,11 +184,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshNotifications = useCallback(async () => {
     if (user) {
       const [notifs, unread] = await Promise.all([
-        getNotifications(user.id),
-        getUnreadNotifCount(user.id),
+        withTimeout(getNotifications(user.id), 5000, []),
+        withTimeout(getUnreadNotifCount(user.id), 5000, 0),
       ]);
       setNotifications(notifs as Notification[]);
-      setUnreadCount(unread);
+      setUnreadCount(unread as number);
     }
   }, [user]);
 

@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://utfkqzmrcdfbnjdkjais.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 

@@ -67,6 +67,10 @@ The following Edge Functions must be deployed to your Supabase project:
 - All sensitive operations run server-side in Supabase Edge Functions
 - The UI is dark-themed (#06080f background) — this is by design
 - Port 5000 is used for development (required for Replit webview)
+- `initUser` has an 8-second timeout; all other Supabase calls have 5-second timeouts
+- If Supabase is unreachable, a local fallback user is created so the UI never hangs
+- Real-time subscriptions for balance, notifications, and settings via Supabase Realtime
+- Root error boundary in main.tsx catches silent render crashes
 
 ## Running
 ```bash
