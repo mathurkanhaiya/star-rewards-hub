@@ -1,6 +1,24 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { build as esbuild } from "esbuild";
+
+function buildServer() {
+  return {
+    name: "build-server",
+    closeBundle: async () => {
+      await esbuild({
+        entryPoints: ["server/index.ts"],
+        bundle: true,
+        platform: "node",
+        packages: "external",
+        format: "cjs",
+        outfile: "dist/index.cjs",
+      });
+      console.log("✅ Server compiled: dist/index.cjs");
+    },
+  };
+}
 
 export default defineConfig({
   server: {
@@ -18,7 +36,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react()],
+  plugins: [react(), buildServer()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

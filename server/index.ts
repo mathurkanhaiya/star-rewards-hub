@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
+import path from 'path';
 
 const app = express();
 const PORT = 3001;
@@ -1186,8 +1187,18 @@ app.post('/api/admin/end-contest', strictLimiter, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// Serve frontend in production
+// ════════════════════════════════════════════════════════════════════════════
+const distPath = path.join(process.cwd(), 'dist');
+app.use(express.static(distPath));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // Start server
 // ════════════════════════════════════════════════════════════════════════════
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Secure backend running on port ${PORT}`);
+const PORT_PROD = process.env.PORT ? parseInt(process.env.PORT) : PORT;
+app.listen(PORT_PROD, '0.0.0.0', () => {
+  console.log(`✅ Secure backend running on port ${PORT_PROD}`);
 });
