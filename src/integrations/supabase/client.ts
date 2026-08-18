@@ -22,6 +22,9 @@ async function promoApi(action:string,payload:Record<string,unknown>={}) {
 async function adminData(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/admin-data`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
+async function adminContests(action:string,payload:Record<string,unknown>={}) {
+  return nativeFetch(`${EDGE_FN}/admin-contests`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
+}
 function fakeJson(data:unknown,status=200,headers:Record<string,string>={}) {
   return new Response(status===204?null:JSON.stringify(data),{status,headers:{'Content-Type':'application/json',...headers}});
 }
@@ -40,7 +43,6 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   const method=request.method.toUpperCase();
   const targetUserId=eqValue(url,'user_id');
 
-  // Admin Users tab still uses legacy direct reads. Route those through an admin-only Edge Function.
   if(isAdminRoute()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
     if(table==='balances'){
       const result=await adminData('user-balance',{userId:targetUserId});
@@ -58,6 +60,27 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
       return method==='HEAD'?new Response(null,{status:200,headers}):fakeJson([],200,headers);
     }
   }
+
+  // Legacy admin contest component writes directly to Supabase. Convert those writes to admin-only Edge calls.
+  if(isAdminRoute()&&table==='contests'&&method==='POST'){
+    const raw=await request.clone().json().catch(()=>({})) as any;
+    const contest=Array.isArray(raw)?raw[0]:raw;
+    const result=await adminContests('create',{contest});
+    const payload=await result.json().catch(()=>({}));
+    if(!result.ok) return fakeJson(payload,result.status);
+    return fakeJson(payload?.data??null,201);
+  }
+  if(isAdminRoute()&&table==='contests'&&method==='PATCH'){
+    const result=await adminContests('cancel',{id:eqValue(url,'id')});
+    if(!result.ok) return result;
+    return fakeJson(null,204);
+  }
+  if(isAdminRoute()&&table==='contests'&&method==='DELETE'){
+    const result=await adminContests('delete',{id:eqValue(url,'id')});
+    if(!result.ok) return result;
+    return fakeJson(null,204);
+  }
+  if(isAdminRoute()&&(table==='contest_entries'||table==='contest_rewards')&&method==='DELETE') return fakeJson(null,204);
 
   if(table==='balances'&&method==='PATCH') return fakeJson(null,204);
 
