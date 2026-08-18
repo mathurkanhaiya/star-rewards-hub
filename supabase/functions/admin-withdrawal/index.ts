@@ -1,105 +1,55 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-async function sendTelegramMessage(chatId: number, text: string) {
-  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-  if (!botToken) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-    });
-  } catch (e) { console.error('TG send error:', e); }
-}
+import { requireTelegramUser, secureCorsHeaders as corsHeaders } from "../_shared/telegramAuth.ts";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { telegramUser } = await requireTelegramUser(req, supabase);
+    const adminId = Number(Deno.env.get('ADMIN_TELEGRAM_ID') || '2139807311');
+    if (telegramUser.id !== adminId) throw new Error('Admin access required');
 
     const { withdrawalId, status, adminNote } = await req.json();
-    if (!withdrawalId || !status) throw new Error('Missing fields');
+    if (!withdrawalId || !['approved','rejected'].includes(status)) throw new Error('Invalid withdrawal update');
 
-    // Get withdrawal + user
-    const { data: withdrawal } = await supabase
-      .from('withdrawals')
-      .select('user_id, points_spent, amount, method')
-      .eq('id', withdrawalId)
-      .single();
-
+    const { data: withdrawal } = await supabase.from('withdrawals')
+      .select('user_id,points_spent,amount,method,status')
+      .eq('id', withdrawalId).single();
     if (!withdrawal) throw new Error('Withdrawal not found');
+    if (withdrawal.status !== 'pending') throw new Error('Withdrawal already processed');
 
-    // Update withdrawal status
-    const { error } = await supabase
-      .from('withdrawals')
-      .update({ status, admin_note: adminNote || null, processed_at: new Date().toISOString() })
-      .eq('id', withdrawalId);
+    const { data: updated, error } = await supabase.from('withdrawals')
+      .update({ status, admin_note:String(adminNote || '').slice(0,500) || null, processed_at:new Date().toISOString() })
+      .eq('id', withdrawalId).eq('status','pending').select('id').maybeSingle();
+    if (error || !updated) throw new Error('Withdrawal status changed; refresh and try again');
 
-    if (error) throw error;
-
-    // If rejected, refund
     if (status === 'rejected') {
-      const { data: balance } = await supabase
-        .from('balances')
-        .select('points, total_withdrawn')
-        .eq('user_id', withdrawal.user_id)
-        .single();
-
+      const { data: balance } = await supabase.from('balances').select('points,total_withdrawn').eq('user_id', withdrawal.user_id).single();
       if (balance) {
         await supabase.from('balances').update({
-          points: balance.points + withdrawal.points_spent,
-          total_withdrawn: Math.max(0, (balance.total_withdrawn || 0) - withdrawal.points_spent),
-        }).eq('user_id', withdrawal.user_id);
-
+          points:Number(balance.points)+Number(withdrawal.points_spent),
+          total_withdrawn:Math.max(0,Number(balance.total_withdrawn||0)-Number(withdrawal.points_spent)),
+        }).eq('user_id',withdrawal.user_id);
         await supabase.from('transactions').insert({
-          user_id: withdrawal.user_id,
-          type: 'refund',
-          points: withdrawal.points_spent,
-          description: `🔄 Withdrawal rejected — ${withdrawal.points_spent.toLocaleString()} pts refunded`,
+          user_id:withdrawal.user_id,type:'refund',points:withdrawal.points_spent,
+          description:`🔄 Withdrawal rejected — ${Number(withdrawal.points_spent).toLocaleString()} pts refunded`,
+          reference_id:withdrawalId,
         });
       }
     }
 
-    // In-app notification
-    const notifTitle = status === 'approved' ? '✅ Withdrawal Approved!' : '❌ Withdrawal Rejected';
-    const notifMsg = status === 'approved'
-      ? `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} has been approved and is being processed.`
-      : `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} was rejected. ${withdrawal.points_spent.toLocaleString()} points refunded.${adminNote ? ` Reason: ${adminNote}` : ''}`;
+    const title=status==='approved'?'✅ Withdrawal Approved!':'❌ Withdrawal Rejected';
+    const message=status==='approved'
+      ? `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${String(withdrawal.method).toUpperCase()} was approved.`
+      : `Your withdrawal was rejected and ${Number(withdrawal.points_spent).toLocaleString()} points were refunded.${adminNote?` Reason: ${String(adminNote).slice(0,300)}`:''}`;
+    await supabase.from('notifications').insert({ user_id:withdrawal.user_id,title,message,type:'withdrawal' });
 
-    await supabase.from('notifications').insert({
-      user_id: withdrawal.user_id,
-      title: notifTitle,
-      message: notifMsg,
-      type: 'withdrawal',
-    });
-
-    // Telegram bot alert to user
-    const { data: userData } = await supabase.from('users').select('telegram_id').eq('id', withdrawal.user_id).single();
-    if (userData) {
-      const tgMsg = status === 'approved'
-        ? `✅ <b>Withdrawal Approved!</b>\n\nYour withdrawal of <b>${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()}</b> has been approved and is being processed! 🎉`
-        : `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${withdrawal.method.toUpperCase()} was rejected.\n${withdrawal.points_spent.toLocaleString()} points have been refunded.${adminNote ? `\nReason: ${adminNote}` : ''}`;
-
-      await sendTelegramMessage(userData.telegram_id, tgMsg);
-    }
-
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: (error as Error).message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    await supabase.from('admin_logs').insert({ admin_telegram_id:telegramUser.id, action:`withdrawal_${status}`, target_user_id:withdrawal.user_id, details:{ withdrawalId, adminNote:String(adminNote||'').slice(0,500) } });
+    return new Response(JSON.stringify({success:true}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
+  } catch(error) {
+    const message=(error as Error).message;
+    const status=/Admin access/i.test(message)?403:/Telegram|registered|banned|expired|signature/i.test(message)?401:400;
+    return new Response(JSON.stringify({success:false,message}),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
   }
 });
