@@ -19,11 +19,15 @@ async function bridge(action:string,payload:Record<string,unknown>={}) {
 async function promoApi(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/promo-api`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
+async function adminData(action:string,payload:Record<string,unknown>={}) {
+  return nativeFetch(`${EDGE_FN}/admin-data`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
+}
 function fakeJson(data:unknown,status=200,headers:Record<string,string>={}) {
   return new Response(status===204?null:JSON.stringify(data),{status,headers:{'Content-Type':'application/json',...headers}});
 }
 function eqValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('eq.')?value.slice(3):value;}
 function gteValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('gte.')?value.slice(4):'';}
+function isAdminRoute(){return typeof window!=='undefined'&&window.location.pathname.toLowerCase().includes('admin');}
 
 const LEGACY_REWARD_TYPES=new Set(['tap_earn','farm_claim','daily_drop','dice_roll','lucky_box','card_flip','number_guess']);
 
@@ -34,6 +38,26 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
 
   const table=url.pathname.split('/').filter(Boolean).pop()||'';
   const method=request.method.toUpperCase();
+  const targetUserId=eqValue(url,'user_id');
+
+  // Admin Users tab still uses legacy direct reads. Route those through an admin-only Edge Function.
+  if(isAdminRoute()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
+    if(table==='balances'){
+      const result=await adminData('user-balance',{userId:targetUserId});
+      const payload=await result.json().catch(()=>({data:null}));
+      return fakeJson(payload?.data??null,result.ok?200:result.status);
+    }
+    const result=await adminData('user-activity',{userId:targetUserId});
+    const payload=await result.json().catch(()=>({transactions:[],adCount:0,dailyClaims:[]}));
+    if(!result.ok) return fakeJson(payload,result.status);
+    if(table==='transactions') return fakeJson(payload.transactions||[],200);
+    if(table==='daily_claims') return fakeJson(payload.dailyClaims||[],200);
+    if(table==='ad_logs'){
+      const count=Number(payload.adCount||0);
+      const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
+      return method==='HEAD'?new Response(null,{status:200,headers}):fakeJson([],200,headers);
+    }
+  }
 
   if(table==='balances'&&method==='PATCH') return fakeJson(null,204);
 
@@ -82,7 +106,6 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     const payload=await result.json().catch(()=>({count:0})); const count=Number(payload?.count||0);
     const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
     if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers});
-    // Queries that need actual ad rows (leaderboards/contests) still go to read-only PostgREST.
     if(!url.searchParams.get('select')?.includes('id')) return nativeFetch(request);
     return fakeJson([],result.ok?200:result.status,headers);
   }
@@ -98,7 +121,6 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     return method==='PATCH'?fakeJson(null,204):fakeJson(Array.isArray(raw)?raw:[raw],201);
   }
 
-  // Secure promo compatibility for both user claims and the legacy admin tab.
   if(table==='promo_claims'&&(method==='GET'||method==='HEAD')){
     const result=await promoApi('claims');
     const payload=await result.json().catch(()=>({data:[]}));
@@ -131,8 +153,6 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     if(!result.ok) return result; return fakeJson(null,204);
   }
 
-  // Never allow browser callers to invoke the privileged points RPC directly. Legacy promo
-  // code reaches here after promo-api already credited the user, so a fake RPC result is safe.
   if(table==='increment_points'&&url.pathname.includes('/rpc/')&&method==='POST') return fakeJson(0,200);
 
   return nativeFetch(request);
