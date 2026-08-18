@@ -37,7 +37,6 @@ export async function verifyTelegramInitData(initData: string, botToken: string,
   const receivedHash = params.get('hash');
   if (!receivedHash) throw new Error('Missing Telegram hash');
   params.delete('hash');
-  params.delete('signature');
 
   const authDate = Number(params.get('auth_date') || 0);
   const now = Math.floor(Date.now() / 1000);
