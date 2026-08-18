@@ -1,231 +1,89 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireTelegramUser, secureCorsHeaders as corsHeaders } from "../_shared/telegramAuth.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const TON_TIERS: Record<number, number> = {
-  5000:  0.05,
-  10000: 0.1,
-  15000: 0.15,
-  20000: 0.2,
-};
-
-/* 5000 pts = ₹10 → 10/5000 = 0.002 */
+const TON_TIERS: Record<number, number> = { 5000: 0.05, 10000: 0.1, 15000: 0.15, 20000: 0.2 };
 const UPI_RATE = 0.0012;
 
-async function sendTelegramMessage(chatId: number, text: string) {
-  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-  if (!botToken) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-    });
-  } catch (e) { console.error('Telegram send error:', e); }
-}
-
-function errorResponse(message: string, status = 200) {
-  return new Response(
-    JSON.stringify({ success: false, message }),
-    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
-
-function successResponse(message: string) {
-  return new Response(
-    JSON.stringify({ success: true, message }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+function response(success: boolean, message: string, status = 200) {
+  return new Response(JSON.stringify({ success, message }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { appUser } = await requireTelegramUser(req, supabase);
+    const userId = appUser.id;
+    const body = await req.json();
+    const { method, points, walletAddress } = body;
 
-    let body: any;
-    try { body = await req.json(); }
-    catch { return errorResponse('Invalid request body'); }
+    if (!['ton', 'upi'].includes(method)) return response(false, 'Invalid withdrawal method');
+    if (!Number.isInteger(points) || points <= 0) return response(false, 'Invalid points');
+    if (!walletAddress?.trim() || walletAddress.length > 256) return response(false, 'Wallet/UPI address is required');
+    if (method === 'ton' && !/^UQ[A-Za-z0-9_-]{46,}$/.test(walletAddress.trim())) return response(false, 'Invalid TON wallet address format');
+    if (method === 'upi' && !/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(walletAddress.trim())) return response(false, 'Invalid UPI ID format');
 
-    const { userId, method, points, walletAddress } = body;
+    const { data: settings } = await supabase.from('settings').select('key,value');
+    const map = Object.fromEntries((settings || []).map((s) => [s.key, s.value]));
+    const minPoints = Number(map.min_withdrawal_points || 5000);
+    if (points < minPoints) return response(false, `Minimum withdrawal is ${minPoints.toLocaleString()} points`);
 
-    if (!userId || typeof userId !== 'string')
-      return errorResponse('Missing userId');
-    if (!method || !['ton', 'upi'].includes(method))
-      return errorResponse('Invalid method — must be ton or upi');
-    if (!points || typeof points !== 'number' || points <= 0)
-      return errorResponse('Invalid points');
-
-    if (method === 'ton') {
-      if (!walletAddress?.trim())
-        return errorResponse('TON wallet address is required');
-      if (!/^UQ[A-Za-z0-9_-]{46,}$/.test(walletAddress.trim()))
-        return errorResponse('Invalid TON wallet address format');
-    }
-
-    if (method === 'upi') {
-      if (!walletAddress?.trim())
-        return errorResponse('UPI ID is required');
-      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(walletAddress.trim()))
-        return errorResponse('Invalid UPI ID format (e.g. name@upi)');
-    }
-
-    /* ── Settings ── */
-    const { data: settings } = await supabase.from('settings').select('key, value');
-    const settingsMap: Record<string, string> = {};
-    (settings || []).forEach((s: { key: string; value: string }) => {
-      settingsMap[s.key] = s.value;
-    });
-
-    const minPoints = parseInt(settingsMap.min_withdrawal_points || '5000');
-    if (points < minPoints)
-      return errorResponse(`Minimum withdrawal is ${minPoints.toLocaleString()} points`);
-
-    /* ── Amount calculation (server-side only) ── */
     let amount: number;
-    let amountStr: string;
-
-    if (method === 'upi') {
-      amount = parseFloat((points * UPI_RATE).toFixed(2));
-      if (amount <= 0) return errorResponse('Invalid UPI withdrawal amount');
-      amountStr = `₹${amount} INR`;
+    if (method === 'ton') {
+      amount = TON_TIERS[points];
+      if (!amount) return response(false, `Invalid TON tier. Valid: ${Object.keys(TON_TIERS).join(', ')} pts`);
     } else {
-      const ton = TON_TIERS[points];
-      if (!ton)
-        return errorResponse(`Invalid TON tier. Valid: ${Object.keys(TON_TIERS).join(', ')} pts`);
-      amount = ton;
-      amountStr = `${amount.toFixed(2)} TON`;
+      amount = Number((points * UPI_RATE).toFixed(2));
+      if (amount <= 0) return response(false, 'Invalid withdrawal amount');
     }
 
-    const addressLabel = method === 'upi' ? 'UPI ID' : 'Wallet';
+    const { data: balance } = await supabase.from('balances').select('points,total_withdrawn').eq('user_id', userId).single();
+    if (!balance) return response(false, 'Balance not found');
+    if (Number(balance.points) < points) return response(false, 'Insufficient balance');
 
-    /* ── User ── */
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, telegram_id, username, first_name')
-      .eq('id', userId)
-      .single();
+    const [{ count: pendingCount }, { count: todayCount }] = await Promise.all([
+      supabase.from('withdrawals').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending'),
+      (() => { const d = new Date(); d.setUTCHours(0,0,0,0); return supabase.from('withdrawals').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', d.toISOString()); })(),
+    ]);
+    if ((pendingCount || 0) >= Number(map.max_pending_withdrawals || 2)) return response(false, 'Too many pending withdrawals');
+    if ((todayCount || 0) >= Number(map.max_daily_withdrawals || 3)) return response(false, 'Daily withdrawal limit reached');
 
-    if (userError || !userData) return errorResponse('User not found');
-
-    /* ── Balance ── */
-    const { data: balance, error: balError } = await supabase
+    // Optimistic concurrency guard: deduct only if the balance still has enough points.
+    const newBalance = Number(balance.points) - points;
+    const { data: deducted, error: deductError } = await supabase
       .from('balances')
-      .select('points, total_withdrawn')
+      .update({ points: newBalance, total_withdrawn: Number(balance.total_withdrawn || 0) + points })
       .eq('user_id', userId)
-      .single();
+      .eq('points', balance.points)
+      .select('points')
+      .maybeSingle();
+    if (deductError || !deducted) return response(false, 'Balance changed. Please try again.');
 
-    if (balError || !balance) return errorResponse('Could not fetch balance');
-    if (balance.points < points)
-      return errorResponse(`Insufficient balance. You have ${balance.points.toLocaleString()} pts`);
-
-    /* ── Pending limit ── */
-    const { count: pendingCount } = await supabase
-      .from('withdrawals')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'pending');
-
-    const maxPending = parseInt(settingsMap.max_pending_withdrawals || '2');
-    if ((pendingCount || 0) >= maxPending)
-      return errorResponse('You have too many pending withdrawals. Wait for them to be processed.');
-
-    /* ── Daily limit ── */
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-
-    const { count: todayCount } = await supabase
-      .from('withdrawals')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('created_at', startOfDay.toISOString());
-
-    const maxDaily = parseInt(settingsMap.max_daily_withdrawals || '3');
-    if ((todayCount || 0) >= maxDaily)
-      return errorResponse('Daily withdrawal limit reached. Try again tomorrow.');
-
-    /* ── Insert withdrawal ── */
-    const { error: withdrawError } = await supabase
-      .from('withdrawals')
-      .insert({
-        user_id:        userId,
-        method,
-        points_spent:   points,
-        amount,
-        wallet_address: walletAddress.trim(),
-        status:         'pending',
-      });
-
-    if (withdrawError) {
-      console.error('Withdrawal insert error:', withdrawError);
-      return errorResponse('Failed to create withdrawal. Please try again.');
-    }
-
-    /* ── Deduct points ── */
-    await supabase.from('balances').update({
-      points:          balance.points - points,
-      total_withdrawn: (balance.total_withdrawn || 0) + points,
-    }).eq('user_id', userId);
-
-    /* ── Transaction log ── */
-    await supabase.from('transactions').insert({
-      user_id:     userId,
-      type:        'spend',
-      points:      -points,
-      description: `💸 Withdrawal: ${amountStr} via ${method.toUpperCase()}`,
-    });
-
-    /* ── In-app notification ── */
-    await supabase.from('notifications').insert({
+    const { data: withdrawal, error: withdrawError } = await supabase.from('withdrawals').insert({
       user_id: userId,
-      title:   '💸 Withdrawal Submitted',
-      message: `Your withdrawal of ${points.toLocaleString()} pts → ${amountStr} is pending review.`,
-      type:    'withdrawal',
-    });
+      method,
+      points_spent: points,
+      amount,
+      wallet_address: walletAddress.trim(),
+      status: 'pending',
+    }).select('id').single();
 
-    /* ── Telegram: user ── */
-    if (userData.telegram_id) {
-      await sendTelegramMessage(
-        userData.telegram_id,
-        `💸 <b>Withdrawal Submitted</b>\n\n` +
-        `Method: <b>${method.toUpperCase()}</b>\n` +
-        `Amount: <b>${amountStr}</b>\n` +
-        `Points spent: <b>${points.toLocaleString()}</b>\n` +
-        `${addressLabel}: <code>${walletAddress.trim()}</code>\n\n` +
-        `Your request is under review. You'll be notified once processed.`
-      );
+    if (withdrawError || !withdrawal) {
+      await supabase.from('balances').update({ points: Number(balance.points), total_withdrawn: Number(balance.total_withdrawn || 0) }).eq('user_id', userId).eq('points', newBalance);
+      return response(false, 'Failed to create withdrawal');
     }
 
-    /* ── Telegram: admin ── */
-    const adminTgId = Deno.env.get('ADMIN_TELEGRAM_ID');
-    if (adminTgId) {
-      await sendTelegramMessage(
-        parseInt(adminTgId),
-        `🔔 <b>New Withdrawal Request</b>\n\n` +
-        `👤 User: <b>${userData.first_name || 'Unknown'}</b> (@${userData.username || 'N/A'})\n` +
-        `🆔 ID: <code>${userId}</code>\n` +
-        `💳 Method: <b>${method.toUpperCase()}</b>\n` +
-        `💰 Amount: <b>${amountStr}</b>\n` +
-        `🪙 Points: <b>${points.toLocaleString()}</b>\n` +
-        `${addressLabel}: <code>${walletAddress.trim()}</code>`
-      );
-    }
+    const amountStr = method === 'upi' ? `₹${amount} INR` : `${amount.toFixed(2)} TON`;
+    await Promise.all([
+      supabase.from('transactions').insert({ user_id: userId, type: 'spend', points: -points, description: `💸 Withdrawal: ${amountStr} via ${method.toUpperCase()}`, reference_id: withdrawal.id }),
+      supabase.from('notifications').insert({ user_id: userId, title: '💸 Withdrawal Submitted', message: `Your ${points.toLocaleString()} point withdrawal is pending review.`, type: 'withdrawal' }),
+    ]);
 
-    return successResponse('Withdrawal request submitted successfully!');
-
+    return response(true, 'Withdrawal request submitted successfully!');
   } catch (error) {
-    console.error('Withdraw edge function error:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const message = (error as Error).message;
+    const status = /Telegram|registered|banned|expired|signature/i.test(message) ? 401 : 400;
+    return response(false, message, status);
   }
 });
