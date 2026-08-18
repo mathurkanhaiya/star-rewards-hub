@@ -79,4 +79,5 @@ export async function requireTelegramUser(req: Request, supabase: SupabaseClient
 export const secureCorsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-telegram-init-data',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
