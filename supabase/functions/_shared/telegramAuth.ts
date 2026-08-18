@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const encoder = new TextEncoder();
 
 function bytesToHex(bytes: ArrayBuffer): string {
@@ -7,14 +9,15 @@ function bytesToHex(bytes: ArrayBuffer): string {
 }
 
 async function hmacSha256(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    key,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
+  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
 }
 
 export type VerifiedTelegramUser = {
@@ -23,23 +26,18 @@ export type VerifiedTelegramUser = {
   last_name?: string;
   username?: string;
   photo_url?: string;
+  language_code?: string;
+  is_premium?: boolean;
 };
 
-/**
- * Verifies Telegram Mini App initData according to Telegram's HMAC scheme.
- * Never trust a Telegram user object or userId supplied by the browser by itself.
- */
-export async function verifyTelegramInitData(
-  initData: string,
-  botToken: string,
-  maxAgeSeconds = 3600,
-): Promise<VerifiedTelegramUser> {
+export async function verifyTelegramInitData(initData: string, botToken: string, maxAgeSeconds = 3600): Promise<VerifiedTelegramUser> {
   if (!initData || !botToken) throw new Error('Missing Telegram authentication data');
 
   const params = new URLSearchParams(initData);
   const receivedHash = params.get('hash');
   if (!receivedHash) throw new Error('Missing Telegram hash');
   params.delete('hash');
+  params.delete('signature');
 
   const authDate = Number(params.get('auth_date') || 0);
   const now = Math.floor(Date.now() / 1000);
@@ -52,25 +50,33 @@ export async function verifyTelegramInitData(
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
 
-  // secret_key = HMAC_SHA256("WebAppData", bot_token)
   const secretKey = await hmacSha256(encoder.encode('WebAppData'), botToken);
   const calculatedHash = bytesToHex(await hmacSha256(secretKey, dataCheckString));
-
-  // Constant-time-ish comparison to avoid an early-exit timing leak.
-  if (calculatedHash.length !== receivedHash.length) throw new Error('Invalid Telegram signature');
-  let mismatch = 0;
-  for (let i = 0; i < calculatedHash.length; i++) {
-    mismatch |= calculatedHash.charCodeAt(i) ^ receivedHash.charCodeAt(i);
-  }
-  if (mismatch !== 0) throw new Error('Invalid Telegram signature');
+  if (!constantTimeEqual(calculatedHash, receivedHash.toLowerCase())) throw new Error('Invalid Telegram signature');
 
   const rawUser = params.get('user');
   if (!rawUser) throw new Error('Telegram user missing');
-
   const user = JSON.parse(rawUser) as VerifiedTelegramUser;
-  if (!Number.isSafeInteger(user.id) || user.id <= 0 || !user.first_name) {
-    throw new Error('Invalid Telegram user');
-  }
-
+  if (!Number.isSafeInteger(user.id) || user.id <= 0 || !user.first_name) throw new Error('Invalid Telegram user');
   return user;
 }
+
+export async function requireTelegramUser(req: Request, supabase: SupabaseClient) {
+  const initData = req.headers.get('x-telegram-init-data') || '';
+  const telegramUser = await verifyTelegramInitData(initData, Deno.env.get('TELEGRAM_BOT_TOKEN') || '');
+
+  const { data: appUser, error } = await supabase
+    .from('users')
+    .select('id, telegram_id, username, first_name, last_name, photo_url, is_banned')
+    .eq('telegram_id', telegramUser.id)
+    .single();
+
+  if (error || !appUser) throw new Error('User not registered');
+  if (appUser.is_banned) throw new Error('Account is banned');
+  return { telegramUser, appUser };
+}
+
+export const secureCorsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-telegram-init-data',
+};
