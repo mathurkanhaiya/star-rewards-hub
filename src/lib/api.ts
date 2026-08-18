@@ -4,6 +4,7 @@ import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/type
 const SUPABASE_URL = 'https://eoppaqrqlpyqoizohoba.supabase.co';
 const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
 const ANON_KEY = 'sb_publishable_DJ7o0hTt3DPL8O_3HbAWuw_NkdvY0na';
+const ADMIN_TELEGRAM_ID = 2139807311;
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -16,6 +17,14 @@ function telegramInitData(): string {
   return window.Telegram?.WebApp?.initData || '';
 }
 
+function isAdminTelegram(): boolean {
+  try {
+    const raw = new URLSearchParams(telegramInitData()).get('user');
+    if (!raw) return false;
+    return Number(JSON.parse(raw)?.id) === ADMIN_TELEGRAM_ID;
+  } catch { return false; }
+}
+
 function protectedHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -24,25 +33,26 @@ function protectedHeaders() {
   };
 }
 
-async function securePost<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  const response = await fetchWithTimeout(`${EDGE_FN}/secure-api`, {
+async function edgePost<T = any>(fn: string, body: Record<string, unknown> = {}): Promise<T> {
+  const response = await fetchWithTimeout(`${EDGE_FN}/${fn}`, {
     method: 'POST',
     headers: protectedHeaders(),
-    body: JSON.stringify({ action, ...payload }),
+    body: JSON.stringify(body),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.message || data?.error || 'Backend request failed');
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.message || data?.error || `${fn} request failed`);
   return data;
+}
+
+async function securePost<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  return edgePost<T>('secure-api', { action, ...payload });
 }
 
 export async function initUser(_telegramUser: { id:number; first_name:string; last_name?:string; username?:string; photo_url?:string }, referralCode?: string): Promise<AppUser | null> {
   try {
     if (!telegramInitData()) return null;
-    const response = await fetchWithTimeout(`${EDGE_FN}/telegram-auth`, {
-      method: 'POST', headers: protectedHeaders(), body: JSON.stringify({ referralCode }),
-    });
-    const data = await response.json();
-    return response.ok ? data.user || null : null;
+    const data = await edgePost<any>('telegram-auth', { referralCode });
+    return data.user || null;
   } catch (err) { console.error('initUser error:', err); return null; }
 }
 
@@ -55,8 +65,17 @@ export async function getUserBalance(_userId: string): Promise<UserBalance | nul
 }
 
 export async function getTasks(): Promise<Task[]> {
-  const { data } = await supabase.from('tasks').select('*').eq('is_active', true).order('display_order');
-  return (data as Task[]) || [];
+  if (isAdminTelegram()) {
+    try {
+      return (await edgePost<{data:Task[]}>('admin-catalog', { action:'tasks' })).data || [];
+    } catch (err) {
+      console.error('admin task catalog error:', err);
+    }
+  }
+  try {
+    const { data } = await supabase.from('tasks').select('*').eq('is_active', true).order('display_order');
+    return (data as Task[]) || [];
+  } catch { return []; }
 }
 
 export async function getUserTasks(_userId: string) {
@@ -64,31 +83,23 @@ export async function getUserTasks(_userId: string) {
 }
 
 export async function completeTask(_userId: string, taskId: string): Promise<{success:boolean;points?:number;message?:string}> {
-  try {
-    const r = await fetchWithTimeout(`${EDGE_FN}/complete-task`, { method:'POST', headers:protectedHeaders(), body:JSON.stringify({ taskId }) });
-    return await r.json();
-  } catch { return { success:false, message:'Error completing task' }; }
+  try { return await edgePost('complete-task', { taskId }); }
+  catch { return { success:false, message:'Error completing task' }; }
 }
 
 export async function claimDailyReward(_userId: string): Promise<{success:boolean;points?:number;streak?:number;message?:string}> {
-  try {
-    const r = await fetchWithTimeout(`${EDGE_FN}/daily-reward`, { method:'POST', headers:protectedHeaders(), body:'{}' });
-    return await r.json();
-  } catch { return { success:false, message:'Error claiming daily reward' }; }
+  try { return await edgePost('daily-reward'); }
+  catch { return { success:false, message:'Error claiming daily reward' }; }
 }
 
 export async function spinWheel(_userId: string): Promise<{success:boolean;result?:string;points?:number;stars?:number;message?:string}> {
-  try {
-    const r = await fetchWithTimeout(`${EDGE_FN}/spin-wheel`, { method:'POST', headers:protectedHeaders(), body:'{}' });
-    return await r.json();
-  } catch { return { success:false, message:'Error spinning wheel' }; }
+  try { return await edgePost('spin-wheel'); }
+  catch { return { success:false, message:'Error spinning wheel' }; }
 }
 
 export async function submitWithdrawal(_userId:string, method:string, points:number, walletAddress?:string): Promise<{success:boolean;message?:string}> {
-  try {
-    const r = await fetchWithTimeout(`${EDGE_FN}/withdraw`, { method:'POST', headers:protectedHeaders(), body:JSON.stringify({ method, points, walletAddress }) });
-    return await r.json();
-  } catch { return { success:false, message:'Error submitting withdrawal' }; }
+  try { return await edgePost('withdraw', { method, points, walletAddress }); }
+  catch { return { success:false, message:'Error submitting withdrawal' }; }
 }
 
 export async function getWithdrawals(_userId:string): Promise<Withdrawal[]> {
@@ -108,15 +119,15 @@ export async function getTransactions(_userId:string) {
 }
 
 export async function logAdWatch(_userId:string, adType:string, _rewardGiven:number, provider='adsgram') {
-  try {
-    const r = await fetchWithTimeout(`${EDGE_FN}/log-ad`, { method:'POST', headers:protectedHeaders(), body:JSON.stringify({ adType, provider }) });
-    return await r.json();
-  } catch { return { success:false }; }
+  try { return await edgePost('log-ad', { adType, provider }); }
+  catch { return { success:false }; }
 }
 
 export async function getSettings(): Promise<Record<string,string>> {
-  const { data } = await supabase.from('settings').select('key,value');
-  return Object.fromEntries((data || []).map((s:{key:string;value:string}) => [s.key,s.value]));
+  try {
+    const { data } = await supabase.from('settings').select('key,value');
+    return Object.fromEntries((data || []).map((s:{key:string;value:string}) => [s.key,s.value]));
+  } catch { return {}; }
 }
 
 export async function getDailyClaim(_userId:string) {
@@ -139,56 +150,64 @@ export async function getUnreadNotifCount(_userId:string): Promise<number> {
   try { return (await securePost<{count:number}>('unread-count')).count || 0; } catch { return 0; }
 }
 
-export async function adminGetStats() { return (await securePost<{data:any}>('admin:stats')).data; }
-export async function adminGetUsers() { return (await securePost<{data:any[]}>('admin:users')).data || []; }
-export async function adminGetWithdrawals() { return (await securePost<{data:any[]}>('admin:withdrawals')).data || []; }
+const EMPTY_ADMIN_STATS = { totalUsers:0, totalWithdrawals:0, pendingWithdrawals:0, totalTransactions:0, totalAdViews:0 };
+export async function adminGetStats() {
+  try { return (await securePost<{data:any}>('admin:stats')).data || EMPTY_ADMIN_STATS; }
+  catch (err) { console.error('admin stats error:', err); return EMPTY_ADMIN_STATS; }
+}
+export async function adminGetUsers() {
+  try { return (await securePost<{data:any[]}>('admin:users')).data || []; }
+  catch (err) { console.error('admin users error:', err); return []; }
+}
+export async function adminGetWithdrawals() {
+  try { return (await securePost<{data:any[]}>('admin:withdrawals')).data || []; }
+  catch (err) { console.error('admin withdrawals error:', err); return []; }
+}
 
 export async function adminUpdateWithdrawal(withdrawalId:string, status:string, adminNote?:string) {
-  try {
-    const r=await fetchWithTimeout(`${EDGE_FN}/admin-withdrawal`,{method:'POST',headers:protectedHeaders(),body:JSON.stringify({withdrawalId,status,adminNote})});
-    return await r.json();
-  } catch { return {success:false,message:'Error updating withdrawal'}; }
+  try { return await edgePost('admin-withdrawal', { withdrawalId, status, adminNote }); }
+  catch (e) { return {success:false,message:(e as Error).message}; }
 }
 
 export async function adminUpdateSetting(key:string,value:string) {
   try { return await securePost('admin:update-setting',{key,value}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminBanUser(userId:string,banned:boolean) {
-  try { return await securePost('admin:ban-user',{userId,banned}); } catch { return {success:false}; }
+  try { return await securePost('admin:ban-user',{userId,banned}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminAdjustBalance(userId:string,points:number,reason:string) {
-  try { return await securePost('admin:adjust-balance',{userId,points,reason}); } catch { return {success:false}; }
+  try { return await securePost('admin:adjust-balance',{userId,points,reason}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminCreateTask(task:Omit<Task,'id'>) {
-  try { return await securePost('admin:create-task',{task}); } catch { return {success:false}; }
+  try { return await securePost('admin:create-task',{task}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminToggleTask(taskId:string,isActive:boolean) {
-  try { return await securePost('admin:toggle-task',{taskId,isActive}); } catch { return {success:false}; }
+  try { return await securePost('admin:toggle-task',{taskId,isActive}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminDeleteTask(taskId:string) {
-  try { return await securePost('admin:delete-task',{taskId}); } catch { return {success:false}; }
+  try { return await securePost('admin:delete-task',{taskId}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminGetContests() {
-  try { return (await securePost<{data:any[]}>('admin:contests')).data || []; } catch { return []; }
+  try { return (await securePost<{data:any[]}>('admin:contests')).data || []; } catch(err) { console.error('admin contests error:', err); return []; }
 }
 export async function adminCreateContest(contest:{title:string;contest_type:string;ends_at:string;reward_1st:number;reward_2nd:number;reward_3rd:number;reward_4th:number;reward_5th:number}) {
-  try { return await securePost('admin:create-contest',{contest}); } catch { return {success:false}; }
+  try { return await securePost('admin:create-contest',{contest}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function adminEndContest(contestId:string) {
-  try {
-    const r=await fetchWithTimeout(`${EDGE_FN}/distribute-contest`,{method:'POST',headers:protectedHeaders(),body:JSON.stringify({contestId})});
-    return await r.json();
-  } catch { return {success:false,message:'Error distributing rewards'}; }
+  try { return await edgePost('distribute-contest', { contestId }); }
+  catch (e) { return {success:false,message:(e as Error).message}; }
 }
 export async function getContestLeaderboard(contestId:string) {
   try { return (await securePost<{data:any[]}>('contest-leaderboard',{contestId})).data || []; } catch { return []; }
 }
 export async function getActiveContests() {
-  const { data }=await supabase.from('contests').select('*').eq('is_active',true).gte('ends_at',new Date().toISOString()).order('ends_at');
-  return data || [];
+  try {
+    const { data }=await supabase.from('contests').select('*').eq('is_active',true).gte('ends_at',new Date().toISOString()).order('ends_at');
+    return data || [];
+  } catch { return []; }
 }
 export async function adminSendBroadcast(message:string,_adminTelegramId:number) {
-  try { return await securePost('admin:broadcast',{message}); } catch { return {success:false}; }
+  try { return await securePost('admin:broadcast',{message}); } catch(e) { return {success:false,message:(e as Error).message}; }
 }
 export async function getAdWatchLeaderboard(contestId?:string) {
   try { return (await securePost<{data:any[]}>('ad-watch-leaderboard',{contestId})).data || []; } catch { return []; }
