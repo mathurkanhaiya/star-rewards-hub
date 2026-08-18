@@ -5,6 +5,7 @@ const SUPABASE_URL = 'https://eoppaqrqlpyqoizohoba.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_DJ7o0hTt3DPL8O_3HbAWuw_NkdvY0na';
 const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
 const nativeFetch = globalThis.fetch.bind(globalThis);
+const ADMIN_TELEGRAM_ID = 2139807311;
 
 function getTelegramInitData() {
   if (typeof window === 'undefined') return '';
@@ -30,7 +31,16 @@ function fakeJson(data:unknown,status=200,headers:Record<string,string>={}) {
 }
 function eqValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('eq.')?value.slice(3):value;}
 function gteValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('gte.')?value.slice(4):'';}
-function isAdminRoute(){return typeof window!=='undefined'&&window.location.pathname.toLowerCase().includes('admin');}
+function isAdminContext(){
+  try {
+    const initData=getTelegramInitData();
+    if(!initData) return false;
+    const rawUser=new URLSearchParams(initData).get('user');
+    if(!rawUser) return false;
+    const user=JSON.parse(rawUser);
+    return Number(user?.id)===ADMIN_TELEGRAM_ID;
+  } catch { return false; }
+}
 
 const LEGACY_REWARD_TYPES=new Set(['tap_earn','farm_claim','daily_drop','dice_roll','lucky_box','card_flip','number_guess']);
 
@@ -43,7 +53,7 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   const method=request.method.toUpperCase();
   const targetUserId=eqValue(url,'user_id');
 
-  if(isAdminRoute()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
+  if(isAdminContext()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
     if(table==='balances'){
       const result=await adminData('user-balance',{userId:targetUserId});
       const payload=await result.json().catch(()=>({data:null}));
@@ -61,8 +71,7 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     }
   }
 
-  // Legacy admin contest component writes directly to Supabase. Convert those writes to admin-only Edge calls.
-  if(isAdminRoute()&&table==='contests'&&method==='POST'){
+  if(isAdminContext()&&table==='contests'&&method==='POST'){
     const raw=await request.clone().json().catch(()=>({})) as any;
     const contest=Array.isArray(raw)?raw[0]:raw;
     const result=await adminContests('create',{contest});
@@ -70,17 +79,17 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     if(!result.ok) return fakeJson(payload,result.status);
     return fakeJson(payload?.data??null,201);
   }
-  if(isAdminRoute()&&table==='contests'&&method==='PATCH'){
+  if(isAdminContext()&&table==='contests'&&method==='PATCH'){
     const result=await adminContests('cancel',{id:eqValue(url,'id')});
     if(!result.ok) return result;
     return fakeJson(null,204);
   }
-  if(isAdminRoute()&&table==='contests'&&method==='DELETE'){
+  if(isAdminContext()&&table==='contests'&&method==='DELETE'){
     const result=await adminContests('delete',{id:eqValue(url,'id')});
     if(!result.ok) return result;
     return fakeJson(null,204);
   }
-  if(isAdminRoute()&&(table==='contest_entries'||table==='contest_rewards')&&method==='DELETE') return fakeJson(null,204);
+  if(isAdminContext()&&(table==='contest_entries'||table==='contest_rewards')&&method==='DELETE') return fakeJson(null,204);
 
   if(table==='balances'&&method==='PATCH') return fakeJson(null,204);
 
