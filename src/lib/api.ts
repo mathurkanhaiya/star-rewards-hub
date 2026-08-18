@@ -1,9 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = 'https://eoppaqrqlpyqoizohoba.supabase.co';
 const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const ANON_KEY = 'sb_publishable_DJ7o0hTt3DPL8O_3HbAWuw_NkdvY0na';
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -139,7 +139,6 @@ export async function getUnreadNotifCount(_userId:string): Promise<number> {
   try { return (await securePost<{count:number}>('unread-count')).count || 0; } catch { return 0; }
 }
 
-// ==================== Admin Functions ====================
 export async function adminGetStats() { return (await securePost<{data:any}>('admin:stats')).data; }
 export async function adminGetUsers() { return (await securePost<{data:any[]}>('admin:users')).data || []; }
 export async function adminGetWithdrawals() { return (await securePost<{data:any[]}>('admin:withdrawals')).data || []; }
