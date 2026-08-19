@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
+import { Home, ListChecks, Gamepad2, UsersRound, WalletCards, Bell, Settings } from 'lucide-react';
 
 type Page =
   | 'home' | 'tasks' | 'spin' | 'referral' | 'leaderboard'
@@ -12,198 +13,135 @@ interface BottomNavProps {
 }
 
 const navItems = [
-  { id: 'home'     as Page, emoji: '🏠', label: 'Home'   },
-  { id: 'tasks'    as Page, emoji: '📋', label: 'Tasks'  },
-  { id: 'games'    as Page, emoji: '🎮', label: 'Games'  },
-  { id: 'referral' as Page, emoji: '🤝', label: 'Refer'  },
-  { id: 'wallet'   as Page, emoji: '👛', label: 'Wallet' },
+  { id: 'home' as Page, icon: Home, label: 'Home' },
+  { id: 'tasks' as Page, icon: ListChecks, label: 'Tasks' },
+  { id: 'games' as Page, icon: Gamepad2, label: 'Games' },
+  { id: 'referral' as Page, icon: UsersRound, label: 'Refer' },
+  { id: 'wallet' as Page, icon: WalletCards, label: 'Wallet' },
 ];
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&display=swap');
-
 .bn-safe {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  left: 10px;
+  right: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom, 10px));
   z-index: 100;
-  /* Safe area for iPhone home bar */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: rgba(6,8,15,0.98);
-  border-top: 1px solid rgba(255,255,255,0.07);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  pointer-events: none;
 }
-
 .bn-bar {
+  max-width: 460px;
+  margin: 0 auto;
+  min-height: 67px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 6px 4px 8px;
-  position: relative;
-  max-width: 480px;
-  margin: 0 auto;
+  padding: 7px;
+  border-radius: 24px;
+  pointer-events: auto;
+  background: linear-gradient(145deg, rgba(255,255,255,.115), rgba(255,255,255,.035)), rgba(8,12,22,.68);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.17), 0 20px 48px rgba(0,0,0,.42);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
 }
-
-/* Top gold line */
-.bn-bar::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 8%; right: 8%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,190,0,0.2), transparent);
-  pointer-events: none;
-}
-
 .bn-item {
   position: relative;
+  min-width: 50px;
+  min-height: 51px;
+  padding: 7px 8px 5px;
+  border: 0;
+  border-radius: 17px;
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 6px 10px 4px;
-  border-radius: 14px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  min-width: 50px;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s;
+  justify-content: center;
+  gap: 4px;
+  color: rgba(226,232,240,.48);
+  transition: transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
 }
-
-.bn-item:active {
-  transform: scale(0.9);
-}
-
+.bn-item:active { transform: scale(.92); }
 .bn-item.active {
-  background: rgba(255,190,0,0.08);
+  color: #fff;
+  background: linear-gradient(145deg, rgba(255,255,255,.15), rgba(255,190,0,.075));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 20px rgba(0,0,0,.19);
 }
-
-/* Emoji icon */
-.bn-emoji {
-  font-size: 22px;
-  line-height: 1;
-  transition: transform 0.15s, filter 0.15s;
-  filter: grayscale(0.5) brightness(0.65);
+.bn-icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.8;
+  transition: transform .18s ease, filter .18s ease;
 }
-
-.bn-item.active .bn-emoji {
-  filter: grayscale(0) brightness(1);
-  transform: translateY(-1px) scale(1.12);
+.bn-item.active .bn-icon {
+  color: #ffd45c;
+  transform: translateY(-1px) scale(1.08);
+  filter: drop-shadow(0 0 7px rgba(255,190,0,.38));
 }
-
 .bn-label {
-  font-family: 'Orbitron', monospace;
-  font-size: 7px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.2);
-  transition: color 0.15s;
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
   line-height: 1;
+  font-weight: 600;
+  letter-spacing: .15px;
 }
-
-.bn-item.active .bn-label {
-  color: #ffbe00;
-}
-
-/* Active pip */
 .bn-pip {
   position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 2px;
-  border-radius: 1px;
-  background: #ffbe00;
-  box-shadow: 0 0 6px rgba(255,190,0,0.6);
-  transition: width 0.2s;
+  bottom: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: transparent;
+  transition: all .18s ease;
 }
-.bn-item.active .bn-pip { width: 18px; }
-
-/* Notification badge */
+.bn-item.active .bn-pip {
+  width: 13px;
+  background: #ffd45c;
+  box-shadow: 0 0 9px rgba(255,190,0,.65);
+}
 .bn-badge {
   position: absolute;
-  top: 2px;
-  right: 5px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
-  border-radius: 8px;
-  background: #ef4444;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Orbitron', monospace;
-  font-size: 7px;
-  font-weight: 700;
+  top: 3px;
+  right: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: linear-gradient(145deg,#fb7185,#e11d48);
+  border: 1px solid rgba(255,255,255,.28);
+  box-shadow: 0 5px 12px rgba(225,29,72,.3);
+  display: grid;
+  place-items: center;
   color: #fff;
-  border: 1.5px solid #06080f;
-  box-shadow: 0 0 6px rgba(239,68,68,0.5);
+  font-size: 8px;
+  font-weight: 700;
 }
 `;
 
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
   const { isAdmin, unreadCount } = useApp();
+  const activePage: Page = ['tower','dice','cardflip','numberguess','luckybox'].includes(currentPage) ? 'games' : currentPage;
 
-  const activePage: Page =
-    ['tower','dice','cardflip','numberguess','luckybox'].includes(currentPage)
-      ? 'games'
-      : currentPage;
+  const renderItem = (id: Page, label: string, Icon: React.ComponentType<{ className?: string }>, badge?: number) => (
+    <button key={id} className={`bn-item ${activePage === id ? 'active' : ''}`} onClick={() => onNavigate(id)} aria-label={label}>
+      <Icon className="bn-icon" />
+      {badge ? <div className="bn-badge">{badge > 9 ? '9+' : badge}</div> : null}
+      <span className="bn-label">{label}</span>
+      <div className="bn-pip" />
+    </button>
+  );
 
   return (
     <>
       <style>{CSS}</style>
       <div className="bn-safe">
         <div className="bn-bar">
-
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`bn-item ${activePage === item.id ? 'active' : ''}`}
-              onClick={() => onNavigate(item.id)}
-            >
-              <span className="bn-emoji">{item.emoji}</span>
-              <span className="bn-label">{item.label}</span>
-              <div className="bn-pip"/>
-            </button>
-          ))}
-
-          {/* Notifications */}
-          <button
-            className={`bn-item ${activePage === 'notifications' ? 'active' : ''}`}
-            onClick={() => onNavigate('notifications')}
-          >
-            <span className="bn-emoji">🔔</span>
-            {unreadCount > 0 && (
-              <div className="bn-badge">{unreadCount > 9 ? '9+' : unreadCount}</div>
-            )}
-            <span className="bn-label">Notifs</span>
-            <div className="bn-pip"/>
-          </button>
-
-          {/* Admin */}
-          {isAdmin && (
-            <button
-              className={`bn-item ${activePage === 'admin' ? 'active' : ''}`}
-              onClick={() => onNavigate('admin')}
-            >
-              <span className="bn-emoji">⚙️</span>
-              <span className="bn-label">Admin</span>
-              <div className="bn-pip"/>
-            </button>
-          )}
-
+          {navItems.map(({ id, label, icon }) => renderItem(id, label, icon))}
+          {renderItem('notifications', 'Alerts', Bell, unreadCount)}
+          {isAdmin && renderItem('admin', 'Admin', Settings)}
         </div>
       </div>
-
-      {/* Spacer so content is never hidden behind nav */}
-      <div style={{
-        height: `calc(72px + env(safe-area-inset-bottom, 0px))`,
-        flexShrink: 0,
-      }}/>
+      <div style={{ height: `calc(88px + env(safe-area-inset-bottom, 0px))`, flexShrink: 0 }} />
     </>
   );
 }
