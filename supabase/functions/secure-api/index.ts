@@ -29,6 +29,21 @@ serve(async (req) => {
         const { data } = await supabase.from('balances').select('*').eq('user_id', userId).single();
         return json({ data });
       }
+      case 'get-tasks': {
+        const { data, error } = await supabase.from('tasks').select('*').eq('is_active', true).order('display_order', { ascending: true }).order('created_at', { ascending: false });
+        if (error) throw error;
+        return json({ data: data || [] });
+      }
+      case 'get-settings': {
+        const { data, error } = await supabase.from('settings').select('key,value');
+        if (error) throw error;
+        return json({ data: data || [] });
+      }
+      case 'get-active-contests': {
+        const { data, error } = await supabase.from('contests').select('*').eq('is_active', true).gte('ends_at', new Date().toISOString()).order('ends_at', { ascending: true });
+        if (error) throw error;
+        return json({ data: data || [] });
+      }
       case 'get-user-tasks': {
         const { data } = await supabase.from('user_tasks').select('task_id,completed_at,next_available_at').eq('user_id', userId);
         return json({ data: data || [] });
@@ -148,7 +163,21 @@ serve(async (req) => {
         return json({ success:true });
       }
       case 'admin:create-task': {
-        const { data, error } = await supabase.from('tasks').insert([body.task]).select().single();
+        const t = body.task || {};
+        const task = {
+          title: String(t.title || '').trim().slice(0,150),
+          description: String(t.description || '').trim().slice(0,1000) || null,
+          task_type: String(t.task_type || 'social').trim().slice(0,50),
+          reward_points: Math.max(0, Math.floor(Number(t.reward_points || 0))),
+          link: String(t.link || '').trim().slice(0,1000) || null,
+          icon: String(t.icon || '').trim().slice(0,50) || null,
+          is_active: t.is_active !== false,
+          is_repeatable: Boolean(t.is_repeatable),
+          repeat_hours: Math.max(1, Math.floor(Number(t.repeat_hours || 24))),
+          display_order: Math.floor(Number(t.display_order || 0)),
+        };
+        if (!task.title) throw new Error('Task title required');
+        const { data, error } = await supabase.from('tasks').insert([task]).select().single();
         return json({ success:!error, data, message:error?.message });
       }
       case 'admin:toggle-task': {
