@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Task } from '@/types/telegram';
+import { getTaskProfileImage } from '@/lib/taskProfile';
 
 const TASK_TYPES = [
   { value: 'social',   label: 'Telegram Channel Join', icon: '📢', color: '#22d3ee' },
@@ -183,8 +184,9 @@ const CSS = `
 /* Icon */
 .at-task-icon {
   width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px; overflow: hidden;
 }
+.at-task-icon img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Text */
 .at-task-body { flex: 1; min-width: 0; }
@@ -233,7 +235,7 @@ const CSS = `
 const DEFAULT_FORM = {
   title: '', description: '', task_type: 'social',
   reward_points: 100, reward_stars: 0,
-  icon: '✨', link: '', is_repeatable: false, display_order: 0,
+  icon: '', link: '', is_repeatable: false, display_order: 0,
 };
 
 export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: Props) {
@@ -272,6 +274,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
   }
 
   const selectedTypeConfig = TYPE_MAP[form.task_type];
+  const formProfileImage = getTaskProfileImage(form);
 
   return (
     <>
@@ -365,10 +368,10 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
 
             <div className="at-grid2">
               <div>
-                <label className="at-label">Icon Emoji</label>
+                <label className="at-label">Profile Image URL</label>
                 <input
                   className="at-input"
-                  placeholder="✨"
+                  placeholder="Optional — public t.me links load automatically"
                   value={form.icon}
                   onChange={e => setForm(p => ({ ...p, icon: e.target.value }))}
                 />
@@ -417,7 +420,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
                   PREVIEW
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ fontSize: 20 }}>{form.icon || '✨'}</div>
+                  <div className="at-task-icon">{formProfileImage ? <img src={formProfileImage} alt="Task profile" /> : selectedTypeConfig?.icon || '•'}</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{form.title}</div>
                     <div style={{ fontSize: 10, color: selectedTypeConfig?.color || '#ffbe00', fontFamily: "'Orbitron', monospace", letterSpacing: '1px', marginTop: 2 }}>
@@ -479,6 +482,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
         {filtered.map((t, idx) => {
           const tc = TYPE_MAP[t.task_type] || { color: '#ffbe00', icon: '✨', label: t.task_type };
           const isConfirming = confirmDelete === t.id;
+          const profileImage = getTaskProfileImage(t);
 
           return (
             <div
@@ -500,7 +504,7 @@ export default function AdminTasksTab({ tasks, onToggle, onDelete, onCreate }: P
                   className="at-task-icon"
                   style={{ background: `${tc.color}10`, border: `1px solid ${tc.color}25` }}
                 >
-                  {t.icon || tc.icon}
+                  {profileImage ? <img src={profileImage} alt="" /> : tc.icon}
                 </div>
 
                 {/* Body */}

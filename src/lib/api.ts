@@ -47,6 +47,7 @@ export async function getTodayAdCount():Promise<number>{try{return(await edgePos
 export async function getReferrals(_userId:string):Promise<ReferralRecord[]>{try{return(await securePost<{data:ReferralRecord[]}>('get-referrals')).data||[];}catch{return[];}}
 export async function getTransactions(_userId:string){try{return(await securePost<{data:any[]}>('get-transactions')).data||[];}catch{return[];}}
 export async function logAdWatch(_userId:string,adType:string,_rewardGiven:number,provider='adsgram'){try{return await edgePost('log-ad',{adType,provider});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function claimAdsgramTaskReward(blockId:string):Promise<{success:boolean;points?:number;message?:string;retryAfter?:number;nextAvailableAt?:string}>{try{return await edgePost('log-ad',{adType:'adsgram_task',blockId});}catch(e){return{success:false,message:(e as Error).message};}}
 
 export type AdProviderId='adsgram'|'monetag'|'gigapub';
 export type AdProviderStatus={count:number;limit:number;remaining:number;cooldownSeconds:number;hourlyCount:number;hourlyLimit:number;nextAvailableAt:string|null;enabled:boolean};

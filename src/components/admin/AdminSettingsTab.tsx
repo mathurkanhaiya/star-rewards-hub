@@ -6,7 +6,7 @@ interface Props{settings:Record<string,string>;editSettings:Record<string,string
 type Meta={label:string;desc:string;type:'number'|'text'|'toggle';unit?:string};
 const GROUPS=[
  ['Ads — Shared',['ad_reward_points','ad_init_delay_seconds','max_ads_per_hour']],
- ['Adsgram',['adsgram_max_ads_per_day','adsgram_cooldown_seconds','adsgram_block_id']],
+ ['Adsgram',['adsgram_max_ads_per_day','adsgram_cooldown_seconds','adsgram_block_id','adsgram_task_reward_points','adsgram_task_cooldown_seconds']],
  ['Monetag',['monetag_max_ads_per_day','monetag_cooldown_seconds']],
  ['GigaPub',['gigapub_max_ads_per_day','gigapub_cooldown_seconds']],
  ['Farm',['farm_reward_points','farm_duration_minutes']],
@@ -21,7 +21,7 @@ const GROUPS=[
 ]as const;
 const M:Record<string,Meta>={
  ad_reward_points:{label:'Reward per Ad',desc:'Points paid after a verified rewarded ad',type:'number',unit:'pts'},ad_init_delay_seconds:{label:'First Ad Delay',desc:'Delay after app opens before ads can be used',type:'number',unit:'sec'},max_ads_per_hour:{label:'Ads per Provider / Hour',desc:'Independent rolling hourly safety limit for each provider',type:'number'},
- adsgram_max_ads_per_day:{label:'Adsgram Daily Limit',desc:'Set 0 to disable only Adsgram',type:'number',unit:'ads/day'},adsgram_cooldown_seconds:{label:'Adsgram Timer',desc:'Wait between Adsgram rewards',type:'number',unit:'sec'},adsgram_block_id:{label:'Adsgram Block ID',desc:'Adsgram rewarded block identifier',type:'text'},
+ adsgram_max_ads_per_day:{label:'Adsgram Daily Limit',desc:'Set 0 to disable only Adsgram',type:'number',unit:'ads/day'},adsgram_cooldown_seconds:{label:'Adsgram Timer',desc:'Wait between Adsgram rewards',type:'number',unit:'sec'},adsgram_block_id:{label:'Adsgram Block ID',desc:'Adsgram rewarded block identifier',type:'text'},adsgram_task_reward_points:{label:'Adsgram Task Reward',desc:'Points credited after a verified Adsgram task',type:'number',unit:'pts'},adsgram_task_cooldown_seconds:{label:'Adsgram Task Refresh',desc:'Minimum wait before the next Adsgram task reward',type:'number',unit:'sec'},
  monetag_max_ads_per_day:{label:'Monetag Daily Limit',desc:'Set 0 to disable only Monetag',type:'number',unit:'ads/day'},monetag_cooldown_seconds:{label:'Monetag Timer',desc:'Wait between Monetag rewards',type:'number',unit:'sec'},
  gigapub_max_ads_per_day:{label:'GigaPub Daily Limit',desc:'Set 0 to disable only GigaPub',type:'number',unit:'ads/day'},gigapub_cooldown_seconds:{label:'GigaPub Timer',desc:'Wait between GigaPub rewards',type:'number',unit:'sec'},
  farm_reward_points:{label:'Farm Reward',desc:'Points credited per completed farm',type:'number',unit:'pts'},farm_duration_minutes:{label:'Farm Time',desc:'Minutes before Farm becomes claimable',type:'number',unit:'min'},daily_drop_base:{label:'Daily Drop Base',desc:'Day 1 reward',type:'number',unit:'pts'},daily_drop_increment:{label:'Daily Drop Increment',desc:'Extra reward per streak day',type:'number',unit:'pts/day'},daily_drop_max_days:{label:'Daily Drop Max Days',desc:'Maximum streak tier',type:'number',unit:'days'},daily_drop_cooldown_seconds:{label:'Drop Cooldown',desc:'Claim UI cooldown',type:'number',unit:'sec'},

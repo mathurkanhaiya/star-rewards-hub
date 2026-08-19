@@ -25,7 +25,17 @@ serve(async (req) => {
   try {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { appUser } = await requireTelegramUser(req, supabase);
-    const { adType, provider = 'adsgram' } = await req.json();
+    const { adType, provider = 'adsgram', blockId } = await req.json();
+
+    if (adType === 'adsgram_task') {
+      if (blockId !== 'task-25198') throw new Error('Invalid Adsgram task block');
+
+      const { data, error } = await supabase.rpc('claim_adsgram_task_reward', {
+        p_user_id: appUser.id,
+      });
+      if (error) throw error;
+      return json(data || { success: false, message: 'Task reward could not be verified' });
+    }
 
     if (adType !== 'ad_watch') throw new Error('Invalid rewarded ad type');
     if (!['adsgram', 'monetag', 'gigapub'].includes(provider)) throw new Error('Invalid ad provider');
