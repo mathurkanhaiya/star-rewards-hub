@@ -62,6 +62,9 @@ export async function getNotifications(_userId:string){try{return(await securePo
 export async function markNotificationRead(notifId:string){try{await securePost('mark-notification-read',{notificationId:notifId});}catch{}}
 export async function getUnreadNotifCount(_userId:string):Promise<number>{try{return(await securePost<{count:number}>('unread-count')).count||0;}catch{return 0;}}
 
+export async function getActivePromos(){try{return(await edgePost<{data:any[]}>('promo-api',{action:'list'})).data||[];}catch(err){console.error('getActivePromos error:',err);return[];}}
+export async function claimPromoReward(promoId:string):Promise<{success:boolean;points?:number;message?:string}>{try{return await edgePost('promo-api',{action:'claim',promoId});}catch(e){return{success:false,message:(e as Error).message};}}
+
 const EMPTY_ADMIN_STATS={totalUsers:0,totalWithdrawals:0,pendingWithdrawals:0,totalTransactions:0,totalAdViews:0};
 export async function adminGetStats(){try{return(await securePost<{data:any}>('admin:stats')).data||EMPTY_ADMIN_STATS;}catch(err){console.error('admin stats error:',err);return EMPTY_ADMIN_STATS;}}
 export async function adminGetUsers(){try{return(await securePost<{data:any[]}>('admin:users')).data||[];}catch(err){console.error('admin users error:',err);return[];}}
