@@ -40,11 +40,21 @@ export async function claimDailyReward(_userId:string):Promise<{success:boolean;
 export async function spinWheel(_userId:string):Promise<{success:boolean;result?:string;points?:number;stars?:number;message?:string}>{try{return await edgePost('spin-wheel');}catch(e){return{success:false,message:(e as Error).message};}}
 export async function submitWithdrawal(_userId:string,method:string,points:number,walletAddress?:string):Promise<{success:boolean;message?:string}>{try{return await edgePost('withdraw',{method,points,walletAddress});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function getWithdrawals(_userId:string):Promise<Withdrawal[]>{try{return(await securePost<{data:Withdrawal[]}>('get-withdrawals')).data||[];}catch{return[];}}
-export async function getLeaderboard():Promise<LeaderboardEntry[]>{try{return(await securePost<{data:LeaderboardEntry[]}>('leaderboard')).data||[];}catch{return[];}}
+export async function getLeaderboard():Promise<LeaderboardEntry[]>{try{return(await edgePost<{data:LeaderboardEntry[]}>('metrics-api',{action:'points-leaderboard'})).data||[];}catch{return[];}}
+export async function getAdLeaderboard(range:'today'|'yesterday'|'week'){try{return(await edgePost<{data:any[]}>('metrics-api',{action:'ads-leaderboard',range})).data||[];}catch{return[];}}
+export async function getTodayAdCount():Promise<number>{try{return(await edgePost<{count:number}>('metrics-api',{action:'today-ads'})).count||0;}catch{return 0;}}
 export async function getReferrals(_userId:string){try{return(await securePost<{data:any[]}>('get-referrals')).data||[];}catch{return[];}}
 export async function getTransactions(_userId:string){try{return(await securePost<{data:any[]}>('get-transactions')).data||[];}catch{return[];}}
 export async function logAdWatch(_userId:string,adType:string,_rewardGiven:number,provider='adsgram'){try{return await edgePost('log-ad',{adType,provider});}catch(e){return{success:false,message:(e as Error).message};}}
-export async function claimHomeReward(type:string,points:number,description:string):Promise<{success:boolean;points?:number;message?:string}>{try{return await edgePost('legacy-bridge',{action:'reward',type,points,description});}catch(e){return{success:false,message:(e as Error).message};}}
+
+export type HomeRewardState={
+  farm:{startedAt:string|null;readyAt:string|null;durationMinutes:number;rewardPoints:number};
+  drop:{claimedToday:boolean;streak:number;base:number;increment:number;maxDays:number;nextResetAt:string};
+};
+export async function getHomeRewardState():Promise<HomeRewardState|null>{try{return(await edgePost<{data:HomeRewardState}>('home-rewards',{action:'state'})).data||null;}catch(err){console.error('home state error:',err);return null;}}
+export async function startFarm(){try{return await edgePost<any>('home-rewards',{action:'farm-start'});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function claimFarm(){try{return await edgePost<any>('home-rewards',{action:'farm-claim'});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function claimDailyDrop(){try{return await edgePost<any>('home-rewards',{action:'daily-drop'});}catch(e){return{success:false,message:(e as Error).message};}}
 
 export async function getSettings():Promise<Record<string,string>>{
   try{
