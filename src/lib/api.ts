@@ -42,10 +42,26 @@ export async function submitWithdrawal(_userId:string,method:string,points:numbe
 export async function getWithdrawals(_userId:string):Promise<Withdrawal[]>{try{return(await securePost<{data:Withdrawal[]}>('get-withdrawals')).data||[];}catch{return[];}}
 export async function getLeaderboard():Promise<LeaderboardEntry[]>{try{return(await edgePost<{data:LeaderboardEntry[]}>('metrics-api',{action:'points-leaderboard'})).data||[];}catch{return[];}}
 export async function getAdLeaderboard(range:'today'|'yesterday'|'week'){try{return(await edgePost<{data:any[]}>('metrics-api',{action:'ads-leaderboard',range})).data||[];}catch{return[];}}
+export async function getInviteLeaderboard(range:'week'|'month'|'all'){try{return(await edgePost<{data:LeaderboardRow[]}>('metrics-api',{action:'invite-leaderboard',range})).data||[];}catch{return[];}}
 export async function getTodayAdCount():Promise<number>{try{return(await edgePost<{count:number}>('metrics-api',{action:'today-ads'})).count||0;}catch{return 0;}}
-export async function getReferrals(_userId:string){try{return(await securePost<{data:any[]}>('get-referrals')).data||[];}catch{return[];}}
+export async function getReferrals(_userId:string):Promise<ReferralRecord[]>{try{return(await securePost<{data:ReferralRecord[]}>('get-referrals')).data||[];}catch{return[];}}
 export async function getTransactions(_userId:string){try{return(await securePost<{data:any[]}>('get-transactions')).data||[];}catch{return[];}}
 export async function logAdWatch(_userId:string,adType:string,_rewardGiven:number,provider='adsgram'){try{return await edgePost('log-ad',{adType,provider});}catch(e){return{success:false,message:(e as Error).message};}}
+
+export type AdProviderId='adsgram'|'monetag'|'gigapub';
+export type AdProviderStatus={count:number;limit:number;remaining:number;cooldownSeconds:number;hourlyCount:number;hourlyLimit:number;nextAvailableAt:string|null;enabled:boolean};
+export type AdProviderState={
+  rewardPoints:number;
+  nextResetAt:string;
+  providers:Record<AdProviderId,AdProviderStatus>;
+};
+export async function getAdProviderState():Promise<AdProviderState|null>{
+  try{return await edgePost<AdProviderState>('metrics-api',{action:'ad-provider-stats'});}catch(err){console.error('ad provider state error:',err);return null;}
+}
+
+export type ReferralUser={id:string;telegram_id:number;first_name:string|null;last_name:string|null;username:string|null;photo_url:string|null};
+export type ReferralRecord={id:string;referred_id:string;points_earned:number;is_verified:boolean;created_at:string;verified_at:string|null;referred_user:ReferralUser|null};
+export type LeaderboardRow={user_id:string;score:number;rank:number;user?:Partial<ReferralUser>;users?:Partial<ReferralUser>};
 
 export type HomeRewardState={
   farm:{startedAt:string|null;readyAt:string|null;durationMinutes:number;rewardPoints:number};

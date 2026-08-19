@@ -53,7 +53,23 @@ serve(async (req) => {
         return json({ data: data || [] });
       }
       case 'get-referrals': {
-        const { data } = await supabase.from('referrals').select('*').eq('referrer_id', userId).order('created_at', { ascending: false }).limit(500);
+        const { data, error } = await supabase.from('referrals').select(`
+          id,
+          referred_id,
+          points_earned,
+          is_verified,
+          created_at,
+          verified_at,
+          referred_user:users!referrals_referred_id_fkey(
+            id,
+            telegram_id,
+            first_name,
+            last_name,
+            username,
+            photo_url
+          )
+        `).eq('referrer_id', userId).order('created_at', { ascending: false }).limit(500);
+        if (error) throw error;
         return json({ data: data || [] });
       }
       case 'get-transactions': {

@@ -42,11 +42,9 @@ serve(async (req) => {
     if (userError || !newUser) throw userError || new Error('Failed to create user');
 
     await supabase.from('balances').insert({ user_id:newUser.id, points:0 });
-    const { data: settings } = await supabase.from('settings').select('key,value').in('key',['welcome_bonus','points_per_referral','referral_bonus_referred']);
+    const { data: settings } = await supabase.from('settings').select('key,value').in('key',['welcome_bonus']);
     const map=Object.fromEntries((settings||[]).map((s)=>[s.key,s.value]));
     const welcomeBonus=Math.max(0,Math.min(100000,Number(map.welcome_bonus||200)));
-    const referralBonus=Math.max(0,Math.min(100000,Number(map.points_per_referral||500)));
-    const referredBonus=Math.max(0,Math.min(100000,Number(map.referral_bonus_referred||200)));
 
     if (welcomeBonus>0) {
       await supabase.rpc('increment_points',{p_user_id:newUser.id,p_points:welcomeBonus});
@@ -54,14 +52,26 @@ serve(async (req) => {
     }
 
     if (referrerId) {
-      const { error: refError } = await supabase.from('referrals').insert({referrer_id:referrerId,referred_id:newUser.id,points_earned:referralBonus,is_verified:true});
+      const { error: refError } = await supabase.from('referrals').insert({
+        referrer_id:referrerId,
+        referred_id:newUser.id,
+        points_earned:0,
+        is_verified:false,
+      });
       if (!refError) {
-        if (referralBonus>0) await supabase.rpc('increment_points',{p_user_id:referrerId,p_points:referralBonus});
-        if (referredBonus>0) await supabase.rpc('increment_points',{p_user_id:newUser.id,p_points:referredBonus});
-        await Promise.all([
-          supabase.from('transactions').insert({user_id:referrerId,type:'referral',points:referralBonus,description:`👥 Referral bonus from @${telegramUser.username||telegramUser.first_name}`} ),
-          supabase.from('transactions').insert({user_id:newUser.id,type:'referral',points:referredBonus,description:'🔗 Joined via referral bonus'}),
-          supabase.from('notifications').insert({user_id:referrerId,title:'👥 New Referral!',message:`${telegramUser.first_name} joined using your link! +${referralBonus} points.`,type:'referral'}),
+        await supabase.from('notifications').insert([
+          {
+            user_id:referrerId,
+            title:'👥 New referral joined',
+            message:`${telegramUser.first_name} joined using your link. Their referral becomes valid after 1 task and 1 verified ad.`,
+            type:'referral',
+          },
+          {
+            user_id:newUser.id,
+            title:'🎁 Referral reward pending',
+            message:'Complete 1 task and watch 1 verified ad to unlock both referral rewards.',
+            type:'referral',
+          },
         ]);
       }
     }

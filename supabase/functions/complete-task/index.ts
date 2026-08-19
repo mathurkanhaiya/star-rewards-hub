@@ -58,6 +58,11 @@ serve(async (req) => {
     const { data: currentUser } = await supabase.from('users').select('total_points').eq('id', userId).single();
     if (currentUser) await supabase.from('users').update({ level: Math.floor(Number(currentUser.total_points || 0) / 10000) + 1 }).eq('id', userId);
 
+    // Qualification is idempotent and only succeeds after this user has both
+    // a completed task and a verified rewarded-ad log.
+    const { error: qualificationError } = await supabase.rpc('qualify_referral', { p_referred_id: userId });
+    if (qualificationError) console.error('Referral qualification failed:', qualificationError.message);
+
     return new Response(JSON.stringify({ success: true, points }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     const message = (error as Error).message;
