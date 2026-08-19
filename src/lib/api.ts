@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
 
 const SUPABASE_URL = 'https://eoppaqrqlpyqoizohoba.supabase.co';
@@ -29,7 +28,12 @@ async function securePost<T = any>(action:string,payload:Record<string,unknown> 
 export async function initUser(_telegramUser:{id:number;first_name:string;last_name?:string;username?:string;photo_url?:string},referralCode?:string):Promise<AppUser|null>{try{if(!telegramInitData())return null;const d=await edgePost<any>('telegram-auth',{referralCode});return d.user||null;}catch(err){console.error('initUser error:',err);return null;}}
 export async function getUser(_telegramId:number):Promise<AppUser|null>{try{return(await securePost<{data:AppUser|null}>('get-user')).data||null;}catch{return null;}}
 export async function getUserBalance(_userId:string):Promise<UserBalance|null>{try{return(await securePost<{data:UserBalance|null}>('get-balance')).data||null;}catch{return null;}}
-export async function getTasks():Promise<Task[]>{if(isAdminTelegram()){try{return(await edgePost<{data:Task[]}>('admin-catalog',{action:'tasks'})).data||[];}catch(err){console.error('admin task catalog error:',err);}}try{const{data}=await supabase.from('tasks').select('*').eq('is_active',true).order('display_order');return(data as Task[])||[];}catch{return[];}}
+export async function getTasks():Promise<Task[]>{
+  if(isAdminTelegram()){
+    try{return(await edgePost<{data:Task[]}>('admin-catalog',{action:'tasks'})).data||[];}catch(err){console.error('admin task catalog error:',err);}
+  }
+  try{return(await securePost<{data:Task[]}>('get-tasks')).data||[];}catch(err){console.error('getTasks error:',err);return[];}
+}
 export async function getUserTasks(_userId:string){try{return(await securePost<{data:any[]}>('get-user-tasks')).data||[];}catch{return[];}}
 export async function completeTask(_userId:string,taskId:string):Promise<{success:boolean;points?:number;message?:string}>{try{return await edgePost('complete-task',{taskId});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function claimDailyReward(_userId:string):Promise<{success:boolean;points?:number;streak?:number;message?:string}>{try{return await edgePost('daily-reward');}catch(e){return{success:false,message:(e as Error).message};}}
@@ -47,8 +51,8 @@ export async function getSettings():Promise<Record<string,string>>{
       const r=await edgePost<{data:Array<{key:string;value:string}>}>('settings-admin',{action:'list'});
       return Object.fromEntries((r.data||[]).map(s=>[s.key,s.value]));
     }
-    const{data}=await supabase.from('settings').select('key,value');
-    return Object.fromEntries((data||[]).map((s:{key:string;value:string})=>[s.key,s.value]));
+    const r=await securePost<{data:Array<{key:string;value:string}>}>('get-settings');
+    return Object.fromEntries((r.data||[]).map(s=>[s.key,s.value]));
   }catch(err){console.error('getSettings error:',err);return{};}
 }
 
@@ -79,7 +83,7 @@ export async function adminGetContests(){try{return(await securePost<{data:any[]
 export async function adminCreateContest(contest:{title:string;contest_type:string;ends_at:string;reward_1st:number;reward_2nd:number;reward_3rd:number;reward_4th:number;reward_5th:number}){try{return await securePost('admin:create-contest',{contest});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function adminEndContest(contestId:string){try{return await edgePost('distribute-contest',{contestId});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function getContestLeaderboard(contestId:string){try{return(await securePost<{data:any[]}>('contest-leaderboard',{contestId})).data||[];}catch{return[];}}
-export async function getActiveContests(){try{const{data}=await supabase.from('contests').select('*').eq('is_active',true).gte('ends_at',new Date().toISOString()).order('ends_at');return data||[];}catch{return[];}}
+export async function getActiveContests(){try{return(await securePost<{data:any[]}>('get-active-contests')).data||[];}catch(err){console.error('getActiveContests error:',err);return[];}}
 export async function adminSendBroadcast(message:string,_adminTelegramId:number){try{return await securePost('admin:broadcast',{message});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function getAdWatchLeaderboard(contestId?:string){try{return(await securePost<{data:any[]}>('ad-watch-leaderboard',{contestId})).data||[];}catch{return[];}}
 export async function getReferralLeaderboard(){try{return(await securePost<{data:any[]}>('referral-leaderboard')).data||[];}catch{return[];}}
