@@ -4,6 +4,9 @@ import { requireTelegramUser, secureCorsHeaders as corsHeaders } from "../_share
 
 function response(success:boolean,message:string,status=200,extra:Record<string,unknown>={}){return new Response(JSON.stringify({success,message,...extra}),{status,headers:{...corsHeaders,'Content-Type':'application/json'}})}
 const num=(v:unknown,f:number)=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:f};
+function dayStartIso(offsetMinutes:number){
+ const now=Date.now(), shifted=new Date(now+offsetMinutes*60000); shifted.setUTCHours(0,0,0,0); return new Date(shifted.getTime()-offsetMinutes*60000).toISOString();
+}
 
 serve(async(req)=>{
  if(req.method==='OPTIONS')return new Response(null,{headers:corsHeaders});
@@ -22,17 +25,21 @@ serve(async(req)=>{
   if(String(map.withdrawal_enabled??'true').toLowerCase()==='false')return response(false,'Withdrawals are temporarily disabled');
   const minPoints=Math.max(1,Math.floor(num(map.min_withdrawal_points,5000))); if(points<minPoints)return response(false,`Minimum withdrawal is ${minPoints.toLocaleString()} points`);
   const requiredAds=Math.max(0,Math.floor(Number(map.required_daily_ads??15)||0));
-  if(requiredAds>0){const d=new Date();d.setUTCHours(0,0,0,0);const {count}=await supabase.from('ad_logs').select('id',{count:'exact',head:true}).eq('user_id',userId).gte('created_at',d.toISOString());if((count||0)<requiredAds)return response(false,`Watch ${requiredAds-(count||0)} more ads today`);}
+  const resetOffset=Math.max(-720,Math.min(840,Math.floor(Number(map.daily_reset_offset_minutes??330)||330)));
+  const todayStart=dayStartIso(resetOffset);
+  if(requiredAds>0){
+   const {count}=await supabase.from('ad_logs').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('ad_type','ad_watch').gte('created_at',todayStart);
+   if((count||0)<requiredAds)return response(false,`Watch ${requiredAds-(count||0)} more ads today`);
+  }
 
   const tonRate=num(map.ton_conversion_rate,100000); const usdtRate=num(map.usdt_conversion_rate,15000); const inrRate=num(map.inr_conversion_rate,1000);
   const rate=method==='ton'?tonRate:method==='usdt_polygon'?usdtRate:inrRate;
   const decimals=method==='ton'?6:method==='usdt_polygon'?4:2; const amount=Number((points/rate).toFixed(decimals)); if(amount<=0)return response(false,'Invalid withdrawal amount');
 
   const {data:balance}=await supabase.from('balances').select('points,total_withdrawn').eq('user_id',userId).single(); if(!balance)return response(false,'Balance not found'); if(Number(balance.points)<points)return response(false,'Insufficient balance');
-  const d=new Date();d.setUTCHours(0,0,0,0);
   const [{count:pendingCount},{count:todayCount}]=await Promise.all([
    supabase.from('withdrawals').select('id',{count:'exact',head:true}).eq('user_id',userId).eq('status','pending'),
-   supabase.from('withdrawals').select('id',{count:'exact',head:true}).eq('user_id',userId).gte('created_at',d.toISOString())
+   supabase.from('withdrawals').select('id',{count:'exact',head:true}).eq('user_id',userId).gte('created_at',todayStart)
   ]);
   if((pendingCount||0)>=Math.max(1,Math.floor(num(map.max_pending_withdrawals,2))))return response(false,'Too many pending withdrawals');
   if((todayCount||0)>=Math.max(1,Math.floor(num(map.max_daily_withdrawals,3))))return response(false,'Daily withdrawal limit reached');
