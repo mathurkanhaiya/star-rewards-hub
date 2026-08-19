@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AppUser, UserBalance, TelegramUser, Notification } from '@/types/telegram';
 import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead } from '@/lib/api';
 import { showInterstitialAd } from '@/hooks/useAdsgram';
@@ -26,9 +26,20 @@ const AppContext = createContext<AppContextType>({
 
 export const useApp = () => useContext(AppContext);
 const ADMIN_ID = 2139807311;
+const BALANCE_POLL_MS = 2500;
 
 function withTimeout<T>(promise:Promise<T>, ms:number, fallback:T):Promise<T> {
   return Promise.race([promise,new Promise<T>((resolve)=>setTimeout(()=>resolve(fallback),ms))]);
+}
+
+function sameBalance(a:UserBalance|null,b:UserBalance|null) {
+  if (!a || !b) return a === b;
+  return Number(a.points) === Number(b.points)
+    && Number((a as any).stars_balance || 0) === Number((b as any).stars_balance || 0)
+    && Number((a as any).usdt_balance || 0) === Number((b as any).usdt_balance || 0)
+    && Number((a as any).ton_balance || 0) === Number((b as any).ton_balance || 0)
+    && Number((a as any).total_earned || 0) === Number((b as any).total_earned || 0)
+    && Number((a as any).total_withdrawn || 0) === Number((b as any).total_withdrawn || 0);
 }
 
 export function AppProvider({ children }:{ children:React.ReactNode }) {
@@ -39,12 +50,13 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
   const [isLoading,setIsLoading]=useState(true);
   const [notifications,setNotifications]=useState<Notification[]>([]);
   const [unreadCount,setUnreadCount]=useState(0);
+  const balanceRef=useRef<UserBalance|null>(null);
+  const refreshingBalanceRef=useRef(false);
   const isAdmin = Boolean(telegramUser && telegramUser.id === ADMIN_ID && window.Telegram?.WebApp?.initData);
 
+  useEffect(()=>{ balanceRef.current=balance; },[balance]);
   useEffect(()=>{ initApp(); },[]);
 
-  // Settings are public read-only and can still use realtime. Sensitive balance/notification
-  // realtime is not trusted; those values are refreshed through authenticated backend calls.
   useEffect(()=>{
     const settingsChannel=supabase.channel('settings-changes').on('postgres_changes',{event:'*',schema:'public',table:'settings'},()=>{
       getSettings().then(setSettings).catch(()=>{});
@@ -77,7 +89,8 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
         withTimeout(getNotifications(appUser.id),5000,[]),
         withTimeout(getUnreadNotifCount(appUser.id),5000,0),
       ]);
-      setBalance(bal); setSettings(s); setNotifications(notifs as Notification[]); setUnreadCount(unread);
+      if (bal) { setBalance(bal); balanceRef.current=bal; }
+      setSettings(s); setNotifications(notifs as Notification[]); setUnreadCount(unread);
       showInterstitialAd().catch(()=>{});
     } catch(err) {
       console.error('App init error:',err);
@@ -86,8 +99,42 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
   }
 
   const refreshBalance=useCallback(async()=>{
-    if (user) { const bal=await withTimeout(getUserBalance(user.id),5000,null); if (bal) setBalance(bal); }
+    if (!user || refreshingBalanceRef.current) return;
+    refreshingBalanceRef.current=true;
+    try {
+      const bal=await withTimeout(getUserBalance(user.id),5000,null);
+      if (bal && !sameBalance(balanceRef.current,bal)) {
+        balanceRef.current=bal;
+        setBalance(bal);
+      }
+    } finally {
+      refreshingBalanceRef.current=false;
+    }
   },[user]);
+
+  // Keep the balance live even when rewards/admin changes happen outside the current screen.
+  // The secure backend remains the source of truth; we never trust browser-side balance writes.
+  useEffect(()=>{
+    if (!user) return;
+    let stopped=false;
+    const tick=()=>{ if(!stopped && document.visibilityState!=='hidden') refreshBalance().catch(()=>{}); };
+    const timer=window.setInterval(tick,BALANCE_POLL_MS);
+    const onFocus=()=>tick();
+    const onVisible=()=>{ if(document.visibilityState==='visible') tick(); };
+    const onExplicitRefresh=()=>tick();
+    window.addEventListener('focus',onFocus);
+    document.addEventListener('visibilitychange',onVisible);
+    window.addEventListener('balance:refresh',onExplicitRefresh as EventListener);
+    // Refresh immediately when the logged-in user becomes available.
+    tick();
+    return ()=>{
+      stopped=true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus',onFocus);
+      document.removeEventListener('visibilitychange',onVisible);
+      window.removeEventListener('balance:refresh',onExplicitRefresh as EventListener);
+    };
+  },[user,refreshBalance]);
 
   const refreshUser=useCallback(async()=>{ await initApp(); },[]);
 
