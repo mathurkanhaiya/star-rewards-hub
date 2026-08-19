@@ -66,14 +66,11 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   const targetUserId=eqValue(url,'user_id');
   const select=url.searchParams.get('select')||'';
 
-  // Secure points leaderboard. Preserve the exact row shape LeaderboardPage already expects.
   if(table==='balances'&&(method==='GET'||method==='HEAD')&&!targetUserId&&select.includes('user_id')&&select.includes('points')){
     const result=await leaderboardApi('points');
     const payload=await result.json().catch(()=>({data:[]}));
     const rows=(Array.isArray(payload?.data)?payload.data:[]).map((r:any)=>({
-      user_id:r.user_id,
-      points:r.points,
-      total_earned:r.total_earned,
+      user_id:r.user_id, points:r.points, total_earned:r.total_earned,
       users:{id:r.user_id,first_name:r.first_name,username:r.username,telegram_id:r.telegram_id,photo_url:r.photo_url},
     }));
     const count=rows.length;
@@ -81,14 +78,10 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     return fakeJson(rows,result.ok?200:result.status);
   }
 
-  // Secure ad leaderboard with exact UTC date windows. Expand aggregate counts into the legacy
-  // ad-log shape so the existing UI can keep its current grouping/rendering logic.
   if(table==='ad_logs'&&(method==='GET'||method==='HEAD')&&!targetUserId&&select.includes('user_id')&&select.includes('created_at')){
-    const from=gteValue(url,'created_at');
-    const to=ltValue(url,'created_at');
+    const from=gteValue(url,'created_at'); const to=ltValue(url,'created_at');
     const result=await leaderboardApi('ads',{from,to});
-    const payload=await result.json().catch(()=>({data:[]}));
-    const rows:any[]=[];
+    const payload=await result.json().catch(()=>({data:[]})); const rows:any[]=[];
     for(const leader of Array.isArray(payload?.data)?payload.data:[]){
       const score=Math.max(0,Math.floor(Number(leader?.score||0)));
       for(let i=0;i<score;i++) rows.push({user_id:leader.user_id,created_at:from||new Date().toISOString()});
@@ -98,27 +91,21 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     return fakeJson(rows,result.ok?200:result.status);
   }
 
-  // Secure profile lookup used by the Ads leaderboard after it aggregates user IDs.
   if(table==='users'&&(method==='GET'||method==='HEAD')){
     const ids=inValues(url,'id');
     if(ids.length){
       const result=await leaderboardApi('profiles',{ids});
-      const payload=await result.json().catch(()=>({data:[]}));
-      const rows=Array.isArray(payload?.data)?payload.data:[];
-      const count=rows.length;
+      const payload=await result.json().catch(()=>({data:[]})); const rows=Array.isArray(payload?.data)?payload.data:[]; const count=rows.length;
       if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
       return fakeJson(rows,result.ok?200:result.status);
     }
   }
 
   if(table==='referrals'&&(method==='GET'||method==='HEAD')){
-    const since=gteValue(url,'created_at');
-    const until=ltValue(url,'created_at');
+    const since=gteValue(url,'created_at'); const until=ltValue(url,'created_at');
     const result=await referralApi(since||until?'window':'mine',{since,until});
-    const payload=await result.json().catch(()=>({data:[]}));
-    let rows=Array.isArray(payload?.data)?payload.data:[];
-    const referrerId=eqValue(url,'referrer_id');
-    if(referrerId) rows=rows.filter((r:any)=>r.referrer_id===referrerId);
+    const payload=await result.json().catch(()=>({data:[]})); let rows=Array.isArray(payload?.data)?payload.data:[];
+    const referrerId=eqValue(url,'referrer_id'); if(referrerId) rows=rows.filter((r:any)=>r.referrer_id===referrerId);
     const count=rows.length;
     if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
     return fakeJson(rows,result.ok?200:result.status);
@@ -126,8 +113,7 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
 
   if(isAdminContext()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
     if(table==='balances'){
-      const result=await adminData('user-balance',{userId:targetUserId});
-      const payload=await result.json().catch(()=>({data:null}));
+      const result=await adminData('user-balance',{userId:targetUserId}); const payload=await result.json().catch(()=>({data:null}));
       return fakeJson(payload?.data??null,result.ok?200:result.status);
     }
     const result=await adminData('user-activity',{userId:targetUserId});
@@ -136,49 +122,36 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     if(table==='transactions') return fakeJson(payload.transactions||[],200);
     if(table==='daily_claims') return fakeJson(payload.dailyClaims||[],200);
     if(table==='ad_logs'){
-      const count=Number(payload.adCount||0);
-      const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
+      const count=Number(payload.adCount||0); const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
       return method==='HEAD'?new Response(null,{status:200,headers}):fakeJson([],200,headers);
     }
   }
 
   if(isAdminContext()&&table==='contests'&&method==='POST'){
-    const raw=await request.clone().json().catch(()=>({})) as any;
-    const contest=Array.isArray(raw)?raw[0]:raw;
-    const result=await adminContests('create',{contest});
-    const payload=await result.json().catch(()=>({}));
-    if(!result.ok) return fakeJson(payload,result.status);
-    return fakeJson(payload?.data??null,201);
+    const raw=await request.clone().json().catch(()=>({})) as any; const contest=Array.isArray(raw)?raw[0]:raw;
+    const result=await adminContests('create',{contest}); const payload=await result.json().catch(()=>({}));
+    if(!result.ok) return fakeJson(payload,result.status); return fakeJson(payload?.data??null,201);
   }
   if(isAdminContext()&&table==='contests'&&method==='PATCH'){
-    const result=await adminContests('cancel',{id:eqValue(url,'id')});
-    if(!result.ok) return result;
-    return fakeJson(null,204);
+    const result=await adminContests('cancel',{id:eqValue(url,'id')}); if(!result.ok) return result; return fakeJson(null,204);
   }
   if(isAdminContext()&&table==='contests'&&method==='DELETE'){
-    const result=await adminContests('delete',{id:eqValue(url,'id')});
-    if(!result.ok) return result;
-    return fakeJson(null,204);
+    const result=await adminContests('delete',{id:eqValue(url,'id')}); if(!result.ok) return result; return fakeJson(null,204);
   }
   if(isAdminContext()&&(table==='contest_entries'||table==='contest_rewards')&&method==='DELETE') return fakeJson(null,204);
-
   if(table==='balances'&&method==='PATCH') return fakeJson(null,204);
 
   if(table==='transactions'&&(method==='GET'||method==='HEAD')){
     const type=eqValue(url,'type');
     if(type){
-      const result=await bridge('count-transactions',{type,since:gteValue(url,'created_at')});
-      const body=await result.json().catch(()=>({count:0}));
-      const count=Number(body?.count||0);
-      const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
-      if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers});
-      return fakeJson([],result.ok?200:result.status,headers);
+      const result=await bridge('count-transactions',{type,since:gteValue(url,'created_at')}); const body=await result.json().catch(()=>({count:0}));
+      const count=Number(body?.count||0); const headers={'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'};
+      if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers}); return fakeJson([],result.ok?200:result.status,headers);
     }
   }
 
   if(table==='transactions'&&method==='POST'){
-    const raw=await request.clone().json().catch(()=>null) as any;
-    const rows=Array.isArray(raw)?raw:raw?[raw]:[];
+    const raw=await request.clone().json().catch(()=>null) as any; const rows=Array.isArray(raw)?raw:raw?[raw]:[];
     if(rows.length>0&&rows.every(row=>row?.type==='tower_climb'||row?.type==='ad_watch'||row?.type==='adsgram_reward'||row?.type==='promo')) return fakeJson(rows,201);
     if(rows.length>0&&rows.every(row=>LEGACY_REWARD_TYPES.has(String(row?.type)))){
       for(const row of rows){
@@ -196,12 +169,17 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     const requestedDate=eqValue(url,'claim_date');
     if(requestedDate) rows=rows.filter((row:any)=>row.claim_date===requestedDate);
     const limit=Number(url.searchParams.get('limit')||0); if(limit>0) rows=rows.slice(0,limit);
-    if(method==='HEAD'){const count=rows.length;return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});}
+    if(method==='HEAD'){
+      const count=rows.length;
+      return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
+    }
+    const accept=request.headers.get('accept')||'';
+    const wantsSingle=accept.includes('application/vnd.pgrst.object+json');
+    if(wantsSingle) return fakeJson(rows[0]??null,result.ok?200:result.status);
     return fakeJson(rows,result.ok?200:result.status);
   }
   if(table==='daily_claims'&&method==='POST'){
-    const raw=await request.clone().json().catch(()=>({}));
-    return fakeJson(Array.isArray(raw)?raw:[raw],201);
+    const raw=await request.clone().json().catch(()=>({})); return fakeJson(Array.isArray(raw)?raw:[raw],201);
   }
 
   if(table==='ad_logs'&&(method==='GET'||method==='HEAD')){
@@ -216,8 +194,7 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   if(table==='tower_runs'&&method==='POST'){
     const raw=await request.clone().json().catch(()=>({})) as any; const row=Array.isArray(raw)?raw[0]:raw;
     const result=await bridge('tower-run',{floor:Number(row?.floors_reached||0),points:Number(row?.points_earned||0)});
-    if(!result.ok) return result;
-    return fakeJson(Array.isArray(raw)?raw:[raw],201);
+    if(!result.ok) return result; return fakeJson(Array.isArray(raw)?raw:[raw],201);
   }
   if(table==='tower_leaderboard'&&(method==='POST'||method==='PATCH')){
     const raw=method==='POST'?await request.clone().json().catch(()=>({})):null;
@@ -225,26 +202,21 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   }
 
   if(table==='promo_claims'&&(method==='GET'||method==='HEAD')){
-    const result=await promoApi('claims');
-    const payload=await result.json().catch(()=>({data:[]}));
-    let rows=Array.isArray(payload?.data)?payload.data:[];
-    const promoId=eqValue(url,'promo_id'); if(promoId) rows=rows.filter((r:any)=>r.promo_id===promoId);
+    const result=await promoApi('claims'); const payload=await result.json().catch(()=>({data:[]}));
+    let rows=Array.isArray(payload?.data)?payload.data:[]; const promoId=eqValue(url,'promo_id'); if(promoId) rows=rows.filter((r:any)=>r.promo_id===promoId);
     if(method==='HEAD'){const count=rows.length;return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});}
     return fakeJson(rows,result.ok?200:result.status);
   }
   if(table==='promo_claims'&&method==='POST'){
     const raw=await request.clone().json().catch(()=>({})) as any; const row=Array.isArray(raw)?raw[0]:raw;
-    const result=await promoApi('claim',{promoId:String(row?.promo_id||'')});
-    if(!result.ok) return result;
-    return fakeJson(Array.isArray(raw)?raw:[raw],201);
+    const result=await promoApi('claim',{promoId:String(row?.promo_id||'')}); if(!result.ok) return result; return fakeJson(Array.isArray(raw)?raw:[raw],201);
   }
   if(table==='promo_claims'&&method==='DELETE') return fakeJson(null,204);
 
   if(table==='promos'&&method==='POST'){
     const raw=await request.clone().json().catch(()=>({})) as any; const row=Array.isArray(raw)?raw[0]:raw;
     const result=await promoApi('admin-create',{title:String(row?.title||''),rewardPoints:Number(row?.reward_points||50),maxClaims:Number(row?.max_claims||100)});
-    if(!result.ok) return result;
-    const payload=await result.json(); return fakeJson(payload?.data?[payload.data]:[],201);
+    if(!result.ok) return result; const payload=await result.json(); return fakeJson(payload?.data?[payload.data]:[],201);
   }
   if(table==='promos'&&method==='PATCH'){
     const raw=await request.clone().json().catch(()=>({})) as any;
@@ -252,12 +224,10 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
     if(!result.ok) return result; return fakeJson(null,204);
   }
   if(table==='promos'&&method==='DELETE'){
-    const result=await promoApi('admin-delete',{id:eqValue(url,'id')});
-    if(!result.ok) return result; return fakeJson(null,204);
+    const result=await promoApi('admin-delete',{id:eqValue(url,'id')}); if(!result.ok) return result; return fakeJson(null,204);
   }
 
   if(table==='increment_points'&&url.pathname.includes('/rpc/')&&method==='POST') return fakeJson(0,200);
-
   return nativeFetch(request);
 }
 
