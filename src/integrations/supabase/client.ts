@@ -23,6 +23,9 @@ async function promoApi(action:string,payload:Record<string,unknown>={}) {
 async function referralApi(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/referral-api`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
+async function leaderboardApi(action:string,payload:Record<string,unknown>={}) {
+  return nativeFetch(`${EDGE_FN}/leaderboard-api`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
+}
 async function adminData(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/admin-data`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
@@ -35,6 +38,11 @@ function fakeJson(data:unknown,status=200,headers:Record<string,string>={}) {
 function eqValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('eq.')?value.slice(3):value;}
 function gteValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('gte.')?value.slice(4):'';}
 function ltValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('lt.')?value.slice(3):'';}
+function inValues(url:URL,key:string){
+  const value=url.searchParams.get(key)||'';
+  if(!value.startsWith('in.(')||!value.endsWith(')')) return [];
+  return value.slice(4,-1).split(',').map(v=>decodeURIComponent(v).replace(/^"|"$/g,'')).filter(Boolean);
+}
 function isAdminContext(){
   try {
     const initData=getTelegramInitData();
@@ -56,6 +64,52 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   const table=url.pathname.split('/').filter(Boolean).pop()||'';
   const method=request.method.toUpperCase();
   const targetUserId=eqValue(url,'user_id');
+  const select=url.searchParams.get('select')||'';
+
+  // Secure points leaderboard. Preserve the exact row shape LeaderboardPage already expects.
+  if(table==='balances'&&(method==='GET'||method==='HEAD')&&!targetUserId&&select.includes('user_id')&&select.includes('points')){
+    const result=await leaderboardApi('points');
+    const payload=await result.json().catch(()=>({data:[]}));
+    const rows=(Array.isArray(payload?.data)?payload.data:[]).map((r:any)=>({
+      user_id:r.user_id,
+      points:r.points,
+      total_earned:r.total_earned,
+      users:{id:r.user_id,first_name:r.first_name,username:r.username,telegram_id:r.telegram_id,photo_url:r.photo_url},
+    }));
+    const count=rows.length;
+    if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
+    return fakeJson(rows,result.ok?200:result.status);
+  }
+
+  // Secure ad leaderboard with exact UTC date windows. Expand aggregate counts into the legacy
+  // ad-log shape so the existing UI can keep its current grouping/rendering logic.
+  if(table==='ad_logs'&&(method==='GET'||method==='HEAD')&&!targetUserId&&select.includes('user_id')&&select.includes('created_at')){
+    const from=gteValue(url,'created_at');
+    const to=ltValue(url,'created_at');
+    const result=await leaderboardApi('ads',{from,to});
+    const payload=await result.json().catch(()=>({data:[]}));
+    const rows:any[]=[];
+    for(const leader of Array.isArray(payload?.data)?payload.data:[]){
+      const score=Math.max(0,Math.floor(Number(leader?.score||0)));
+      for(let i=0;i<score;i++) rows.push({user_id:leader.user_id,created_at:from||new Date().toISOString()});
+    }
+    const count=rows.length;
+    if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
+    return fakeJson(rows,result.ok?200:result.status);
+  }
+
+  // Secure profile lookup used by the Ads leaderboard after it aggregates user IDs.
+  if(table==='users'&&(method==='GET'||method==='HEAD')){
+    const ids=inValues(url,'id');
+    if(ids.length){
+      const result=await leaderboardApi('profiles',{ids});
+      const payload=await result.json().catch(()=>({data:[]}));
+      const rows=Array.isArray(payload?.data)?payload.data:[];
+      const count=rows.length;
+      if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
+      return fakeJson(rows,result.ok?200:result.status);
+    }
+  }
 
   if(table==='referrals'&&(method==='GET'||method==='HEAD')){
     const since=gteValue(url,'created_at');
