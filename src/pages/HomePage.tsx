@@ -27,17 +27,19 @@ export default function HomePage(){
  const[home,setHome]=useState<HomeRewardState|null>(null);
  const[adState,setAdState]=useState<AdProviderState|null>(null);
  const[transactions,setTransactions]=useState<Array<{id:string;type:string;points:number}>>([]);
+ const[hasLoaded,setHasLoaded]=useState(false);
  const[busy,setBusy]=useState<string|null>(null);
  const[message,setMessage]=useState('');
  const[now,setNow]=useState(Date.now());
  const messageTimer=useRef<number>();
- const ready=home!==null&&adState!==null;
 
  const load=useCallback(async()=>{
-  const[state,providers,tx]=await Promise.all([getHomeRewardState(),getAdProviderState(),getTransactions('self')]);
-  if(state)setHome(state);
-  if(providers)setAdState(providers);
-  setTransactions((tx||[]).slice(0,5));
+  try{
+   const[state,providers,tx]=await Promise.all([getHomeRewardState(),getAdProviderState(),getTransactions('self')]);
+   if(state)setHome(state);
+   if(providers)setAdState(providers);
+   setTransactions((tx||[]).slice(0,5));
+  }finally{setHasLoaded(true)}
  },[]);
 
  useEffect(()=>{
@@ -51,7 +53,7 @@ export default function HomePage(){
  useEffect(()=>{
   if(!Object.keys(settings).length)return;
   let active=true;
-  void getAdProviderState().then(state=>{if(active&&state)setAdState(state)});
+  void getAdProviderState().then(state=>{if(active&&state)setAdState(state)}).finally(()=>{if(active)setHasLoaded(true)});
   return()=>{active=false};
  },[settings]);
 
@@ -104,7 +106,7 @@ export default function HomePage(){
  async function watch(provider:RewardAdProvider){
   const status=adState?.providers[provider];
   const cooling=Boolean(status?.nextAvailableAt&&new Date(status.nextAvailableAt).getTime()>Date.now());
-  if(!ready||busy||!status?.enabled||status.count>=status.limit||cooling)return;
+  if(!adState||busy||!status?.enabled||status.count>=status.limit||cooling)return;
   setBusy(provider);
   try{
    await showRewardAd(provider);
@@ -116,7 +118,7 @@ export default function HomePage(){
  }
 
  return <><style>{CSS}</style><div className="hv-root">
-  {!ready?<div className="hv-loading"><RefreshCw className="hv-spin" style={{width:20,margin:'0 auto 10px'}}/>{t('loading')}</div>:<>
+  {!hasLoaded&&!home?<div className="hv-loading"><RefreshCw className="hv-spin" style={{width:20,margin:'0 auto 10px'}}/>{t('loading')}</div>:!home?<section className="hv-card full"><div className="hv-info"><Info/><span>Rewards are temporarily unavailable. Please try again.</span></div><button className="hv-btn secondary" onClick={()=>void load()}><RefreshCw/>Retry</button></section>:<>
    {message?<div className="hv-message" role="status" aria-live="polite">{message}</div>:null}
    <section className="hv-hero"><div className="hv-kicker"><WalletCards/>{t('availableBalance')}</div><div className="hv-balance">{balance?.points==null?'•••':balance.points.toLocaleString()}</div></section>
    <div className="hv-grid">
@@ -125,10 +127,10 @@ export default function HomePage(){
     <section className="hv-card full"><div className="hv-top"><div className="hv-kicker"><Gift/>{t('dailyDrop')}</div><span className="hv-kicker">{home!.drop.streak}/{home!.drop.maxDays}</span></div><div className="hv-days">{dropDays.map((day,index)=>{const done=index<(home!.drop.claimedToday?home!.drop.streak:Math.max(0,home!.drop.streak));const isNow=index===currentDropDay-1&&!home!.drop.claimedToday;return <div key={day.day} className={`hv-day ${done?'done':''} ${isNow?'now':''}`}><div className="hv-day-pts">{day.points}</div><div className="hv-day-label">D{day.day}</div></div>})}</div></section>
    </div>
    <div className="hv-section">{t('watchAds')}</div>
-   <section className="hv-card full">
+   {adState?<section className="hv-card full">
     <div className="hv-networks">{PROVIDERS.map(({id,name,Icon})=>{const status=adState!.providers[id];const cooldownMs=status.nextAvailableAt?new Date(status.nextAvailableAt).getTime()-now:0;const limitReached=status.count>=status.limit;const disabled=!status.enabled;const waiting=cooldownMs>0&&!limitReached;const stateText=disabled?'OFF':limitReached?fmt(new Date(adState!.nextResetAt).getTime()-now):waiting?fmt(cooldownMs):'READY';const StateIcon=disabled||limitReached?LockKeyhole:waiting?Clock3:PlayCircle;return <div className="hv-provider" key={id}><div className="hv-provider-icon"><Icon/></div><div className="hv-provider-body"><div className="hv-provider-head"><div className="hv-provider-name">{name}</div><div className={`hv-provider-state ${limitReached?'limit':waiting?'wait':''}`}>{stateText}</div></div><div className="hv-provider-meta"><span>{status.count}/{status.limit}</span><span>{status.cooldownSeconds}s</span><span>+{adState!.rewardPoints} {t('points')}</span></div><div className="hv-provider-progress"><span style={{width:`${Math.min(100,status.count/Math.max(1,status.limit)*100)}%`}}/></div></div><button className="hv-provider-btn" disabled={Boolean(busy)||disabled||limitReached||waiting} onClick={()=>void watch(id)} aria-label={`${t('watchAds')} ${name}`}>{busy===id?<RefreshCw className="hv-spin"/>:<StateIcon/>}</button></div>})}</div>
     <div className="hv-info"><Info/><span>Tap the ad to earn. Rewards are verified on the server — closing early cancels them. Resets in {fmt(new Date(adState!.nextResetAt).getTime()-now)}.</span></div>
-   </section>
+   </section>:<section className="hv-card full"><div className="hv-info"><Info/><span>Ads are temporarily unavailable. Your other rewards still work.</span></div><button className="hv-btn secondary" onClick={()=>void load()}><RefreshCw/>Retry ads</button></section>}
    <div className="hv-section">{t('history')}</div>
    {transactions.length===0?<div className="hv-sub" style={{padding:'12px 2px'}}>{t('noTransactions')}</div>:transactions.map(transaction=><div className="hv-tx" key={transaction.id}><Sparkles/><div className="hv-tx-main"><div className="hv-tx-title">{String(transaction.type||'reward').replaceAll('_',' ')}</div></div><div className="hv-tx-points">{Number(transaction.points)>0?'+':''}{Number(transaction.points||0)}</div></div>)}
   </>}
