@@ -44,6 +44,7 @@ export async function getLeaderboard():Promise<LeaderboardEntry[]>{try{return(aw
 export async function getReferrals(_userId:string){try{return(await securePost<{data:any[]}>('get-referrals')).data||[];}catch{return[];}}
 export async function getTransactions(_userId:string){try{return(await securePost<{data:any[]}>('get-transactions')).data||[];}catch{return[];}}
 export async function logAdWatch(_userId:string,adType:string,_rewardGiven:number,provider='adsgram'){try{return await edgePost('log-ad',{adType,provider});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function claimHomeReward(type:string,points:number,description:string):Promise<{success:boolean;points?:number;message?:string}>{try{return await edgePost('legacy-bridge',{action:'reward',type,points,description});}catch(e){return{success:false,message:(e as Error).message};}}
 
 export async function getSettings():Promise<Record<string,string>>{
   try{
