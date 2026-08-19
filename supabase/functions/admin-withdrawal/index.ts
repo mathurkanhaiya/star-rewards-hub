@@ -39,13 +39,26 @@ serve(async (req) => {
       }
     }
 
+    const methodLabel = withdrawal.method === 'usdt_polygon'
+      ? 'USDT · Polygon'
+      : withdrawal.method === 'ton'
+        ? 'GRAM (TON)'
+        : withdrawal.method === 'upi'
+          ? 'INR · UPI'
+          : String(withdrawal.method).toUpperCase();
+    const amountLabel = withdrawal.method === 'upi'
+      ? `₹${Number(withdrawal.amount).toFixed(2)}`
+      : withdrawal.method === 'usdt_polygon'
+        ? `${Number(withdrawal.amount).toFixed(4)} USDT`
+        : `${Number(withdrawal.amount).toFixed(4)} TON`;
+
     const title=status==='approved'?'✅ Withdrawal Approved!':'❌ Withdrawal Rejected';
     const message=status==='approved'
-      ? `Your withdrawal of ${Number(withdrawal.amount).toFixed(2)} ${String(withdrawal.method).toUpperCase()} was approved.`
-      : `Your withdrawal was rejected and ${Number(withdrawal.points_spent).toLocaleString()} points were refunded.${adminNote?` Reason: ${String(adminNote).slice(0,300)}`:''}`;
+      ? `Your ${methodLabel} withdrawal of ${amountLabel} was approved.`
+      : `Your ${methodLabel} withdrawal was rejected and ${Number(withdrawal.points_spent).toLocaleString()} points were refunded.${adminNote?` Reason: ${String(adminNote).slice(0,300)}`:''}`;
     await supabase.from('notifications').insert({ user_id:withdrawal.user_id,title,message,type:'withdrawal' });
 
-    await supabase.from('admin_logs').insert({ admin_telegram_id:telegramUser.id, action:`withdrawal_${status}`, target_user_id:withdrawal.user_id, details:{ withdrawalId, adminNote:String(adminNote||'').slice(0,500) } });
+    await supabase.from('admin_logs').insert({ admin_telegram_id:telegramUser.id, action:`withdrawal_${status}`, target_user_id:withdrawal.user_id, details:{ withdrawalId, method:withdrawal.method, adminNote:String(adminNote||'').slice(0,500) } });
     return new Response(JSON.stringify({success:true}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
   } catch(error) {
     const message=(error as Error).message;
