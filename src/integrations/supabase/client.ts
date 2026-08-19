@@ -20,6 +20,9 @@ async function bridge(action:string,payload:Record<string,unknown>={}) {
 async function promoApi(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/promo-api`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
+async function referralApi(action:string,payload:Record<string,unknown>={}) {
+  return nativeFetch(`${EDGE_FN}/referral-api`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
+}
 async function adminData(action:string,payload:Record<string,unknown>={}) {
   return nativeFetch(`${EDGE_FN}/admin-data`,{method:'POST',headers:edgeHeaders(),body:JSON.stringify({action,...payload})});
 }
@@ -31,6 +34,7 @@ function fakeJson(data:unknown,status=200,headers:Record<string,string>={}) {
 }
 function eqValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('eq.')?value.slice(3):value;}
 function gteValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('gte.')?value.slice(4):'';}
+function ltValue(url:URL,key:string){const value=url.searchParams.get(key)||'';return value.startsWith('lt.')?value.slice(3):'';}
 function isAdminContext(){
   try {
     const initData=getTelegramInitData();
@@ -52,6 +56,19 @@ async function backendV2Fetch(input:RequestInfo|URL,init?:RequestInit):Promise<R
   const table=url.pathname.split('/').filter(Boolean).pop()||'';
   const method=request.method.toUpperCase();
   const targetUserId=eqValue(url,'user_id');
+
+  if(table==='referrals'&&(method==='GET'||method==='HEAD')){
+    const since=gteValue(url,'created_at');
+    const until=ltValue(url,'created_at');
+    const result=await referralApi(since||until?'window':'mine',{since,until});
+    const payload=await result.json().catch(()=>({data:[]}));
+    let rows=Array.isArray(payload?.data)?payload.data:[];
+    const referrerId=eqValue(url,'referrer_id');
+    if(referrerId) rows=rows.filter((r:any)=>r.referrer_id===referrerId);
+    const count=rows.length;
+    if(method==='HEAD') return new Response(null,{status:result.ok?200:result.status,headers:{'Content-Range':count>0?`0-${count-1}/${count}`:'*/0','Range-Unit':'items'}});
+    return fakeJson(rows,result.ok?200:result.status);
+  }
 
   if(isAdminContext()&&targetUserId&&(method==='GET'||method==='HEAD')&&['transactions','ad_logs','daily_claims','balances'].includes(table)){
     if(table==='balances'){
