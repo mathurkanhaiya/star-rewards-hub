@@ -56,8 +56,8 @@
   ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:99px}
 }
 
-/* Wallet currency logos: fill the icon tile with a slightly zoomed circular logo. */
-.wallet-currency-icon { background-size: 116% 116% !important; background-position: center !important; background-repeat: no-repeat !important; overflow: hidden; }
+/* Wallet currency logos: crop/zoom the circular artwork so it fills the icon tile. */
+.wallet-currency-icon { background-size: 138% 138% !important; background-position: center center !important; background-repeat: no-repeat !important; overflow: hidden; }
 
 @keyframes shimmer{0%{background-position:-180% center}100%{background-position:180% center}} @keyframes pulse-gold{0%,100%{box-shadow:0 0 0 rgba(255,190,0,0)}50%{box-shadow:0 0 30px rgba(255,190,0,.22)}} @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}} @keyframes spin-slow{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes diceShake{0%{transform:rotate(0) translateY(0)}25%{transform:rotate(8deg) translateY(-4px)}50%{transform:rotate(-8deg) translateY(4px)}75%{transform:rotate(6deg) translateY(-2px)}100%{transform:rotate(0) translateY(0)}}
 .animate-pulse-gold{animation:pulse-gold 2.4s ease-in-out infinite}.animate-float{animation:float 3s ease-in-out infinite}.animate-spin-slow{animation:spin-slow 8s linear infinite}.dice-shake{animation:diceShake .5s infinite}
