@@ -43,79 +43,14 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
 
   useEffect(()=>{ initApp(); },[]);
 
-  // Settings are public read-only and update live. Backend remains the source of truth.
+  // Settings stay synchronized without mutating rendered DOM. Components consume settings
+  // directly through useApp(), avoiding MutationObserver feedback loops in Telegram WebView.
   useEffect(()=>{
     const settingsChannel=supabase.channel('settings-changes').on('postgres_changes',{event:'*',schema:'public',table:'settings'},()=>{
       getSettings().then(setSettings).catch(()=>{});
     }).subscribe();
     return ()=>{ supabase.removeChannel(settingsChannel); };
   },[]);
-
-  // Keep Home-page labels in sync with the same live settings that control backend payouts.
-  // This compatibility layer removes stale hard-coded reward text while the legacy Home UI
-  // is progressively migrated to read settings directly.
-  useEffect(()=>{
-    if (typeof document === 'undefined') return;
-
-    const numberSetting=(key:string,fallback:number)=>{
-      const n=Number(settings[key]);
-      return Number.isFinite(n) ? n : fallback;
-    };
-
-    const apply=()=>{
-      const adReward=numberSetting('ad_reward_points',50);
-      const adLimit=numberSetting('max_daily_ads',20);
-      const farmReward=numberSetting('farm_reward_points',100);
-      const farmMinutes=Math.max(1,Math.round(numberSetting('farm_duration_minutes',15)));
-      const dropBase=numberSetting('daily_drop_base',100);
-      const dropInc=numberSetting('daily_drop_increment',10);
-      const tapReward=numberSetting('tap_reward_points',1);
-      const maxEnergy=numberSetting('tap_max_energy',500);
-
-      const adBadge=document.querySelector('.hp-ad-badge');
-      if(adBadge) adBadge.textContent=`+${adReward} PTS`;
-
-      const adButton=document.querySelector('.hp-ad-btn');
-      if(adButton && !adButton.hasAttribute('disabled')) adButton.textContent=`🎬  WATCH AD  +${adReward} PTS`;
-
-      const adSub=document.querySelector('.hp-ad-sub');
-      if(adSub){
-        const current=adSub.textContent||'';
-        const match=current.match(/(\d+)\s*\/\s*\d+\s*today/i);
-        if(match) adSub.textContent=`${match[1]} / ${adLimit} today`;
-      }
-
-      const farmBadge=document.querySelector('.hp-farm-badge');
-      if(farmBadge) farmBadge.textContent=`+${farmReward} PTS`;
-      const farmSub=document.querySelector('.hp-farm-sub');
-      if(farmSub && farmSub.textContent?.includes('Start Farming')) farmSub.textContent=`Start Farming → ${farmMinutes} min → +${farmReward} pts`;
-
-      const tapSub=document.querySelector('.hp-tap-btn-sub');
-      if(tapSub && !tapSub.textContent?.includes('2')) tapSub.textContent=`+${tapReward} PT${tapReward===1?'':'S'}`;
-      const energyPill=document.querySelector('.hp-energy-pill');
-      if(energyPill){
-        const current=energyPill.textContent||'';
-        const match=current.match(/(\d+)\s*\/\s*\d+/);
-        if(match) energyPill.textContent=`⚡ ${match[1]}/${maxEnergy}`;
-      }
-
-      const dropPts=document.querySelectorAll('.hp-drop-pts');
-      dropPts.forEach((el,i)=>{ el.textContent=String(dropBase+(i*dropInc)); });
-      const dropButton=document.querySelector('.hp-drop-btn');
-      if(dropButton && !dropButton.hasAttribute('disabled')){
-        const streakEls=[...document.querySelectorAll('.hp-drop-day')];
-        const currentIndex=Math.max(0,streakEls.findIndex(el=>!el.classList.contains('claimed')&&!el.classList.contains('locked')));
-        const reward=dropBase+(currentIndex*dropInc);
-        dropButton.textContent=`🎁  CLAIM +${reward} PTS`;
-      }
-    };
-
-    apply();
-    const observer=new MutationObserver(()=>apply());
-    observer.observe(document.body,{childList:true,subtree:true});
-    const timer=window.setInterval(apply,1000);
-    return ()=>{ observer.disconnect(); window.clearInterval(timer); };
-  },[settings]);
 
   async function initApp() {
     setIsLoading(true);
@@ -154,8 +89,8 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
     if (user) { const bal=await withTimeout(getUserBalance(user.id),5000,null); if (bal) setBalance(bal); }
   },[user]);
 
-  // Live balance sync: refresh from the authenticated backend while the app is visible,
-  // and immediately whenever Telegram/webview regains focus after an ad or admin change.
+  // Keep balance fresh without forcing a Mini App restart. Polling is intentionally modest
+  // and pauses while the WebView is hidden.
   useEffect(()=>{
     if(!user) return;
     let running=false;
@@ -165,7 +100,7 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
       try { await refreshBalance(); } finally { running=false; }
     };
     sync();
-    const timer=window.setInterval(sync,2500);
+    const timer=window.setInterval(sync,5000);
     const onVisible=()=>{ if(document.visibilityState==='visible') sync(); };
     const onFocus=()=>{ sync(); };
     const onReward=()=>{ sync(); };
