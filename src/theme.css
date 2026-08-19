@@ -52,3 +52,8 @@
 [data-theme='light'] .hp-drop-btn.claim { color:#171006 !important; }
 [data-theme='light'] .hp-tab { color:rgba(15,23,42,.45) !important; }
 [data-theme='light'] .hp-tab.active { color:#171006 !important; }
+
+/* Wallet method artwork: show the supplied image when it resolves, otherwise the vector icon beneath it. */
+.ww-logo { position:relative !important; overflow:hidden !important; }
+.ww-logo > svg { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:0; }
+.ww-logo > img { position:absolute; inset:0; width:100% !important; height:100% !important; object-fit:contain; padding:5px; z-index:1; background:inherit; }
