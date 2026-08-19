@@ -1,0 +1,18 @@
+import React from 'react';
+import { ArrowLeft, BadgeCheck, BookOpen, Gamepad2, Gift, Megaphone, ShieldCheck, Sprout, Ticket, UsersRound, WalletCards } from 'lucide-react';
+import { usePreferences } from '@/context/PreferencesContext';
+
+const CSS=`
+.eg-root{padding:0 16px 116px;color:inherit}.eg-head{display:flex;align-items:center;gap:10px;margin:3px 0 14px}.eg-back{width:40px;height:40px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.055);color:inherit;border-radius:14px;display:grid;place-items:center}.eg-back svg{width:18px}.eg-title{font:800 18px 'Orbitron',sans-serif}.eg-sub{font-size:12px;opacity:.42;margin-top:3px}.eg-hero{padding:18px;border-radius:24px;background:linear-gradient(145deg,rgba(255,214,92,.14),rgba(255,190,0,.04)),rgba(10,15,27,.5);border:1px solid rgba(255,215,100,.18);box-shadow:inset 0 1px rgba(255,255,255,.14);backdrop-filter:blur(24px);margin-bottom:12px}.eg-hero-top{display:flex;gap:12px;align-items:center}.eg-hero-icon{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:rgba(255,190,0,.12);border:1px solid rgba(255,215,100,.2);color:#ffd45c}.eg-hero-icon svg{width:22px}.eg-list{display:grid;gap:8px}.eg-card{display:flex;gap:12px;padding:14px;border-radius:19px;background:linear-gradient(145deg,rgba(255,255,255,.095),rgba(255,255,255,.03)),rgba(10,15,27,.45);border:1px solid rgba(255,255,255,.105);box-shadow:inset 0 1px rgba(255,255,255,.12);backdrop-filter:blur(22px)}.eg-i{width:40px;height:40px;flex:0 0 auto;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1)}.eg-i svg{width:18px}.eg-card h3{font:750 12px 'Orbitron',sans-serif;margin:1px 0 5px}.eg-card p{font-size:12px;line-height:1.5;opacity:.48;margin:0}.eg-note{margin-top:10px;padding:14px;border-radius:18px;display:flex;gap:10px;background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.17);color:#a7f3d0}.eg-note svg{width:18px;flex:0 0 auto}.eg-note span{font-size:11px;line-height:1.5}[data-theme='light'] .eg-hero,[data-theme='light'] .eg-card{background:rgba(255,255,255,.76);border-color:rgba(15,23,42,.08);box-shadow:0 12px 34px rgba(50,65,95,.08)}[data-theme='light'] .eg-back{background:rgba(15,23,42,.04);border-color:rgba(15,23,42,.08)}
+`;
+
+export default function EarnGuidePage(){
+ const {t}=usePreferences();
+ const items=[
+  [Megaphone,t('watchAds'),t('adsGuide')],[Sprout,t('farming'),t('farmGuide')],[Gift,t('dailyDrop'),t('dropGuide')],
+  [BadgeCheck,t('tasks'),t('taskGuide')],[UsersRound,t('refer'),t('referralGuide')],[Gamepad2,t('games'),t('gameGuide')],
+  [Ticket,'Promo Codes',t('promoGuide')],[WalletCards,t('withdraw'),t('withdrawGuideText')]
+ ] as const;
+ const back=()=>window.dispatchEvent(new CustomEvent('app:navigate',{detail:'home'}));
+ return <><style>{CSS}</style><div className="eg-root"><div className="eg-head"><button className="eg-back" onClick={back}><ArrowLeft/></button><div><div className="eg-title">{t('howEarnTitle')}</div><div className="eg-sub">{t('howEarnSub')}</div></div></div><div className="eg-hero"><div className="eg-hero-top"><div className="eg-hero-icon"><BookOpen/></div><div><div style={{fontWeight:800}}>ADS REWARDS</div><div style={{fontSize:12,opacity:.46,marginTop:3}}>Backend-verified earning guide</div></div></div></div><div className="eg-list">{items.map(([Icon,title,body])=><div className="eg-card" key={title}><div className="eg-i"><Icon/></div><div><h3>{title}</h3><p>{body}</p></div></div>)}</div><div className="eg-note"><ShieldCheck/><span>{t('securityGuide')}</span></div></div></>;
+}
