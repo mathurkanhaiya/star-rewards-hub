@@ -17,21 +17,16 @@
     onload="initAnalytics()"
     type="text/javascript"
   ></script><style>
-    /* ── Reset & prevent zoom/select ── */
     *, *::before, *::after {
       box-sizing: border-box;
-      /* Prevent text selection everywhere */
       -webkit-user-select: none;
       -moz-user-select: none;
       -ms-user-select: none;
       user-select: none;
-      /* Prevent tap callout on iOS */
       -webkit-touch-callout: none;
-      /* Prevent tap highlight flash */
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* Allow selection only in input/textarea fields */
     input, textarea {
       -webkit-user-select: text;
       -moz-user-select: text;
@@ -41,11 +36,9 @@
     }
 
     html {
-      /* Prevent font size inflation on orientation change */
       -webkit-text-size-adjust: 100%;
       -moz-text-size-adjust: 100%;
       text-size-adjust: 100%;
-      /* Prevent overscroll bounce */
       overscroll-behavior: none;
       height: 100%;
     }
@@ -56,52 +49,62 @@
       font-family: system-ui, sans-serif;
       background: #06080f;
       color: #fff;
-      /* Prevent overscroll */
       overscroll-behavior: none;
-      /* Prevent horizontal scroll */
       overflow-x: hidden;
-      /* Smooth scroll on iOS */
       -webkit-overflow-scrolling: touch;
       height: 100%;
-      /* Prevent zoom on double tap */
       touch-action: manipulation;
     }
 
     #root {
       min-height: 100vh;
-      min-height: 100dvh; /* dynamic viewport for mobile browsers */
+      min-height: 100dvh;
       background: #06080f;
-      /* Prevent zoom */
       touch-action: manipulation;
     }
 
-    /* Prevent drag on images */
     img {
       -webkit-user-drag: none;
       user-drag: none;
       pointer-events: none;
     }
 
-    /* Images that need to be clickable */
     img.clickable {
       pointer-events: auto;
     }
 
-    /* Prevent context menu on long press */
     a, button, [role="button"] {
       -webkit-touch-callout: none;
       touch-action: manipulation;
     }
+
+    /* Wallet currency icons: direct PNGs, no broken image placeholders */
+    .ww-logo img { display: none !important; }
+    .ww-method:nth-child(1) .ww-logo {
+      background-image: url('https://i.ibb.co/S4gdn1Ld/IMG-20260819-165638-236.png') !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
+    }
+    .ww-method:nth-child(2) .ww-logo {
+      background-image: url('https://i.ibb.co/DHBc4T8q/IMG-20260819-165010-103.png') !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
+    }
+    .ww-method:nth-child(3) .ww-logo {
+      background-image: url('https://i.ibb.co/jZVCh3PF/IMG-20260819-165534-197.png') !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
+    }
+    .ww-logo > svg { display: none !important; }
   </style><script>
     (function () {
-      /* ── Prevent zoom gestures ── */
-
-      // Prevent pinch zoom
       document.addEventListener('touchstart', function(e) {
         if (e.touches.length > 1) e.preventDefault();
       }, { passive: false });
 
-      // Prevent double-tap zoom
       let lastTouchEnd = 0;
       document.addEventListener('touchend', function(e) {
         const now = Date.now();
@@ -109,26 +112,21 @@
         lastTouchEnd = now;
       }, { passive: false });
 
-      // Prevent ctrl+scroll zoom (desktop)
       document.addEventListener('wheel', function(e) {
         if (e.ctrlKey) e.preventDefault();
       }, { passive: false });
 
-      // Prevent ctrl+plus / ctrl+minus zoom (desktop/keyboard)
       document.addEventListener('keydown', function(e) {
         if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) {
           e.preventDefault();
         }
       });
 
-      /* ── Prevent context menu (long press on mobile / right click) ── */
       document.addEventListener('contextmenu', function(e) {
         e.preventDefault();
       });
 
-      /* ── Prevent copy/cut ── */
       document.addEventListener('copy', function(e) {
-        // Allow copy inside input/textarea
         const tag = document.activeElement?.tagName?.toLowerCase();
         if (tag !== 'input' && tag !== 'textarea') e.preventDefault();
       });
@@ -138,7 +136,6 @@
         if (tag !== 'input' && tag !== 'textarea') e.preventDefault();
       });
 
-      /* ── Telegram WebApp init ── */
       const tg = window.Telegram?.WebApp;
       const isTG = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
       if (!isTG) return;
