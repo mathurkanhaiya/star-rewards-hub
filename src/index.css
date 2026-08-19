@@ -26,204 +26,38 @@
     --input: 220 25% 12%;
     --ring: 45 100% 58%;
     --radius: 1.25rem;
-
-    --gold: 45 100% 58%;
-    --gold-glow: 45 100% 72%;
-    --purple: 266 88% 68%;
-    --cyan: 190 100% 62%;
-    --green-reward: 145 72% 55%;
-    --glass-bg: 220 34% 12%;
-    --glass-border: 210 40% 90%;
-
-    --sidebar-background: 222 36% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 45 100% 58%;
-    --sidebar-primary-foreground: 220 35% 5%;
-    --sidebar-accent: 220 22% 12%;
-    --sidebar-accent-foreground: 210 30% 92%;
-    --sidebar-border: 220 28% 22%;
-    --sidebar-ring: 45 100% 58%;
+    --gold: 45 100% 58%; --gold-glow: 45 100% 72%; --purple: 266 88% 68%; --cyan: 190 100% 62%; --green-reward: 145 72% 55%; --glass-bg: 220 34% 12%; --glass-border: 210 40% 90%;
+    --sidebar-background: 222 36% 4%; --sidebar-foreground: 210 40% 98%; --sidebar-primary: 45 100% 58%; --sidebar-primary-foreground: 220 35% 5%; --sidebar-accent: 220 22% 12%; --sidebar-accent-foreground: 210 30% 92%; --sidebar-border: 220 28% 22%; --sidebar-ring: 45 100% 58%;
   }
-
   * { @apply border-border; box-sizing: border-box; }
-
   html { background: #04070d; }
-
-  body {
-    @apply text-foreground;
-    font-family: 'Inter', system-ui, sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-    background:
-      radial-gradient(circle at 12% -5%, rgba(89, 121, 255, .22), transparent 32%),
-      radial-gradient(circle at 95% 8%, rgba(170, 78, 255, .16), transparent 30%),
-      radial-gradient(circle at 50% 105%, rgba(0, 211, 255, .10), transparent 35%),
-      linear-gradient(180deg, #070b14 0%, #04070d 48%, #03050a 100%);
-    background-attachment: fixed;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-    opacity: .38;
-    background-image:
-      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
-    background-size: 30px 30px;
-    mask-image: linear-gradient(to bottom, black, transparent 78%);
-  }
-
-  h1,h2,h3 { font-family: 'Orbitron', sans-serif; letter-spacing: -.02em; }
-
-  button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
-  button { touch-action: manipulation; }
-
-  ::selection { background: rgba(255,190,0,.28); color: #fff; }
+  body { @apply text-foreground; font-family:'Inter',system-ui,sans-serif; min-height:100vh; overflow-x:hidden; background:radial-gradient(circle at 12% -5%,rgba(89,121,255,.22),transparent 32%),radial-gradient(circle at 95% 8%,rgba(170,78,255,.16),transparent 30%),radial-gradient(circle at 50% 105%,rgba(0,211,255,.10),transparent 35%),linear-gradient(180deg,#070b14 0%,#04070d 48%,#03050a 100%); background-attachment:fixed; }
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:-1; opacity:.38; background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px); background-size:30px 30px; mask-image:linear-gradient(to bottom,black,transparent 78%); }
+  h1,h2,h3 { font-family:'Orbitron',sans-serif; letter-spacing:-.02em; }
+  button,a,input,textarea,select { -webkit-tap-highlight-color:transparent; } button{touch-action:manipulation;} ::selection{background:rgba(255,190,0,.28);color:#fff;}
 }
 
 @layer components {
-  .glass-card,
-  .stat-card,
-  .task-item,
-  .game-card {
-    position: relative;
-    overflow: hidden;
-    background:
-      linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.035) 42%, rgba(255,255,255,.018)),
-      rgba(12, 18, 31, .54);
-    border: 1px solid rgba(255,255,255,.12);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.15),
-      inset 0 -1px 0 rgba(255,255,255,.025),
-      0 14px 38px rgba(0,0,0,.28),
-      0 1px 2px rgba(0,0,0,.28);
-    backdrop-filter: blur(24px) saturate(145%);
-    -webkit-backdrop-filter: blur(24px) saturate(145%);
-  }
-
-  .glass-card::after,
-  .stat-card::after,
-  .task-item::after,
-  .game-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: linear-gradient(118deg, rgba(255,255,255,.12), transparent 24%, transparent 70%, rgba(255,255,255,.025));
-    opacity: .65;
-  }
-
-  .glass-card:hover,
-  .stat-card:hover,
-  .task-item:hover,
-  .game-card:hover {
-    border-color: rgba(255,255,255,.19);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.18),
-      0 18px 46px rgba(0,0,0,.34),
-      0 0 28px rgba(125,155,255,.055);
-  }
-
-  .liquid-panel {
-    background: rgba(13, 20, 34, .48);
-    border: 1px solid rgba(255,255,255,.11);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 16px 44px rgba(0,0,0,.26);
-    backdrop-filter: blur(28px) saturate(150%);
-    -webkit-backdrop-filter: blur(28px) saturate(150%);
-  }
-
-  .premium-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 14px;
-    background: linear-gradient(145deg, rgba(255,255,255,.13), rgba(255,255,255,.035));
-    border: 1px solid rgba(255,255,255,.13);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 8px 22px rgba(0,0,0,.24);
-    backdrop-filter: blur(18px);
-  }
-
-  .text-gold-gradient,
-  .shimmer-text {
-    background: linear-gradient(115deg, #ffe490 0%, #ffbe00 38%, #fff3bd 58%, #e89b00 100%);
-    background-size: 180% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .shimmer-text { animation: shimmer 4s linear infinite; }
-
-  .btn-gold,
-  .btn-purple,
-  .btn-cyan {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,.22);
-    font-weight: 700;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.38), 0 10px 26px rgba(0,0,0,.24);
-    transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
-  }
-  .btn-gold { background: linear-gradient(135deg,#ffd84d,#ffb000 72%); color:#151006; }
-  .btn-purple { background: linear-gradient(135deg,#a477ff,#7047eb); color:white; }
-  .btn-cyan { background: linear-gradient(135deg,#6ee9ff,#16b9e8); color:#04121a; }
-  .btn-gold::before,.btn-purple::before,.btn-cyan::before {
-    content:''; position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 45%);
-  }
-  .btn-gold:active,.btn-purple:active,.btn-cyan:active { transform: scale(.975); }
-
-  .neon-border-gold { border:1px solid rgba(255,205,75,.28); box-shadow: inset 0 1px rgba(255,255,255,.12), 0 0 26px rgba(255,190,0,.08); }
-  .neon-border-purple { border:1px solid rgba(167,119,255,.30); box-shadow: inset 0 1px rgba(255,255,255,.12), 0 0 26px rgba(136,89,255,.09); }
-
-  input, textarea, select {
-    background: rgba(255,255,255,.055) !important;
-    border-color: rgba(255,255,255,.12) !important;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
-  }
-  input:focus,textarea:focus,select:focus {
-    border-color: rgba(255,205,80,.45) !important;
-    box-shadow: 0 0 0 3px rgba(255,190,0,.08), inset 0 1px 0 rgba(255,255,255,.08) !important;
-  }
-
-  .task-item { border-radius: 20px; transition: transform .2s ease,border-color .2s ease; }
-  .task-item:active { transform: scale(.99); }
-
-  .game-card { border-radius: 24px; transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease; }
-  .game-card:hover { transform: translateY(-3px); }
-  .game-card:active { transform: scale(.985); }
-  .game-card::before {
-    content:''; position:absolute; top:-60%; left:-70%; width:90%; height:190%; pointer-events:none;
-    background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.13) 50%,transparent 65%);
-    transform:rotate(12deg); transition:left .7s ease;
-  }
-  .game-card:hover::before { left:115%; }
-
-  .game-arrow { transition: transform .2s ease, opacity .2s ease; opacity:.58; }
-  .game-card:hover .game-arrow { transform:translateX(4px); opacity:1; }
-
-  .spin-wheel-container { filter: drop-shadow(0 24px 55px rgba(0,0,0,.38)) drop-shadow(0 0 28px rgba(255,190,0,.14)); }
-
-  ::-webkit-scrollbar { width:3px; }
-  ::-webkit-scrollbar-track { background:transparent; }
-  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.18); border-radius:99px; }
+  .glass-card,.stat-card,.task-item,.game-card { position:relative; overflow:hidden; background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.035) 42%,rgba(255,255,255,.018)),rgba(12,18,31,.54); border:1px solid rgba(255,255,255,.12); box-shadow:inset 0 1px 0 rgba(255,255,255,.15),inset 0 -1px 0 rgba(255,255,255,.025),0 14px 38px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.28); backdrop-filter:blur(24px) saturate(145%); -webkit-backdrop-filter:blur(24px) saturate(145%); }
+  .glass-card::after,.stat-card::after,.task-item::after,.game-card::after { content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit; background:linear-gradient(118deg,rgba(255,255,255,.12),transparent 24%,transparent 70%,rgba(255,255,255,.025)); opacity:.65; }
+  .glass-card:hover,.stat-card:hover,.task-item:hover,.game-card:hover { border-color:rgba(255,255,255,.19); box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 18px 46px rgba(0,0,0,.34),0 0 28px rgba(125,155,255,.055); }
+  .liquid-panel { background:rgba(13,20,34,.48); border:1px solid rgba(255,255,255,.11); box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 16px 44px rgba(0,0,0,.26); backdrop-filter:blur(28px) saturate(150%); -webkit-backdrop-filter:blur(28px) saturate(150%); }
+  .premium-icon { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:14px; background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.035)); border:1px solid rgba(255,255,255,.13); box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 8px 22px rgba(0,0,0,.24); backdrop-filter:blur(18px); }
+  .text-gold-gradient,.shimmer-text { background:linear-gradient(115deg,#ffe490 0%,#ffbe00 38%,#fff3bd 58%,#e89b00 100%); background-size:180% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .shimmer-text{animation:shimmer 4s linear infinite;}
+  .btn-gold,.btn-purple,.btn-cyan { position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.22); font-weight:700; box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 10px 26px rgba(0,0,0,.24); transition:transform .18s ease,filter .18s ease,box-shadow .18s ease; }
+  .btn-gold{background:linear-gradient(135deg,#ffd84d,#ffb000 72%);color:#151006}.btn-purple{background:linear-gradient(135deg,#a477ff,#7047eb);color:white}.btn-cyan{background:linear-gradient(135deg,#6ee9ff,#16b9e8);color:#04121a}
+  .btn-gold::before,.btn-purple::before,.btn-cyan::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 45%)} .btn-gold:active,.btn-purple:active,.btn-cyan:active{transform:scale(.975)}
+  .neon-border-gold{border:1px solid rgba(255,205,75,.28);box-shadow:inset 0 1px rgba(255,255,255,.12),0 0 26px rgba(255,190,0,.08)} .neon-border-purple{border:1px solid rgba(167,119,255,.30);box-shadow:inset 0 1px rgba(255,255,255,.12),0 0 26px rgba(136,89,255,.09)}
+  input,textarea,select{background:rgba(255,255,255,.055)!important;border-color:rgba(255,255,255,.12)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)} input:focus,textarea:focus,select:focus{border-color:rgba(255,205,80,.45)!important;box-shadow:0 0 0 3px rgba(255,190,0,.08),inset 0 1px 0 rgba(255,255,255,.08)!important}
+  .task-item{border-radius:20px;transition:transform .2s ease,border-color .2s ease}.task-item:active{transform:scale(.99)} .game-card{border-radius:24px;transition:transform .24s ease,border-color .24s ease,box-shadow .24s ease}.game-card:hover{transform:translateY(-3px)}.game-card:active{transform:scale(.985)}
+  .game-card::before{content:'';position:absolute;top:-60%;left:-70%;width:90%;height:190%;pointer-events:none;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.13) 50%,transparent 65%);transform:rotate(12deg);transition:left .7s ease}.game-card:hover::before{left:115%}.game-arrow{transition:transform .2s ease,opacity .2s ease;opacity:.58}.game-card:hover .game-arrow{transform:translateX(4px);opacity:1}
+  .spin-wheel-container{filter:drop-shadow(0 24px 55px rgba(0,0,0,.38)) drop-shadow(0 0 28px rgba(255,190,0,.14))}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:99px}
 }
 
-@keyframes shimmer { 0%{background-position:-180% center} 100%{background-position:180% center} }
-@keyframes pulse-gold { 0%,100%{box-shadow:0 0 0 rgba(255,190,0,0)} 50%{box-shadow:0 0 30px rgba(255,190,0,.22)} }
-@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
-@keyframes spin-slow { from{transform:rotate(0)} to{transform:rotate(360deg)} }
-@keyframes diceShake { 0%{transform:rotate(0) translateY(0)} 25%{transform:rotate(8deg) translateY(-4px)} 50%{transform:rotate(-8deg) translateY(4px)} 75%{transform:rotate(6deg) translateY(-2px)} 100%{transform:rotate(0) translateY(0)} }
+/* Wallet currency logos: fill the icon tile with a slightly zoomed circular logo. */
+.wallet-currency-icon { background-size: 116% 116% !important; background-position: center !important; background-repeat: no-repeat !important; overflow: hidden; }
 
-.animate-pulse-gold { animation:pulse-gold 2.4s ease-in-out infinite; }
-.animate-float { animation:float 3s ease-in-out infinite; }
-.animate-spin-slow { animation:spin-slow 8s linear infinite; }
-.dice-shake { animation:diceShake .5s infinite; }
+@keyframes shimmer{0%{background-position:-180% center}100%{background-position:180% center}} @keyframes pulse-gold{0%,100%{box-shadow:0 0 0 rgba(255,190,0,0)}50%{box-shadow:0 0 30px rgba(255,190,0,.22)}} @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}} @keyframes spin-slow{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes diceShake{0%{transform:rotate(0) translateY(0)}25%{transform:rotate(8deg) translateY(-4px)}50%{transform:rotate(-8deg) translateY(4px)}75%{transform:rotate(6deg) translateY(-2px)}100%{transform:rotate(0) translateY(0)}}
+.animate-pulse-gold{animation:pulse-gold 2.4s ease-in-out infinite}.animate-float{animation:float 3s ease-in-out infinite}.animate-spin-slow{animation:spin-slow 8s linear infinite}.dice-shake{animation:diceShake .5s infinite}
