@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
 import { verifyTelegramInitData, secureCorsHeaders as corsHeaders } from "../_shared/telegramAuth.ts";
 
 serve(async (req) => {
@@ -10,74 +10,49 @@ serve(async (req) => {
     const telegramUser = await verifyTelegramInitData(initData, Deno.env.get('TELEGRAM_BOT_TOKEN') || '');
     const { referralCode } = await req.json().catch(() => ({}));
 
-    const { data: existingUser } = await supabase.from('users').select('*').eq('telegram_id', telegramUser.id).maybeSingle();
-    if (existingUser) {
-      if (existingUser.is_banned) return new Response(JSON.stringify({ error:'Account is banned' }), { status:403, headers:{...corsHeaders,'Content-Type':'application/json'} });
-      const { data: updated } = await supabase.from('users').update({
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name || null,
-        username: telegramUser.username || null,
-        photo_url: telegramUser.photo_url || null,
-        last_active_at: new Date().toISOString(),
-      }).eq('id', existingUser.id).select().single();
-      return new Response(JSON.stringify({ user: updated || existingUser }), { headers:{...corsHeaders,'Content-Type':'application/json'} });
-    }
+    const safeReferral = typeof referralCode === 'string' && /^\d{1,20}$/.test(referralCode) ? referralCode : null;
+    const { data: registration, error: registrationError } = await supabase.rpc('register_telegram_user', {
+      p_telegram_id: telegramUser.id,
+      p_first_name: telegramUser.first_name,
+      p_last_name: telegramUser.last_name || null,
+      p_username: telegramUser.username || null,
+      p_photo_url: telegramUser.photo_url || null,
+      p_referral_code: safeReferral,
+    });
+    if (registrationError || !registration?.user) throw registrationError || new Error('Failed to register user');
 
-    const safeReferral = typeof referralCode === 'string' && /^\d{1,20}$/.test(referralCode) ? referralCode : undefined;
-    let referrerId: string | null = null;
-    if (safeReferral && safeReferral !== String(telegramUser.id)) {
-      const { data: referrer } = await supabase.from('users').select('id').eq('telegram_id', Number(safeReferral)).maybeSingle();
-      referrerId = referrer?.id || null;
-    }
+    const { data: supportSetting } = await supabase.from('settings').select('value').eq('key','support_username').maybeSingle();
+    const supportUsername = String(supportSetting?.value || '').trim() || null;
 
-    const { data: newUser, error: userError } = await supabase.from('users').insert({
-      telegram_id: telegramUser.id,
-      first_name: telegramUser.first_name,
-      last_name: telegramUser.last_name || null,
-      username: telegramUser.username || null,
-      photo_url: telegramUser.photo_url || null,
-      referral_code: String(telegramUser.id),
-      referred_by: referrerId ? Number(safeReferral) : null,
-    }).select().single();
-    if (userError || !newUser) throw userError || new Error('Failed to create user');
-
-    await supabase.from('balances').insert({ user_id:newUser.id, points:0 });
-    const { data: settings } = await supabase.from('settings').select('key,value').in('key',['welcome_bonus']);
-    const map=Object.fromEntries((settings||[]).map((s)=>[s.key,s.value]));
-    const welcomeBonus=Math.max(0,Math.min(100000,Number(map.welcome_bonus||200)));
-
-    if (welcomeBonus>0) {
-      await supabase.rpc('increment_points',{p_user_id:newUser.id,p_points:welcomeBonus});
-      await supabase.from('transactions').insert({user_id:newUser.id,type:'bonus',points:welcomeBonus,description:'🎉 Welcome bonus'});
-    }
-
-    if (referrerId) {
-      const { error: refError } = await supabase.from('referrals').insert({
-        referrer_id:referrerId,
-        referred_id:newUser.id,
-        points_earned:0,
-        is_verified:false,
+    if (registration.user.is_banned) {
+      const { data: bannedUser } = await supabase.from('users').select('*').eq('id', registration.user.id).single();
+      return new Response(JSON.stringify({
+        user: bannedUser || registration.user,
+        support_username: supportUsername,
+        restricted: true,
+      }), {
+        status:200,
+        headers:{...corsHeaders,'Content-Type':'application/json'},
       });
-      if (!refError) {
-        await supabase.from('notifications').insert([
-          {
-            user_id:referrerId,
-            title:'👥 New referral joined',
-            message:`${telegramUser.first_name} joined using your link. Their referral becomes valid after 1 task and 1 verified ad.`,
-            type:'referral',
-          },
-          {
-            user_id:newUser.id,
-            title:'🎁 Referral reward pending',
-            message:'Complete 1 task and watch 1 verified ad to unlock both referral rewards.',
-            type:'referral',
-          },
-        ]);
-      }
     }
 
-    const { data: finalUser } = await supabase.from('users').select('*').eq('id',newUser.id).single();
-    return new Response(JSON.stringify({ user: finalUser || newUser }), { headers:{...corsHeaders,'Content-Type':'application/json'} });
+    const detectedLanguage=String(telegramUser.language_code||'').toLowerCase().split('-')[0];
+    if(!registration.user.bot_language&&['en','hi','ru','bn','id','tr','es','pt','fr','de','uk','zh'].includes(detectedLanguage)){
+      await supabase.from('users').update({bot_language:detectedLanguage}).eq('id',registration.user.id).is('bot_language',null);
+      registration.user.bot_language=detectedLanguage;
+    }
+    const {data:comeback}=await supabase.rpc('claim_comeback_reward',{p_user_id:registration.user.id});
+    return new Response(JSON.stringify({
+      user: registration.user,
+      support_username: supportUsername,
+      registration: {
+        created: Boolean(registration.created),
+        welcomeBonus: Number(registration.welcomeBonus || 0),
+        referralBonus: Number(registration.referralBonus || 0),
+        totalBonus: Number(registration.totalBonus || 0),
+        comeback: comeback?.success ? comeback : null,
+      },
+    }), { headers:{...corsHeaders,'Content-Type':'application/json'} });
   } catch (error) {
     const message=(error as Error).message;
     const status=/Telegram|expired|signature|authentication/i.test(message)?401:400;
