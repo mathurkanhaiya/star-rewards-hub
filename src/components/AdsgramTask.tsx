@@ -134,11 +134,11 @@ export default function AdsgramTask({ blockId, rewardAmount = 10, onReward, onEr
 
   return <><style>{CSS}</style><section className="ags-wrap" aria-label="Adsgram sponsored task">
     <div className="ags-inner">
-      <div className="ags-header"><div className="ags-left"><div className="ags-icon"><Clapperboard/></div><div><div className="ags-title">ADSGRAM TASK</div><div className="ags-sub">Complete · claim · repeat</div></div></div><div className="ags-badge">+{displayedReward} PTS</div></div>
+      <div className="ags-header"><div className="ags-left"><div className="ags-icon"><Clapperboard/></div><div><div className="ags-title">ADSGRAM TASK</div><div className="ags-sub">Complete · claim · repeat</div></div></div><div className="ags-badge">+{displayedReward} ADR</div></div>
       {(state === 'error' || state === 'session') && <div className={`ags-status ${state}`}><WifiOff/>{statusMessage}</div>}
       {state === 'no_banner' && <div className="ags-status no-banner"><RefreshCw/>{statusMessage}</div>}
       <adsgram-task key={reloadKey} ref={taskRef} className="ags-task" data-block-id={blockId} data-debug="false" data-debug-console="false">
-        <span slot="reward" className="ags-slot-reward">+{displayedReward} PTS</span>
+        <span slot="reward" className="ags-slot-reward">+{displayedReward} ADR</span>
         <div slot="button" className="ags-slot-btn">OPEN</div>
         <div slot="claim" className="ags-slot-btn claim">CLAIM</div>
         <div slot="done" className="ags-slot-btn done">DONE</div>
@@ -147,6 +147,6 @@ export default function AdsgramTask({ blockId, rewardAmount = 10, onReward, onEr
     </div>
     <div className="ags-progress"><span style={{ width: `${progress}%` }}/></div>
     {state === 'crediting' && <div className="ags-overlay"><div className="ags-overlay-content"><LoaderCircle className="ags-overlay-icon spin"/><div className="ags-overlay-title">VERIFYING</div><div className="ags-overlay-sub">Confirming reward on the server</div></div></div>}
-    {state === 'done' && <div className="ags-overlay"><div className="ags-overlay-content"><CheckCircle2 className="ags-overlay-icon"/><div className="ags-overlay-title">+{displayedReward} PTS</div><div className="ags-overlay-sub">New task loads in {refreshIn}s</div></div></div>}
+    {state === 'done' && <div className="ags-overlay"><div className="ags-overlay-content"><CheckCircle2 className="ags-overlay-icon"/><div className="ags-overlay-title">+{displayedReward} ADR</div><div className="ags-overlay-sub">New task loads in {refreshIn}s</div></div></div>}
   </section></>;
 }
