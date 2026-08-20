@@ -74,6 +74,7 @@ export interface AppUser {
   referred_by: number | null;
   is_banned: boolean;
   ban_reason?: string | null;
+  support_username?: string | null;
   last_active_at: string;
   created_at: string;
 }
