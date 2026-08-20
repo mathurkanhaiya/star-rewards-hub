@@ -2,7 +2,7 @@ import React,{useCallback,useEffect,useRef,useState}from'react';
 import{Check,CheckCircle2,Coins,Copy,Eye,Link2,ListChecks,LoaderCircle,Send,ShieldCheck,UserCheck,UsersRound}from'lucide-react';
 import{useApp}from'@/context/AppContext';
 import{usePreferences}from'@/context/PreferencesContext';
-import{getReferrals,type ReferralRecord,type ReferralUser}from'@/lib/api';
+import{getReferrals,getSettings,type ReferralRecord,type ReferralUser}from'@/lib/api';
 
 function haptic(type:'impact'|'success'='impact'){const feedback=window.Telegram?.WebApp?.HapticFeedback;if(type==='success')feedback?.notificationOccurred('success');else feedback?.impactOccurred('medium')}
 function timeAgo(date:string){const seconds=Math.max(0,Math.floor((Date.now()-new Date(date).getTime())/1000));if(seconds<60)return 'now';if(seconds<3600)return `${Math.floor(seconds/60)}m`;if(seconds<86400)return `${Math.floor(seconds/3600)}h`;return `${Math.floor(seconds/86400)}d`}
@@ -20,6 +20,7 @@ export default function ReferralPage(){
  const{user}=useApp();
  const{t}=usePreferences();
  const[referrals,setReferrals]=useState<ReferralRecord[]>([]);
+ const[requirements,setRequirements]=useState({tasks:5,ads:5});
  const[copied,setCopied]=useState(false);
  const[loading,setLoading]=useState(true);
  const copyTimer=useRef<number>();
@@ -27,7 +28,14 @@ export default function ReferralPage(){
  const load=useCallback(async()=>{
   if(!user)return;
   setLoading(true);
-  setReferrals(await getReferrals(user.id));
+  const[referralRows,settings]=await Promise.all([getReferrals(user.id),getSettings()]);
+  setReferrals(referralRows);
+  const taskValue=Number(settings.referral_required_tasks||5);
+  const adValue=Number(settings.referral_required_ads||5);
+  setRequirements({
+   tasks:Number.isFinite(taskValue)?Math.max(1,Math.floor(taskValue)):5,
+   ads:Number.isFinite(adValue)?Math.max(1,Math.floor(adValue)):5,
+  });
   setLoading(false);
  },[user]);
 
@@ -46,18 +54,18 @@ export default function ReferralPage(){
  const stats=[{value:referrals.length,label:t('invited'),Icon:UsersRound,color:'#67e8f9'},{value:verified,label:t('verified'),Icon:UserCheck,color:'#4ade80'},{value:totalEarned,label:t('ptsEarned'),Icon:Coins,color:'#ffd84d'}];
  const steps=[
   {title:t('shareYourLink'),sub:'Send your personal link to a friend.',Icon:Link2},
-  {title:'Complete one task',sub:'Your referred friend completes any verified task.',Icon:ListChecks},
-  {title:'Watch one ad',sub:'They finish one rewarded ad, then both rewards unlock.',Icon:Eye},
+  {title:`Complete ${requirements.tasks} task${requirements.tasks===1?'':'s'}`,sub:`Your referred friend completes ${requirements.tasks} unique verified task${requirements.tasks===1?'':'s'}.`,Icon:ListChecks},
+  {title:`Watch ${requirements.ads} ad${requirements.ads===1?'':'s'}`,sub:`They finish ${requirements.ads} rewarded ad${requirements.ads===1?'':'s'}, then the referral reward unlocks.`,Icon:Eye},
  ];
 
  return <><style>{CSS}</style><div className="rf-root">
   <div className="rf-head"><div><div className="rf-kicker">{t('inviteEarn')}</div><div className="rf-title">{t('referFriends')}</div></div><div className="rf-head-icon"><UsersRound/></div></div>
   <div className="rf-hero"><div className="rf-hero-top"><div className="rf-hero-icon"><Coins/></div><div><div className="rf-hero-label">{t('totalEarned')}</div><div className="rf-hero-value">{totalEarned.toLocaleString()}</div><div className="rf-hero-sub">{verified} {t('verifiedFriends')}</div></div></div></div>
   <div className="rf-stats">{stats.map(({value,label,Icon,color})=><div className="rf-stat" key={label}><Icon className="rf-stat-icon" style={{color}}/><div className="rf-stat-val" style={{color}}>{value.toLocaleString()}</div><div className="rf-stat-label">{label}</div></div>)}</div>
-  <div className="rf-rule"><ShieldCheck/><span><b>Valid referral:</b> your friend must complete 1 task and watch 1 verified ad. The reward unlocks automatically after both.</span></div>
+  <div className="rf-rule"><ShieldCheck/><span><b>Valid referral:</b> your friend must complete {requirements.tasks} task{requirements.tasks===1?'':'s'} and watch {requirements.ads} verified ad{requirements.ads===1?'':'s'}. The reward unlocks automatically after both requirements are met.</span></div>
   <div className="rf-link"><div className="rf-sec">{t('yourReferralLink')}</div><div className="rf-link-box"><Link2/>{link||'—'}</div><div className="rf-actions"><button className="rf-btn" onClick={()=>void copy()}>{copied?<Check/>:<Copy/>}{copied?t('copied'):t('copy')}</button><button className="rf-btn rf-share" onClick={share}><Send/>{t('share')}</button></div></div>
   <div className="rf-how"><div className="rf-sec">{t('howItWorks')}</div>{steps.map(({title,sub,Icon})=><div className="rf-step" key={title}><div className="rf-step-icon"><Icon/></div><div><div className="rf-step-title">{title}</div><div className="rf-step-sub">{sub}</div></div></div>)}</div>
   <div className="rf-list-head"><span>{t('yourReferrals')}</span><b>{referrals.length} {t('total')}</b></div>
-  {loading?<div className="rf-loading"><LoaderCircle/><div>{t('loading')}</div></div>:referrals.length===0?<div className="rf-empty"><UsersRound/><div>{t('noReferrals')}</div></div>:<div className="rf-people">{referrals.map((referral,index)=>{const profile=referral.referred_user;const name=displayName(profile,index);const identity=profile?.username?`@${profile.username} · UID ${profile.telegram_id}`:`UID ${profile?.telegram_id||'—'}`;return <div className="rf-person" style={{'--rf-index':index} as React.CSSProperties} key={referral.id}><div className="rf-avatar">{profile?.photo_url?<img src={profile.photo_url} alt={name}/>:initials(profile,index)}</div><div className="rf-body"><div className="rf-name">{name}</div><div className="rf-identity">{identity}</div><div className="rf-meta"><span>Joined {timeAgo(referral.created_at)}</span><span className={`rf-status ${referral.is_verified?'ok':''}`}>{referral.is_verified?<CheckCircle2/>:<ShieldCheck/>}{referral.is_verified?t('verified'):'1 task + 1 ad pending'}</span></div></div><div className="rf-earned">{referral.is_verified?`+${Number(referral.points_earned||0).toLocaleString()}`:'—'}<small>{referral.is_verified&&referral.verified_at?timeAgo(referral.verified_at):'PENDING'}</small></div></div>})}</div>}
+  {loading?<div className="rf-loading"><LoaderCircle/><div>{t('loading')}</div></div>:referrals.length===0?<div className="rf-empty"><UsersRound/><div>{t('noReferrals')}</div></div>:<div className="rf-people">{referrals.map((referral,index)=>{const profile=referral.referred_user;const name=displayName(profile,index);const identity=profile?.username?`@${profile.username} · UID ${profile.telegram_id}`:`UID ${profile?.telegram_id||'—'}`;return <div className="rf-person" style={{'--rf-index':index} as React.CSSProperties} key={referral.id}><div className="rf-avatar">{profile?.photo_url?<img src={profile.photo_url} alt={name}/>:initials(profile,index)}</div><div className="rf-body"><div className="rf-name">{name}</div><div className="rf-identity">{identity}</div><div className="rf-meta"><span>Joined {timeAgo(referral.created_at)}</span><span className={`rf-status ${referral.is_verified?'ok':''}`}>{referral.is_verified?<CheckCircle2/>:<ShieldCheck/>}{referral.is_verified?t('verified'):`${requirements.tasks} task${requirements.tasks===1?'':'s'} + ${requirements.ads} ad${requirements.ads===1?'':'s'} pending`}</span></div></div><div className="rf-earned">{referral.is_verified?`+${Number(referral.points_earned||0).toLocaleString()}`:'—'}<small>{referral.is_verified&&referral.verified_at?timeAgo(referral.verified_at):'PENDING'}</small></div></div>})}</div>}
  </div></>;
 }
