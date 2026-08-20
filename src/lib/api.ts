@@ -25,7 +25,13 @@ async function edgePost<T = any>(fn:string, body:Record<string,unknown> = {}):Pr
 }
 async function securePost<T = any>(action:string,payload:Record<string,unknown> = {}):Promise<T>{ return edgePost<T>('secure-api',{action,...payload}); }
 
-export async function initUser(_telegramUser:{id:number;first_name:string;last_name?:string;username?:string;photo_url?:string},referralCode?:string):Promise<AppUser|null>{try{if(!telegramInitData())return null;const d=await edgePost<any>('telegram-auth',{referralCode});return d.user||null;}catch(err){console.error('initUser error:',err);return null;}}
+export async function initUser(_telegramUser:{id:number;first_name:string;last_name?:string;username?:string;photo_url?:string},referralCode?:string):Promise<AppUser|null>{
+  try{
+    if(!telegramInitData())return null;
+    const d=await edgePost<any>('telegram-auth',{referralCode});
+    return d.user?{...d.user,support_username:d.support_username||null}:null;
+  }catch(err){console.error('initUser error:',err);return null;}
+}
 export async function getUser(_telegramId:number):Promise<AppUser|null>{try{return(await securePost<{data:AppUser|null}>('get-user')).data||null;}catch{return null;}}
 export async function getUserBalance(_userId:string):Promise<UserBalance|null>{try{return(await securePost<{data:UserBalance|null}>('get-balance')).data||null;}catch{return null;}}
 export async function getTasks():Promise<Task[]>{
@@ -90,8 +96,17 @@ export async function getNotifications(_userId:string){try{return(await securePo
 export async function markNotificationRead(notifId:string){try{await securePost('mark-notification-read',{notificationId:notifId});}catch{}}
 export async function getUnreadNotifCount(_userId:string):Promise<number>{try{return(await securePost<{count:number}>('unread-count')).count||0;}catch{return 0;}}
 
-export async function getActivePromos(){try{return(await edgePost<{data:any[]}>('promo-api',{action:'list'})).data||[];}catch(err){console.error('getActivePromos error:',err);return[];}}
-export async function claimPromoReward(promoId:string):Promise<{success:boolean;points?:number;message?:string}>{try{return await edgePost('promo-api',{action:'claim',promoId});}catch(e){return{success:false,message:(e as Error).message};}}
+export type PromoClaimResult={success:boolean;code?:string;promoCode?:string;reward?:number;balance?:number;title?:string;message?:string};
+export type AdminPromo={id:string;code:string;title:string;reward_points:number;max_claims:number;total_claimed:number;is_active:boolean;expires_at:string|null;created_at:string;updated_at?:string};
+export async function claimPromoCode(code:string):Promise<PromoClaimResult>{
+  try{return await edgePost<PromoClaimResult>('promo-api',{action:'claim',code:code.trim().toUpperCase()});}
+  catch(e){return{success:false,message:(e as Error).message};}
+}
+export async function adminGetPromos():Promise<AdminPromo[]>{try{return(await edgePost<{success:boolean;data:AdminPromo[]}>('promo-api',{action:'admin-list'})).data||[];}catch(err){console.error('admin promos error:',err);return[];}}
+export async function adminGeneratePromoCode():Promise<{success:boolean;code?:string;message?:string}>{try{return await edgePost('promo-api',{action:'admin-generate'});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function adminCreatePromo(promo:{code:string;rewardPoints:number;maxClaims:number;expiresAt?:string|null;isActive?:boolean}){try{return await edgePost('promo-api',{action:'admin-create',...promo,title:`Promo ${promo.code.trim().toUpperCase()}`});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function adminUpdatePromo(id:string,patch:{isActive?:boolean;rewardPoints?:number;maxClaims?:number;expiresAt?:string|null}){try{return await edgePost('promo-api',{action:'admin-update',id,...patch});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function adminDeletePromo(id:string){try{return await edgePost('promo-api',{action:'admin-delete',id});}catch(e){return{success:false,message:(e as Error).message};}}
 
 const EMPTY_ADMIN_STATS={totalUsers:0,totalWithdrawals:0,pendingWithdrawals:0,totalTransactions:0,totalAdViews:0};
 export async function adminGetStats(){try{return(await securePost<{data:any}>('admin:stats')).data||EMPTY_ADMIN_STATS;}catch(err){console.error('admin stats error:',err);return EMPTY_ADMIN_STATS;}}
@@ -105,7 +120,7 @@ export async function adminUpdateSetting(key:string,value:string){
     return r;
   }catch(e){return{success:false,message:(e as Error).message};}
 }
-export async function adminBanUser(userId:string,banned:boolean){try{return await securePost('admin:ban-user',{userId,banned});}catch(e){return{success:false,message:(e as Error).message};}}
+export async function adminBanUser(userId:string,banned:boolean,reason?:string){try{return await edgePost('admin-user-status',{userId,banned,reason:reason||''});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function adminAdjustBalance(userId:string,points:number,reason:string){try{return await securePost('admin:adjust-balance',{userId,points,reason});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function adminCreateTask(task:Omit<Task,'id'>){try{return await securePost('admin:create-task',{task});}catch(e){return{success:false,message:(e as Error).message};}}
 export async function adminToggleTask(taskId:string,isActive:boolean){try{return await securePost('admin:toggle-task',{taskId,isActive});}catch(e){return{success:false,message:(e as Error).message};}}
