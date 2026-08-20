@@ -53,8 +53,8 @@ export default function AdminPanel(){
     ['Ad Views',stats.totalAdViews||0,'🎬'],['Transactions',stats.totalTransactions||0,'📊'],
     ['Withdrawals',stats.totalWithdrawals||0,'💸'],['Pending',stats.pendingWithdrawals||0,'⏳'],
     ['Active Tasks',stats.activeTasks??tasks.filter(x=>x.is_active).length,'✅'],['Total Tasks',stats.totalTasks??tasks.length,'📋'],
-    ['Task Rewards',stats.totalTaskRewards||0,'🎯'],['Points Earned',stats.totalPointsEarned||0,'🪙'],
-    ['Circulating',stats.circulatingPoints||0,'💰'],['Ad Reward',Number(settings.ad_reward_points||0),'⚡'],
+    ['Task Rewards',stats.totalTaskRewards||0,'🎯'],['ADR Earned',stats.totalPointsEarned||0,'🪙'],
+    ['ADR Circulating',stats.circulatingPoints||0,'💰'],['Ad Reward (ADR)',Number(settings.ad_reward_points||0),'⚡'],
   ];
 
   return <div className="ap-root">
@@ -66,7 +66,7 @@ export default function AdminPanel(){
     <div className="ap-tabs">{tabs.map(([id,label,icon])=><button key={id} className={`ap-tab ${tab===id?'on':''}`} onClick={()=>setTab(id)}>{icon} {label}</button>)}</div>
     {loading?<div className="ap-loading">Loading live admin data…</div>:<>
       {tab==='dashboard'&&<><div className="ap-grid">{cards.map(([label,val,icon])=><div className="ap-card" key={String(label)}><div className="ap-icon">{icon}</div><div className="ap-val">{Number(val||0).toLocaleString()}</div><div className="ap-label">{label}</div></div>)}</div></>}
-      {tab==='users'&&<AdminUsersTab users={users} onBan={async(id,banned)=>{const r:any=await adminBanUser(id,banned);toast(r.success?'User updated':r.message||'Failed');await load();}} onAdjustBalance={async(id,pts,reason)=>{const r:any=await adminAdjustBalance(id,pts,reason);toast(r.success?'Balance updated':r.message||'Failed');await load();}}/>}
+      {tab==='users'&&<AdminUsersTab users={users} onBan={async(id,banned)=>{let reason='';if(banned){reason=(window.prompt('Enter ban reason')||'').trim();if(!reason){toast('Ban reason is required');return;}}const r:any=await adminBanUser(id,banned,reason);toast(r.success?(banned?'User banned':'User unbanned'):r.message||'Failed');await load();}} onAdjustBalance={async(id,pts,reason)=>{const r:any=await adminAdjustBalance(id,pts,reason);toast(r.success?'Balance updated':r.message||'Failed');await load();}}/>}
       {tab==='withdrawals'&&<AdminWithdrawalsTab withdrawals={withdrawals} onApprove={async id=>{const r:any=await adminUpdateWithdrawal(id,'approved');toast(r.success?'Approved':r.message||'Failed');await load();}} onReject={async id=>{const r:any=await adminUpdateWithdrawal(id,'rejected','Rejected by admin');toast(r.success?'Rejected':r.message||'Failed');await load();}}/>}
       {tab==='tasks'&&<AdminTasksTab tasks={tasks} onToggle={async(id,active)=>{const r:any=await adminToggleTask(id,active);toast(r.success?'Task updated':r.message||'Failed');await load();}} onDelete={async id=>{const r:any=await adminDeleteTask(id);toast(r.success?'Task deleted':r.message||'Failed');await load();}} onCreate={async task=>{const r:any=await adminCreateTask(task);toast(r.success?'Task created ✓':r.message||'Failed');await load();}}/>}
       {tab==='contests'&&<AdminContestsTab contests={contests} onCreateContest={async contest=>{const r:any=await adminCreateContest(contest);toast(r.success?'Contest created':r.message||'Failed');await load();}} onEndContest={async id=>{const r:any=await adminEndContest(id);toast(r.success?'Contest rewards sent':r.message||'Failed');await load();}}/>}
