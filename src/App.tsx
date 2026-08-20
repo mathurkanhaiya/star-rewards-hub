@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Coins, MessageCircle, ShieldAlert, Sparkles, Wrench } from "lucide-react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import BottomNav from "@/components/BottomNav";
@@ -26,9 +26,43 @@ const CSS=`
 @media(prefers-reduced-motion:reduce){.app-shell::before,.app-shell::after,.app-page,.app-loader-stage *,.app-brand,.app-sub,.app-progress::after{animation-duration:.01ms!important;animation-iteration-count:1!important}}`;
 
 const on=(value:unknown)=>!['false','0','off','no',''].includes(String(value??'').trim().toLowerCase());
+const ADR_LABEL=/\b(?:points?|pts)\b/gi;
+function adrLabel(value:string){return value.replace(ADR_LABEL,'ADR')}
+function normalizeAdrUi(root:Node){
+  if(root.nodeType===Node.TEXT_NODE){
+    const parent=(root.parentElement?.tagName||'').toUpperCase();
+    if(parent!=='STYLE'&&parent!=='SCRIPT'&&parent!=='CODE'){
+      const before=root.nodeValue||'';const after=adrLabel(before);if(after!==before)root.nodeValue=after;
+    }
+    return;
+  }
+  if(root instanceof Element){
+    for(const attr of ['placeholder','title','aria-label']){
+      const before=root.getAttribute(attr);if(before){const after=adrLabel(before);if(after!==before)root.setAttribute(attr,after);}
+    }
+  }
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let node:Node|null;
+  while((node=walker.nextNode())){
+    const parent=(node.parentElement?.tagName||'').toUpperCase();
+    if(parent==='STYLE'||parent==='SCRIPT'||parent==='CODE')continue;
+    const before=node.nodeValue||'';const after=adrLabel(before);if(after!==before)node.nodeValue=after;
+  }
+  if(root instanceof Element){
+    root.querySelectorAll('[placeholder],[title],[aria-label]').forEach(el=>{
+      for(const attr of ['placeholder','title','aria-label']){const before=el.getAttribute(attr);if(before){const after=adrLabel(before);if(after!==before)el.setAttribute(attr,after);}}
+    });
+  }
+}
 
 function AppContent(){
  const{isLoading,user,isAdmin,settings}=useApp();const[currentPage,setCurrentPage]=useState<Page>('home');
+ useEffect(()=>{
+  normalizeAdrUi(document.body);
+  const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')normalizeAdrUi(record.target);record.addedNodes.forEach(normalizeAdrUi);if(record.type==='attributes')normalizeAdrUi(record.target);}});
+  observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title','aria-label']});
+  return()=>observer.disconnect();
+ },[]);
  if(isLoading)return <><style>{CSS}</style><div className="app-loading"><div className="app-center" role="status" aria-label="Loading Ads Rewards"><div className="app-loader-stage"><div className="app-orbit"/><div className="app-orbit two"/><div className="app-spark one"><Sparkles/></div><div className="app-spark two"><Sparkles/></div><div className="app-loader-core"><Coins/></div></div><div className="app-brand">ADS REWARDS</div><div className="app-sub">WATCH · EARN · WITHDRAW</div><div className="app-progress"/></div></div></>;
  if(user?.is_banned){
   const support=String(user.support_username||settings.support_username||'').trim().replace(/^@/,'');
