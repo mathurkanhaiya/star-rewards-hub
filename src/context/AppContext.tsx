@@ -30,6 +30,7 @@ const ADMIN_ID = 2139807311;
 function withTimeout<T>(promise:Promise<T>, ms:number, fallback:T):Promise<T> {
   return Promise.race([promise,new Promise<T>((resolve)=>setTimeout(()=>resolve(fallback),ms))]);
 }
+function enabled(value:unknown){return !['false','0','off','no',''].includes(String(value??'').trim().toLowerCase());}
 
 export function AppProvider({ children }:{ children:React.ReactNode }) {
   const [telegramUser,setTelegramUser]=useState<TelegramUser|null>(null);
@@ -43,8 +44,6 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
 
   useEffect(()=>{ initApp(); },[]);
 
-  // Settings stay synchronized without mutating rendered DOM. Components consume settings
-  // directly through useApp(), avoiding MutationObserver feedback loops in Telegram WebView.
   useEffect(()=>{
     const settingsChannel=supabase.channel('settings-changes').on('postgres_changes',{event:'*',schema:'public',table:'settings'},()=>{
       getSettings().then(setSettings).catch(()=>{});
@@ -71,6 +70,14 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
       if (!appUser) throw new Error('Secure Telegram authentication failed');
       setUser(appUser);
 
+      if(appUser.is_banned){
+        setBalance(null);
+        setSettings(appUser.support_username?{support_username:appUser.support_username}:{});
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
       const [bal,s,notifs,unread]=await Promise.all([
         withTimeout(getUserBalance(appUser.id),5000,null),
         withTimeout(getSettings(),5000,{}),
@@ -78,7 +85,8 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
         withTimeout(getUnreadNotifCount(appUser.id),5000,0),
       ]);
       setBalance(bal); setSettings(s); setNotifications(notifs as Notification[]); setUnreadCount(unread);
-      showInterstitialAd().catch(()=>{});
+      const maintenance=enabled(s.maintenance_mode);
+      if(!maintenance||tgUser.id===ADMIN_ID) showInterstitialAd().catch(()=>{});
     } catch(err) {
       console.error('App init error:',err);
       setUser(null); setBalance(null);
@@ -86,13 +94,11 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
   }
 
   const refreshBalance=useCallback(async()=>{
-    if (user) { const bal=await withTimeout(getUserBalance(user.id),5000,null); if (bal) setBalance(bal); }
+    if (user&&!user.is_banned) { const bal=await withTimeout(getUserBalance(user.id),5000,null); if (bal) setBalance(bal); }
   },[user]);
 
-  // Keep balance fresh without forcing a Mini App restart. Polling is intentionally modest
-  // and pauses while the WebView is hidden.
   useEffect(()=>{
-    if(!user) return;
+    if(!user||user.is_banned) return;
     let running=false;
     const sync=async()=>{
       if(running || document.visibilityState==='hidden') return;
@@ -118,7 +124,7 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
   const refreshUser=useCallback(async()=>{ await initApp(); },[]);
 
   const refreshNotifications=useCallback(async()=>{
-    if (user) {
+    if (user&&!user.is_banned) {
       const [notifs,unread]=await Promise.all([
         withTimeout(getNotifications(user.id),5000,[]),
         withTimeout(getUnreadNotifCount(user.id),5000,0),
