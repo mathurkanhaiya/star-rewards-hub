@@ -6,6 +6,7 @@ import {
   adminDeleteTask, adminAdjustBalance, adminGetContests, adminCreateContest,
   adminEndContest, adminSendBroadcast, getTasks, getSettings,
 } from '@/lib/api';
+import { adminGetPvpOverview, type AdminPvpOverview } from '@/lib/pvpApi';
 import { Task, Contest } from '@/types/telegram';
 import AdminUsersTab from '@/components/admin/AdminUsersTab';
 import AdminWithdrawalsTab from '@/components/admin/AdminWithdrawalsTab';
@@ -13,13 +14,14 @@ import AdminTasksTab from '@/components/admin/AdminTasksTab';
 import AdminSettingsTab from '@/components/admin/AdminSettingsTab';
 import AdminContestsTab from '@/components/admin/AdminContestsTab';
 import AdminPromosTab from '@/components/admin/AdminPromosTab';
+import AdminPvpTab from '@/components/admin/AdminPvpTab';
 
-type Tab='dashboard'|'users'|'withdrawals'|'tasks'|'contests'|'promos'|'broadcast'|'settings';
+type Tab='dashboard'|'users'|'withdrawals'|'tasks'|'contests'|'promos'|'pvp'|'broadcast'|'settings';
 
 const tabs:[Tab,string,string][]=[
   ['dashboard','Stats','📊'],['users','Users','👥'],['withdrawals','Withdraw','💸'],
   ['tasks','Tasks','📋'],['contests','Contests','🏆'],['promos','Promos','🎁'],
-  ['broadcast','Broadcast','📢'],['settings','Settings','⚙️'],
+  ['pvp','PvP','🎮'],['broadcast','Broadcast','📢'],['settings','Settings','⚙️'],
 ];
 
 export default function AdminPanel(){
@@ -34,18 +36,19 @@ export default function AdminPanel(){
   const [contests,setContests]=useState<Contest[]>([]);
   const [settings,setSettings]=useState<Record<string,string>>({});
   const [editSettings,setEditSettings]=useState<Record<string,string>>({});
+  const [pvp,setPvp]=useState<AdminPvpOverview|null>(null);
   const [broadcast,setBroadcast]=useState('');
   const [sending,setSending]=useState(false);
 
   async function load(){
     setLoading(true);
-    const [s,u,w,t,c,st]=await Promise.all([
-      adminGetStats(),adminGetUsers(),adminGetWithdrawals(),getTasks(),adminGetContests(),getSettings()
+    const [s,u,w,t,c,st,pv]=await Promise.all([
+      adminGetStats(),adminGetUsers(),adminGetWithdrawals(),getTasks(),adminGetContests(),getSettings(),adminGetPvpOverview()
     ]);
     setStats(s||{});setUsers(u||[]);setWithdrawals(w||[]);setTasks(t||[]);setContests(c||[]);
-    setSettings(st||{});setEditSettings(st||{});setLoading(false);
+    setSettings(st||{});setEditSettings(st||{});setPvp(pv);setLoading(false);
   }
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{void load();},[]);
   function toast(v:string){setMessage(v);setTimeout(()=>setMessage(''),2800);}
 
   const cards=[
@@ -71,6 +74,7 @@ export default function AdminPanel(){
       {tab==='tasks'&&<AdminTasksTab tasks={tasks} onToggle={async(id,active)=>{const r:any=await adminToggleTask(id,active);toast(r.success?'Task updated':r.message||'Failed');await load();}} onDelete={async id=>{const r:any=await adminDeleteTask(id);toast(r.success?'Task deleted':r.message||'Failed');await load();}} onCreate={async task=>{const r:any=await adminCreateTask(task);toast(r.success?'Task created ✓':r.message||'Failed');await load();}}/>}
       {tab==='contests'&&<AdminContestsTab contests={contests} onCreateContest={async contest=>{const r:any=await adminCreateContest(contest);toast(r.success?'Contest created':r.message||'Failed');await load();}} onEndContest={async id=>{const r:any=await adminEndContest(id);toast(r.success?'Contest rewards sent':r.message||'Failed');await load();}}/>}
       {tab==='promos'&&<AdminPromosTab onMessage={toast}/>} 
+      {tab==='pvp'&&<AdminPvpTab overview={pvp} onSave={async(key,value)=>{const r:any=await adminUpdateSetting(key,value);if(!r.success){toast(r.message||'PvP setting update failed');return;}toast('PvP setting saved ✓');const next=await adminGetPvpOverview();setPvp(next);const fresh=await getSettings();setSettings(fresh);setEditSettings(fresh);}}/>}
       {tab==='broadcast'&&<><div className="ap-section">Broadcast message</div><textarea className="ap-text" value={broadcast} onChange={e=>setBroadcast(e.target.value)} placeholder="Message to all users"/><button className="ap-send" disabled={sending||!broadcast.trim()} onClick={async()=>{if(!telegramUser)return;setSending(true);const r:any=await adminSendBroadcast(broadcast,telegramUser.id);toast(r.success?'Broadcast sent':r.message||'Failed');if(r.success)setBroadcast('');setSending(false);}}>📢 {sending?'Sending…':'Send Broadcast'}</button></>}
       {tab==='settings'&&<AdminSettingsTab settings={settings} editSettings={editSettings} setEditSettings={setEditSettings} saving={null} onSave={async key=>{const r:any=await adminUpdateSetting(key,editSettings[key]);if(r.success){toast(`${key} saved ✓`);await refreshUser();await load();}else toast(r.message||'Failed');}}/>}
     </>}
