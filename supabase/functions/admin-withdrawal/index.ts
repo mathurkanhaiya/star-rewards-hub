@@ -1,68 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
 import { requireTelegramUser, secureCorsHeaders as corsHeaders } from "../_shared/telegramAuth.ts";
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-  try {
-    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { telegramUser } = await requireTelegramUser(req, supabase);
-    const adminId = Number(Deno.env.get('ADMIN_TELEGRAM_ID') || '2139807311');
-    if (telegramUser.id !== adminId) throw new Error('Admin access required');
-
-    const { withdrawalId, status, adminNote } = await req.json();
-    if (!withdrawalId || !['approved','rejected'].includes(status)) throw new Error('Invalid withdrawal update');
-
-    const { data: withdrawal } = await supabase.from('withdrawals')
-      .select('user_id,points_spent,amount,method,status')
-      .eq('id', withdrawalId).single();
-    if (!withdrawal) throw new Error('Withdrawal not found');
-    if (withdrawal.status !== 'pending') throw new Error('Withdrawal already processed');
-
-    const { data: updated, error } = await supabase.from('withdrawals')
-      .update({ status, admin_note:String(adminNote || '').slice(0,500) || null, processed_at:new Date().toISOString() })
-      .eq('id', withdrawalId).eq('status','pending').select('id').maybeSingle();
-    if (error || !updated) throw new Error('Withdrawal status changed; refresh and try again');
-
-    if (status === 'rejected') {
-      const { data: balance } = await supabase.from('balances').select('points,total_withdrawn').eq('user_id', withdrawal.user_id).single();
-      if (balance) {
-        await supabase.from('balances').update({
-          points:Number(balance.points)+Number(withdrawal.points_spent),
-          total_withdrawn:Math.max(0,Number(balance.total_withdrawn||0)-Number(withdrawal.points_spent)),
-        }).eq('user_id',withdrawal.user_id);
-        await supabase.from('transactions').insert({
-          user_id:withdrawal.user_id,type:'refund',points:withdrawal.points_spent,
-          description:`🔄 Withdrawal rejected — ${Number(withdrawal.points_spent).toLocaleString()} pts refunded`,
-          reference_id:withdrawalId,
-        });
-      }
-    }
-
-    const methodLabel = withdrawal.method === 'usdt_polygon'
-      ? 'USDT · Polygon'
-      : withdrawal.method === 'ton'
-        ? 'GRAM (TON)'
-        : withdrawal.method === 'upi'
-          ? 'INR · UPI'
-          : String(withdrawal.method).toUpperCase();
-    const amountLabel = withdrawal.method === 'upi'
-      ? `₹${Number(withdrawal.amount).toFixed(2)}`
-      : withdrawal.method === 'usdt_polygon'
-        ? `${Number(withdrawal.amount).toFixed(4)} USDT`
-        : `${Number(withdrawal.amount).toFixed(4)} TON`;
-
-    const title=status==='approved'?'✅ Withdrawal Approved!':'❌ Withdrawal Rejected';
-    const message=status==='approved'
-      ? `Your ${methodLabel} withdrawal of ${amountLabel} was approved.`
-      : `Your ${methodLabel} withdrawal was rejected and ${Number(withdrawal.points_spent).toLocaleString()} points were refunded.${adminNote?` Reason: ${String(adminNote).slice(0,300)}`:''}`;
-    await supabase.from('notifications').insert({ user_id:withdrawal.user_id,title,message,type:'withdrawal' });
-
-    await supabase.from('admin_logs').insert({ admin_telegram_id:telegramUser.id, action:`withdrawal_${status}`, target_user_id:withdrawal.user_id, details:{ withdrawalId, method:withdrawal.method, adminNote:String(adminNote||'').slice(0,500) } });
-    return new Response(JSON.stringify({success:true}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
-  } catch(error) {
-    const message=(error as Error).message;
-    const status=/Admin access/i.test(message)?403:/Telegram|registered|banned|expired|signature/i.test(message)?401:400;
-    return new Response(JSON.stringify({success:false,message}),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
-  }
-});
+const BOT_TOKEN=Deno.env.get('TELEGRAM_BOT_TOKEN')||'';const APP_URL='https://t.me/Adsrewartsbot/app';const PAYOUT_CHANNEL='@Adr_pay';
+const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{...corsHeaders,'Content-Type':'application/json'}});const esc=(v:unknown)=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');const fmtIst=(v:unknown)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(String(v))).replace(',',' ·');const methodLabel=(m:string)=>m==='usdt_polygon'?'USDT · Polygon':m==='ton'?'GRAM · TON':m==='upi'?'INR · UPI':m;const amountLabel=(m:string,a:number)=>m==='upi'?`₹${a.toFixed(2)}`:m==='usdt_polygon'?`$${a.toFixed(4)}`:`${a.toFixed(6)} TON`;const explorer=(m:string,t:string|null)=>!t?null:m==='usdt_polygon'?`https://polygonscan.com/tx/${encodeURIComponent(t)}`:m==='ton'?`https://tonviewer.com/transaction/${encodeURIComponent(t)}`:null;
+async function tg(method:string,payload:Record<string,unknown>){const r=await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const b=await r.json().catch(()=>({ok:false,description:'Invalid Telegram response'}));if(!r.ok||!b.ok)throw new Error(String(b.description||`Telegram ${method} failed`));return b.result}async function requireAdmin(sb:any,id:number){const fb=Number(Deno.env.get('ADMIN_TELEGRAM_ID')||'2139807311');const{data}=await sb.from('settings').select('value').eq('key','bot_admin_telegram_ids').maybeSingle();const ids=new Set(String(data?.value||fb).split(',').map((x:string)=>Number(x.trim())).filter(Number.isSafeInteger));if(!ids.has(id))throw new Error('Admin access required')}async function load(sb:any,id:string){const{data,error}=await sb.from('withdrawals').select('*,users(first_name,last_name,username,telegram_id)').eq('id',id).single();if(error||!data)throw error||new Error('Withdrawal not found');return data}
+function paid(w:any){const u=w.users||{},n=[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',tx=String(w.txid||w.payment_reference||''),ex=explorer(w.method,w.txid);return [`💸 <b>WITHDRAWAL PAID</b>`,``,`🧾 <b>Withdrawal ID:</b> <code>${esc(w.public_id)}</code>`,`✅ <b>Status:</b> Paid`,``,`👤 <b>User</b>`,`Name: ${esc(n)}`,`Username: ${u.username?'@'+esc(u.username):'—'}`,`Telegram ID: <code>${esc(u.telegram_id)}</code>`,``,`💰 <b>Withdrawal</b>`,`ADR Deducted: <b>${Number(w.points_spent).toLocaleString('en-US')} ADR</b>`,`User Receives: <b>${esc(amountLabel(w.method,Number(w.amount)))}</b>`,`Fee: <b>${w.method==='upi'?'₹':'$'}${Number(w.fee||0).toFixed(2)}</b>`,`Method: ${esc(methodLabel(w.method))}`,``,`🏦 <b>Destination</b>`,`${w.method==='upi'?'UPI ID':'Wallet'}: <code>${esc(w.wallet_address||'—')}</code>`,``,`🔗 <b>Transaction</b>`,`${w.method==='upi'?'UTR / Reference':'TXID'}: <code>${esc(tx||'—')}</code>`,ex?`Explorer: <a href="${ex}">View transaction</a>`:'',``,`🕒 <b>Details</b>`,`Requested: ${fmtIst(w.created_at)} IST`,`Processed: ${fmtIst(w.processed_at)} IST`,`Processed By: ${esc(w.processed_by_name||'Admin')} · <code>${esc(w.processed_by)}</code>`,``,`AdsReward • @Adr_pay`].filter(Boolean).join('\n')}
+function rejected(w:any){const u=w.users||{},n=[u.first_name,u.last_name].filter(Boolean).join(' ')||'User';return [`❌ <b>WITHDRAWAL REJECTED</b>`,``,`🧾 <b>Withdrawal ID:</b> <code>${esc(w.public_id)}</code>`,`❌ <b>Status:</b> Rejected`,``,`👤 <b>User</b>`,`Name: ${esc(n)}`,`Username: ${u.username?'@'+esc(u.username):'—'}`,`Telegram ID: <code>${esc(u.telegram_id)}</code>`,``,`💰 <b>Withdrawal</b>`,`ADR Deducted: <b>${Number(w.points_spent).toLocaleString('en-US')} ADR</b>`,`Requested Amount: <b>${esc(amountLabel(w.method,Number(w.amount)))}</b>`,`Method: ${esc(methodLabel(w.method))}`,``,`🏦 <b>Destination</b>`,`${w.method==='upi'?'UPI ID':'Wallet'}: <code>${esc(w.wallet_address||'—')}</code>`,``,`⚠️ <b>Rejection</b>`,`Reason: ${esc(w.rejection_reason||w.admin_note||'Rejected')}`,``,`↩️ Balance Refund: ❌ No refund`,``,`🕒 <b>Details</b>`,`Requested: ${fmtIst(w.created_at)} IST`,`Rejected: ${fmtIst(w.processed_at)} IST`,`Rejected By: ${esc(w.processed_by_name||'Admin')} · <code>${esc(w.processed_by)}</code>`,``,`AdsReward • @Adr_pay`].join('\n')}
+async function upsertD(sb:any,wid:string,key:string,c:any){await sb.from('withdrawal_log_deliveries').upsert({withdrawal_id:wid,destination_key:key,chat_id:c.id??null,chat_title:c.title||c.username||key,chat_type:c.type||'unknown',updated_at:new Date().toISOString()},{onConflict:'withdrawal_id,destination_key'})}
+async function deliver(sb:any,w:any,retryOnly=false){if(!['paid','rejected'].includes(w.status))return[];const bot=await tg('getMe',{}),targets=new Map<string,any>();try{const c=await tg('getChat',{chat_id:PAYOUT_CHANNEL});targets.set('channel:@Adr_pay',c)}catch(e){await upsertD(sb,w.id,'channel:@Adr_pay',{id:null,title:PAYOUT_CHANNEL,type:'channel'});const{data:d}=await sb.from('withdrawal_log_deliveries').select('id,attempt_count').eq('withdrawal_id',w.id).eq('destination_key','channel:@Adr_pay').single();await sb.from('withdrawal_log_deliveries').update({delivery_status:'failed',delivery_error:String((e as Error).message).slice(0,1000),attempt_count:Number(d?.attempt_count||0)+1,last_attempt_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',d.id)}const{data:tracked}=await sb.from('telegram_bot_chats').select('*').eq('is_active',true);for(const c of tracked||[]){if([...targets.values()].some((x:any)=>String(x.id)===String(c.chat_id)))continue;targets.set(`chat:${c.chat_id}`,{id:c.chat_id,title:c.chat_title,username:c.chat_username,type:c.chat_type})}const out:any[]=[];for(const[key,c]of targets){await upsertD(sb,w.id,key,c);const{data:d}=await sb.from('withdrawal_log_deliveries').select('*').eq('withdrawal_id',w.id).eq('destination_key',key).single();if(d?.delivery_status==='sent'){out.push({chatId:c.id,status:'sent',skipped:true});continue}if(retryOnly&&!['failed','pending','processing'].includes(String(d?.delivery_status)))continue;await sb.from('withdrawal_log_deliveries').update({delivery_status:'processing',attempt_count:Number(d?.attempt_count||0)+1,last_attempt_at:new Date().toISOString(),delivery_error:null,updated_at:new Date().toISOString()}).eq('id',d.id).neq('delivery_status','sent');try{if(key!=='channel:@Adr_pay'){const m=await tg('getChatMember',{chat_id:c.id,user_id:bot.id});if(!['administrator','creator'].includes(String(m.status)))throw new Error('bot is not an admin')}const ex=explorer(w.method,w.txid),kb:any[][]=[[{text:'🚀 Open AdsReward',url:APP_URL}]];if(w.status==='paid'&&ex)kb.push([{text:'🔗 View Transaction',url:ex}]);const s=await tg('sendMessage',{chat_id:c.id,text:w.status==='paid'?paid(w):rejected(w),parse_mode:'HTML',disable_web_page_preview:true,reply_markup:{inline_keyboard:kb}});await sb.from('withdrawal_log_deliveries').update({delivery_status:'sent',message_id:Number(s.message_id),sent_at:new Date().toISOString(),delivery_error:null,updated_at:new Date().toISOString()}).eq('id',d.id);out.push({chatId:c.id,status:'sent',messageId:s.message_id})}catch(e){await sb.from('withdrawal_log_deliveries').update({delivery_status:'failed',delivery_error:String((e as Error).message).slice(0,1000),updated_at:new Date().toISOString()}).eq('id',d.id);out.push({chatId:c.id,status:'failed',error:String((e as Error).message)})}}return out}
+serve(async(req)=>{if(req.method==='OPTIONS')return new Response(null,{headers:corsHeaders});try{const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}}),{telegramUser}=await requireTelegramUser(req,sb);await requireAdmin(sb,telegramUser.id);const b=await req.json().catch(()=>({})),action=String(b.action||''),wid=String(b.withdrawalId||'');if(!wid)throw new Error('Withdrawal ID required');if(action==='retry-log'){const w=await load(sb,wid);if(!['paid','rejected'].includes(w.status))throw new Error('Only final withdrawals can resend logs');return json({success:true,status:w.status,deliveries:await deliver(sb,w,true)})}const dbAction=action==='approved'?'approve':action==='paid'?'paid':action==='rejected'?'reject':'';if(!dbAction)throw new Error('Invalid withdrawal action');const adminName=[telegramUser.first_name,telegramUser.last_name].filter(Boolean).join(' ')||telegramUser.username||'Admin';const{data,error}=await sb.rpc('process_withdrawal_admin',{p_withdrawal_id:wid,p_action:dbAction,p_admin_telegram_id:telegramUser.id,p_admin_name:adminName,p_txid:b.txid||null,p_payment_reference:b.paymentReference||null,p_rejection_reason:b.rejectionReason||b.adminNote||null,p_fee:Number(b.fee||0)});if(error)throw error;const w=await load(sb,wid),deliveries=['paid','rejected'].includes(w.status)?await deliver(sb,w,false):[];await sb.from('notifications').insert({user_id:w.user_id,title:w.status==='paid'?'Withdrawal Paid':w.status==='rejected'?'Withdrawal Rejected':'Withdrawal Approved',message:w.status==='paid'?`${w.public_id} paid successfully.`:w.status==='rejected'?`${w.public_id} rejected. No ADR refund. Reason: ${w.rejection_reason}`:`${w.public_id} approved and awaiting payment.`,type:'withdrawal'});return json({success:true,data,status:w.status,deliveries})}catch(e){const m=(e as Error).message,s=/Admin access/i.test(m)?403:/Telegram|registered|banned|expired|signature/i.test(m)?401:400;return json({success:false,message:m},s)}});
