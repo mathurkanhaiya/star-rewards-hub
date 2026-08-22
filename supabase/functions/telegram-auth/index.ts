@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
 import { verifyTelegramInitData, secureCorsHeaders as corsHeaders } from "../_shared/telegramAuth.ts";
 
-const APP_URL='https://t.me/Adsrewartsbot/app';
+const APP_URL='https://star-rewards-hub.vercel.app';
 const esc=(v:unknown)=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const joinedIst=(v:string)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(v)).replace(',','')+' IST';
 const languageName=(code:string)=>({en:'English',hi:'Hindi',ru:'Russian',bn:'Bengali',id:'Indonesian',tr:'Turkish',es:'Spanish',pt:'Portuguese',fr:'French',de:'German',uk:'Ukrainian',zh:'Chinese'} as Record<string,string>)[code]||code.toUpperCase()||'Unknown';
@@ -24,9 +24,9 @@ async function sendNewUserAlert(supabase:any,botToken:string,user:any,tgUser:any
     const name=[tgUser.first_name,tgUser.last_name].filter(Boolean).join(' ')||'User';
     const lang=String(tgUser.language_code||user.bot_language||'').toLowerCase().split('-')[0];
     const text=`👤 <b>New User Joined</b>\n\nName: ${esc(name)}\nUsername: ${tgUser.username?'@'+esc(tgUser.username):'—'}\nTelegram ID: <code>${esc(tgUser.id)}</code>\nLanguage: ${esc(languageName(lang))}\nPremium: ${tgUser.is_premium?'Yes':'No'}\nReferred By: ${esc(referredBy)}\n\n📊 Total Users: <b>${Number(totalUsers||0).toLocaleString()}</b>\n🕒 Joined: ${joinedIst(user.created_at||new Date().toISOString())}\n\nAdsReward • New User Alert`;
-    const viewUser=`${APP_URL}?startapp=admin_user_${encodeURIComponent(String(tgUser.id))}`;
-    const openAdmin=`${APP_URL}?startapp=admin`;
-    const r=await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:adminChat,text,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'👤 View User',url:viewUser},{text:'🚀 Open Admin',url:openAdmin}]]}})});
+    const viewUser=`${APP_URL}/?page=admin&user=${encodeURIComponent(String(tgUser.id))}`;
+    const openAdmin=`${APP_URL}/?page=admin`;
+    const r=await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:adminChat,text,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'👤 View User',web_app:{url:viewUser}},{text:'🚀 Open Admin',web_app:{url:openAdmin}}]]}})});
     const b=await r.json().catch(()=>null);if(!r.ok||!b?.ok)console.error('new user alert failed',b?.description||r.status);
   }catch(e){console.error('new user alert error',e)}
 }
