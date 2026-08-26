@@ -1,3 +1,5 @@
+import {AD_CTA_REQUIRED_MESSAGE,trackAdFocusLoss} from './adFocus';
+
 export type RewardAdProvider='adsgram'|'monetag'|'gigapub';
 
 declare global {
@@ -19,10 +21,16 @@ export async function showRewardAd(provider:RewardAdProvider):Promise<void>{
   if(provider==='adsgram'){
     if(!window.Adsgram?.init) throw new Error('Adsgram is not available right now');
     const controller=window.Adsgram.init({blockId:ADSGRAM_BLOCK,debug:false});
+    const focusTracker=trackAdFocusLoss();
     try{
+      focusTracker.start();
       const result=await controller.show();
       if(!result?.done) throw new Error('Ad was not completed');
-    } finally { try{controller.destroy?.()}catch{} }
+      if(!focusTracker.clicked()) throw new Error(AD_CTA_REQUIRED_MESSAGE);
+    } finally {
+      focusTracker.stop();
+      try{controller.destroy?.()}catch{}
+    }
     return;
   }
   if(provider==='monetag'){
