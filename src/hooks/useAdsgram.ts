@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import {AD_CTA_REQUIRED_MESSAGE,trackAdFocusLoss} from '@/lib/adFocus';
+import {grantPartialAdReward,partialRewardMessage,trackAdFocusLoss} from '@/lib/adFocus';
 
 declare global {
   interface Window {
@@ -21,7 +21,10 @@ export function useRewardedAd(onReward:()=>void){
    focusTracker.start();
    const result=await adRef.current.show();
    if(!result?.done)return false;
-   if(!focusTracker.clicked())throw new Error(AD_CTA_REQUIRED_MESSAGE);
+   if(!focusTracker.clicked()){
+    await grantPartialAdReward('adsgram');
+    return false;
+   }
    onReward();
    return true;
   }catch{return false}finally{focusTracker.stop()}
@@ -38,7 +41,10 @@ export async function showInterstitialAd():Promise<boolean>{
    focusTracker.start();
    const result=await ad.show();
    if(!result?.done)throw new Error(result?.description||'Ad was not completed');
-   if(!focusTracker.clicked())throw new Error(AD_CTA_REQUIRED_MESSAGE);
+   if(!focusTracker.clicked()){
+    const partial=await grantPartialAdReward('adsgram');
+    throw new Error(partialRewardMessage(partial));
+   }
    return true;
   }finally{try{ad.destroy?.()}catch{}}
  }finally{focusTracker.stop()}
