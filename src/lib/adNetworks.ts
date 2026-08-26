@@ -1,4 +1,4 @@
-import {grantPartialAdReward,partialRewardMessage,trackAdFocusLoss} from './adFocus';
+import {grantPartialAdReward,PartialAdRewardError,trackAdFocusLoss} from './adFocus';
 
 export type RewardAdProvider='adsgram'|'monetag'|'gigapub';
 
@@ -28,7 +28,7 @@ export async function showRewardAd(provider:RewardAdProvider):Promise<void>{
       if(!result?.done) throw new Error('Ad was not completed');
       if(!focusTracker.clicked()){
         const partial=await grantPartialAdReward('adsgram');
-        throw new Error(partialRewardMessage(partial));
+        throw new PartialAdRewardError(partial);
       }
     } finally {
       focusTracker.stop();
