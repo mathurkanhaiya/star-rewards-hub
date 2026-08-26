@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
+import {AD_CTA_REQUIRED_MESSAGE,trackAdFocusLoss} from '@/lib/adFocus';
 
 declare global {
   interface Window {
@@ -15,11 +16,29 @@ export function useRewardedAd(onReward:()=>void){
  const showAd=useCallback(async():Promise<boolean>=>{
   if(!window.Telegram?.WebApp?.initData||!window.Adsgram?.init)return false;
   if(!adRef.current)adRef.current=window.Adsgram.init({blockId:REWARDED_ID,debug:false});
-  try{const result=await adRef.current.show();if(result?.done){onReward();return true}return false}catch{return false}
+  const focusTracker=trackAdFocusLoss();
+  try{
+   focusTracker.start();
+   const result=await adRef.current.show();
+   if(!result?.done)return false;
+   if(!focusTracker.clicked())throw new Error(AD_CTA_REQUIRED_MESSAGE);
+   onReward();
+   return true;
+  }catch{return false}finally{focusTracker.stop()}
  },[onReward]);
  return{showAd};
 }
 export async function showInterstitialAd():Promise<boolean>{
  if(!window.Telegram?.WebApp?.initData||!window.Adsgram?.init)return false;
- try{const ad=window.Adsgram.init({blockId:INTERSTITIAL_ID,debug:false});try{const result=await ad.show();return !!result?.done}finally{try{ad.destroy?.()}catch{}}}catch{return false}
+ const focusTracker=trackAdFocusLoss();
+ try{
+  const ad=window.Adsgram.init({blockId:INTERSTITIAL_ID,debug:false});
+  try{
+   focusTracker.start();
+   const result=await ad.show();
+   if(!result?.done)return false;
+   if(!focusTracker.clicked())throw new Error(AD_CTA_REQUIRED_MESSAGE);
+   return true;
+  }finally{try{ad.destroy?.()}catch{}}
+ }finally{focusTracker.stop()}
 }
