@@ -1,4 +1,5 @@
 import { AppUser, UserBalance, Task, Withdrawal, LeaderboardEntry } from '@/types/telegram';
+import { showRewardAd } from '@/lib/adNetworks';
 
 const SUPABASE_URL = 'https://eoppaqrqlpyqoizohoba.supabase.co';
 const EDGE_FN = `${SUPABASE_URL}/functions/v1`;
@@ -99,7 +100,10 @@ export async function getUnreadNotifCount(_userId:string):Promise<number>{try{re
 export type PromoClaimResult={success:boolean;code?:string;promoCode?:string;reward?:number;balance?:number;title?:string;message?:string};
 export type AdminPromo={id:string;code:string;title:string;reward_points:number;max_claims:number;total_claimed:number;is_active:boolean;expires_at:string|null;created_at:string;updated_at?:string};
 export async function claimPromoCode(code:string):Promise<PromoClaimResult>{
-  try{return await edgePost<PromoClaimResult>('promo-api',{action:'claim',code:code.trim().toUpperCase()});}
+  try{
+    await showRewardAd('adsgram');
+    return await edgePost<PromoClaimResult>('promo-api',{action:'claim',code:code.trim().toUpperCase()});
+  }
   catch(e){return{success:false,message:(e as Error).message};}
 }
 export async function adminGetPromos():Promise<AdminPromo[]>{try{return(await edgePost<{success:boolean;data:AdminPromo[]}>('promo-api',{action:'admin-list'})).data||[];}catch(err){console.error('admin promos error:',err);return[];}}
