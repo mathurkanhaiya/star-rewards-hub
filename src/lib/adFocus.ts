@@ -1,25 +1,29 @@
 export type AdFocusTracker={start:()=>void;clicked:()=>boolean;stop:()=>void};
 
-type PartialRewardResult={success:boolean;points:number;left:number;fullReward:number;awardedNow:boolean;message?:string};
+export type PartialRewardResult={success:boolean;points:number;left:number;fullReward:number;awardedNow:boolean;message?:string};
 
 const SUPABASE_URL='https://eoppaqrqlpyqoizohoba.supabase.co';
 const ANON_KEY='sb_publishable_DJ7o0hTt3DPL8O_3HbAWuw_NkdvY0na';
+const MIN_HIDDEN_MS=450;
 
 export function trackAdFocusLoss():AdFocusTracker{
- let interacted=false;
  let adStarted=false;
- const mark=()=>{if(adStarted)interacted=true};
- const onVisibility=()=>{if(document.visibilityState==='hidden')mark()};
- const onBlur=()=>mark();
- document.addEventListener('visibilitychange',onVisibility,true);
- window.addEventListener('blur',onBlur,true);
- return{
-  start:()=>{adStarted=true},
-  clicked:()=>interacted,
-  stop:()=>{
-   document.removeEventListener('visibilitychange',onVisibility,true);
-   window.removeEventListener('blur',onBlur,true);
+ let hiddenSince=0;
+ let interacted=false;
+ const onVisibility=()=>{
+  if(!adStarted)return;
+  if(document.visibilityState==='hidden'){
+   hiddenSince=Date.now();
+   return;
   }
+  if(hiddenSince>0&&Date.now()-hiddenSince>=MIN_HIDDEN_MS)interacted=true;
+  hiddenSince=0;
+ };
+ document.addEventListener('visibilitychange',onVisibility,true);
+ return{
+  start:()=>{adStarted=true;hiddenSince=0;interacted=false},
+  clicked:()=>interacted||(adStarted&&document.visibilityState==='hidden'&&hiddenSince>0&&Date.now()-hiddenSince>=MIN_HIDDEN_MS),
+  stop:()=>{document.removeEventListener('visibilitychange',onVisibility,true)}
  };
 }
 
@@ -36,10 +40,9 @@ export async function grantPartialAdReward(provider='adsgram'):Promise<PartialRe
  return{success:true,points:Number(data.points||0),left:Number(data.left||0),fullReward:Number(data.fullReward||0),awardedNow:data.awardedNow!==false,message:data.message};
 }
 
-export function partialRewardMessage(result:PartialRewardResult){
- return result.awardedNow
-  ? `+${result.points} ADR received. You can get the remaining ${result.left} ADR if you tap the ad / CTA and watch again.`
-  : `You already received ${result.points} ADR from this ad. Tap the ad / CTA and watch again to get the remaining ${result.left} ADR.`;
+export class PartialAdRewardError extends Error{
+ result:PartialRewardResult;
+ constructor(result:PartialRewardResult){super('Partial ad reward');this.name='PartialAdRewardError';this.result=result;}
 }
 
 export const AD_CTA_REQUIRED_MESSAGE='Tap the ad / CTA (Visit, Play or Open) before finishing the ad to unlock the full reward.';
