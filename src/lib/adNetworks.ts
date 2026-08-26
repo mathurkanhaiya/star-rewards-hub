@@ -1,4 +1,4 @@
-import {grantPartialAdReward,PartialAdRewardError,trackAdFocusLoss} from './adFocus';
+import {grantPartialAdReward,PartialAdRewardError,showPartialRewardPopup,trackAdFocusLoss} from './adFocus';
 
 export type RewardAdProvider='adsgram'|'monetag'|'gigapub';
 
@@ -20,21 +20,23 @@ export async function showRewardAd(provider:RewardAdProvider):Promise<void>{
   ensureTelegram();
   if(provider==='adsgram'){
     if(!window.Adsgram?.init) throw new Error('Adsgram is not available right now');
-    const controller=window.Adsgram.init({blockId:ADSGRAM_BLOCK,debug:false});
-    const focusTracker=trackAdFocusLoss();
-    try{
-      focusTracker.start();
-      const result=await controller.show();
-      if(!result?.done) throw new Error('Ad was not completed');
-      if(!focusTracker.clicked()){
+    while(true){
+      const controller=window.Adsgram.init({blockId:ADSGRAM_BLOCK,debug:false});
+      const focusTracker=trackAdFocusLoss();
+      try{
+        focusTracker.start();
+        const result=await controller.show();
+        if(!result?.done) throw new Error('Ad was not completed');
+        if(focusTracker.clicked()) return;
         const partial=await grantPartialAdReward('adsgram');
+        const action=await showPartialRewardPopup(partial);
+        if(action==='retry') continue;
         throw new PartialAdRewardError(partial);
+      } finally {
+        focusTracker.stop();
+        try{controller.destroy?.()}catch{}
       }
-    } finally {
-      focusTracker.stop();
-      try{controller.destroy?.()}catch{}
     }
-    return;
   }
   if(provider==='monetag'){
     const fn=window.show_10742752;
