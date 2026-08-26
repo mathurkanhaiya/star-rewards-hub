@@ -29,14 +29,15 @@ export function useRewardedAd(onReward:()=>void){
  return{showAd};
 }
 export async function showInterstitialAd():Promise<boolean>{
- if(!window.Telegram?.WebApp?.initData||!window.Adsgram?.init)return false;
+ if(!window.Telegram?.WebApp?.initData)throw new Error('Open the Mini App inside Telegram');
+ if(!window.Adsgram?.init)throw new Error('Adsgram is not available right now');
  const focusTracker=trackAdFocusLoss();
  try{
   const ad=window.Adsgram.init({blockId:INTERSTITIAL_ID,debug:false});
   try{
    focusTracker.start();
    const result=await ad.show();
-   if(!result?.done)return false;
+   if(!result?.done)throw new Error(result?.description||'Ad was not completed');
    if(!focusTracker.clicked())throw new Error(AD_CTA_REQUIRED_MESSAGE);
    return true;
   }finally{try{ad.destroy?.()}catch{}}
