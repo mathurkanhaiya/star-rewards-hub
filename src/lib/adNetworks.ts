@@ -1,4 +1,4 @@
-import {AD_CTA_REQUIRED_MESSAGE,trackAdFocusLoss} from './adFocus';
+import {grantPartialAdReward,partialRewardMessage,trackAdFocusLoss} from './adFocus';
 
 export type RewardAdProvider='adsgram'|'monetag'|'gigapub';
 
@@ -26,7 +26,10 @@ export async function showRewardAd(provider:RewardAdProvider):Promise<void>{
       focusTracker.start();
       const result=await controller.show();
       if(!result?.done) throw new Error('Ad was not completed');
-      if(!focusTracker.clicked()) throw new Error(AD_CTA_REQUIRED_MESSAGE);
+      if(!focusTracker.clicked()){
+        const partial=await grantPartialAdReward('adsgram');
+        throw new Error(partialRewardMessage(partial));
+      }
     } finally {
       focusTracker.stop();
       try{controller.destroy?.()}catch{}
