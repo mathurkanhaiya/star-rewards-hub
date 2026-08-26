@@ -40,6 +40,12 @@ export async function grantPartialAdReward(provider='adsgram'):Promise<PartialRe
  return{success:true,points:Number(data.points||0),left:Number(data.left||0),fullReward:Number(data.fullReward||0),awardedNow:data.awardedNow!==false,message:data.message};
 }
 
+export function partialRewardMessage(result:PartialRewardResult){
+ return result.awardedNow
+  ? `+${result.points} ADR received. You can get the remaining ${result.left} ADR if you tap the ad / CTA and watch again.`
+  : `You already received ${result.points} ADR. Tap the ad / CTA and watch again to get the remaining ${result.left} ADR.`;
+}
+
 export function showPartialRewardPopup(result:PartialRewardResult):Promise<'retry'|'close'>{
  return new Promise(resolve=>{
   const old=document.getElementById('adr-partial-ad-popup');
