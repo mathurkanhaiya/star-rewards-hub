@@ -19,6 +19,11 @@ serve(async(req)=>{
       const{data,error}=await supabase.rpc('claim_adsgram_task_reward',{p_user_id:appUser.id});if(error)throw error;
       return json(data||{success:false,message:'Task reward could not be verified'});
     }
+    if(adType==='ad_partial'){
+      if(provider!=='adsgram')throw new Error('Partial reward is only available for AdsGram');
+      const{data,error}=await supabase.rpc('claim_ad_partial_reward',{p_user_id:appUser.id,p_provider:'adsgram'});if(error)throw error;
+      return json(data||{success:false,message:'Partial ad reward could not be credited'});
+    }
     if(adType!=='ad_watch')throw new Error('Invalid rewarded ad type');
     if(!['adsgram','monetag','gigapub'].includes(provider))throw new Error('Invalid ad provider');
     const{data,error}=await supabase.rpc('claim_ad_reward',{p_user_id:appUser.id,p_provider:provider as AdProvider});if(error)throw error;
