@@ -159,7 +159,7 @@ export default function HomePage(){
     <button className="hv-ad-action" disabled={Boolean(busy)||adsgramDisabled||adsgramLimit||adsgramWaiting} onClick={()=>void watch('adsgram')} aria-label="Watch AdsGram ad">{busy==='adsgram'?<RefreshCw className="hv-spin"/>:<AdsgramStateIcon/>}{adsgramDisabled?'Ads unavailable':adsgramLimit?'Daily limit reached':adsgramWaiting?`Next ad in ${fmt(adsgramCooldown)}`:'Watch ad & earn'}</button>
     <div className="hv-ad-note"><Info/><span>Complete the ad normally to receive your reward. Closing before completion cancels the reward. Daily reset in {fmt(new Date(adState.nextResetAt).getTime()-now)}.</span></div>
    </section>:<section className="hv-card full"><div className="hv-info"><Info/><span>AdsGram is temporarily unavailable. Your other rewards still work.</span></div><button className="hv-btn secondary" onClick={()=>void load()}><RefreshCw/>Retry ads</button></section>}
-   <div className="hv-sponsored"><AdsgramTask blockId="task-25198" rewardAmount={10}/></div>
+   <div className="hv-sponsored"><AdsgramTask blockId="task-44758" rewardAmount={10}/></div>
    <div className="hv-section">{t('history')}</div>
    {transactions.length===0?<div className="hv-sub" style={{padding:'12px 2px'}}>{t('noTransactions')}</div>:transactions.map(transaction=><div className="hv-tx" key={transaction.id}><Sparkles/><div className="hv-tx-main"><div className="hv-tx-title">{String(transaction.type||'reward').replaceAll('_',' ')}</div></div><div className="hv-tx-points">{Number(transaction.points)>0?'+':''}{Number(transaction.points||0)} ADR</div></div>)}
   </>}
