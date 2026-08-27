@@ -8,7 +8,7 @@ declare global {
 }
 interface AdController { show:()=>Promise<{done:boolean;description?:string;state?:string;error?:boolean}>; destroy?:()=>void; }
 const INTERSTITIAL_ID='int-23322';
-const REWARDED_ID='23390';
+const REWARDED_ID='44757';
 
 export function useRewardedAd(onReward:()=>void){
  const adRef=useRef<AdController|null>(null);
