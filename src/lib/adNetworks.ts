@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-const ADSGRAM_BLOCK='23390';
+const ADSGRAM_BLOCK='44757';
 
 function ensureTelegram(){
   if(!window.Telegram?.WebApp?.initData) throw new Error('Open the Mini App inside Telegram');
