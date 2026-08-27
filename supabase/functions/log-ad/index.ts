@@ -15,7 +15,7 @@ serve(async(req)=>{
     const body=await req.json();const{adType,provider='adsgram',blockId}=body;providerName=String(provider);adKind=String(adType);
     if(adType==='adsgram_task'){
       providerName='adsgram';
-      if(blockId!=='task-25198')throw new Error('Invalid Adsgram task block');
+      if(blockId!=='task-44758')throw new Error('Invalid Adsgram task block');
       const{data,error}=await supabase.rpc('claim_adsgram_task_reward',{p_user_id:appUser.id});if(error)throw error;
       return json(data||{success:false,message:'Task reward could not be verified'});
     }
