@@ -15,13 +15,14 @@ import AdminSettingsTab from '@/components/admin/AdminSettingsTab';
 import AdminContestsTab from '@/components/admin/AdminContestsTab';
 import AdminPromosTab from '@/components/admin/AdminPromosTab';
 import AdminPvpTab from '@/components/admin/AdminPvpTab';
+import AdminMandatoryChannelsTab from '@/components/admin/AdminMandatoryChannelsTab';
 
-type Tab='dashboard'|'users'|'withdrawals'|'tasks'|'contests'|'promos'|'pvp'|'broadcast'|'settings';
+type Tab='dashboard'|'users'|'withdrawals'|'tasks'|'contests'|'promos'|'pvp'|'mandatory'|'broadcast'|'settings';
 
 const tabs:[Tab,string,string][]=[
   ['dashboard','Stats','📊'],['users','Users','👥'],['withdrawals','Withdraw','💸'],
   ['tasks','Tasks','📋'],['contests','Contests','🏆'],['promos','Promos','🎁'],
-  ['pvp','PvP','🎮'],['broadcast','Broadcast','📢'],['settings','Settings','⚙️'],
+  ['pvp','PvP','🎮'],['mandatory','Join Gate','📢'],['broadcast','Broadcast','📣'],['settings','Settings','⚙️'],
 ];
 
 export default function AdminPanel(){
@@ -75,6 +76,7 @@ export default function AdminPanel(){
       {tab==='contests'&&<AdminContestsTab contests={contests} onCreateContest={async contest=>{const r:any=await adminCreateContest(contest);toast(r.success?'Contest created':r.message||'Failed');await load();}} onEndContest={async id=>{const r:any=await adminEndContest(id);toast(r.success?'Contest rewards sent':r.message||'Failed');await load();}}/>}
       {tab==='promos'&&<AdminPromosTab onMessage={toast}/>} 
       {tab==='pvp'&&<AdminPvpTab overview={pvp} onSave={async(key,value)=>{const r:any=await adminUpdateSetting(key,value);if(!r.success){toast(r.message||'PvP setting update failed');return;}toast('PvP setting saved ✓');const next=await adminGetPvpOverview();setPvp(next);const fresh=await getSettings();setSettings(fresh);setEditSettings(fresh);}}/>}
+      {tab==='mandatory'&&<AdminMandatoryChannelsTab onMessage={toast}/>} 
       {tab==='broadcast'&&<><div className="ap-section">Broadcast message</div><textarea className="ap-text" value={broadcast} onChange={e=>setBroadcast(e.target.value)} placeholder="Message to all users"/><button className="ap-send" disabled={sending||!broadcast.trim()} onClick={async()=>{if(!telegramUser)return;setSending(true);const r:any=await adminSendBroadcast(broadcast,telegramUser.id);toast(r.success?'Broadcast sent':r.message||'Failed');if(r.success)setBroadcast('');setSending(false);}}>📢 {sending?'Sending…':'Send Broadcast'}</button></>}
       {tab==='settings'&&<AdminSettingsTab settings={settings} editSettings={editSettings} setEditSettings={setEditSettings} saving={null} onSave={async key=>{const r:any=await adminUpdateSetting(key,editSettings[key]);if(r.success){toast(`${key} saved ✓`);await refreshUser();await load();}else toast(r.message||'Failed');}}/>}
     </>}
