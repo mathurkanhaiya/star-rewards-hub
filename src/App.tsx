@@ -2,11 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageCircle, ShieldAlert, Wrench } from "lucide-react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import BottomNav from "@/components/BottomNav";
 import Header from "@/components/Header";
+import MandatoryJoinGate from "@/components/MandatoryJoinGate";
+import { checkMandatoryJoins, type MandatoryJoinState } from "@/lib/mandatoryJoinApi";
 import HomePage from "@/pages/HomePage";
 import TasksPage from "@/pages/TasksPage";
 import SpinPage from "@/pages/SpinPage";
@@ -57,18 +59,33 @@ function normalizeAdrUi(root:Node){
 
 function AppContent(){
  const{isLoading,user,isAdmin,settings}=useApp();const[currentPage,setCurrentPage]=useState<Page>('home');
+ const[access,setAccess]=useState<MandatoryJoinState|null>(null);const[accessChecking,setAccessChecking]=useState(false);
+ const verifyAccess=useCallback(async()=>{
+  if(!user||user.is_banned||isAdmin){setAccess({success:true,allJoined:true,channels:[]});return;}
+  setAccessChecking(true);const result=await checkMandatoryJoins();setAccess(result);setAccessChecking(false);
+ },[user,isAdmin]);
  useEffect(()=>{
   normalizeAdrUi(document.body);
   const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')normalizeAdrUi(record.target);record.addedNodes.forEach(normalizeAdrUi);if(record.type==='attributes')normalizeAdrUi(record.target);}});
   observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title','aria-label']});
   return()=>observer.disconnect();
  },[]);
- if(isLoading)return <><style>{CSS}</style><div className="app-loading"><div className="app-center" role="status" aria-label="Loading Ads Rewards"><div className="app-loader-stage"><div className="app-logo-wrap"><img className="app-logo" src="https://pixlinkhost.vercel.app/i/Hi5igH-F5g" alt="Ads Rewards logo"/></div></div><div className="app-brand">ADS REWARDS</div><div className="app-sub">WATCH · EARN · WITHDRAW</div><div className="app-progress"/></div></div></>;
+ useEffect(()=>{if(!isLoading&&user&&!user.is_banned)void verifyAccess();},[isLoading,user,verifyAccess]);
+ useEffect(()=>{
+  if(isLoading||!user||user.is_banned||isAdmin)return;
+  const recheck=()=>{if(document.visibilityState==='visible')void verifyAccess();};
+  const timer=window.setInterval(recheck,60000);
+  window.addEventListener('focus',recheck);document.addEventListener('visibilitychange',recheck);
+  return()=>{window.clearInterval(timer);window.removeEventListener('focus',recheck);document.removeEventListener('visibilitychange',recheck);};
+ },[isLoading,user,isAdmin,verifyAccess]);
+ const loadingAccess=!isAdmin&&!isLoading&&Boolean(user)&&!user?.is_banned&&access===null;
+ if(isLoading||loadingAccess)return <><style>{CSS}</style><div className="app-loading"><div className="app-center" role="status" aria-label="Loading Ads Rewards"><div className="app-loader-stage"><div className="app-logo-wrap"><img className="app-logo" src="https://pixlinkhost.vercel.app/i/Hi5igH-F5g" alt="Ads Rewards logo"/></div></div><div className="app-brand">ADS REWARDS</div><div className="app-sub">{loadingAccess?'CHECKING ACCESS…':'WATCH · EARN · WITHDRAW'}</div><div className="app-progress"/></div></div></>;
  if(user?.is_banned){
   const support=String(user.support_username||settings.support_username||'').trim().replace(/^@/,'');
   return <><style>{CSS}</style><div className="app-banned"><div className="app-center"><ShieldAlert className="gate-icon ban-icon"/><div className="gate-title ban-title">🚫 Account Restricted</div><div className="gate-copy">Your AdsReward account has been banned.</div><div className="gate-reason"><strong>Reason:</strong> {user.ban_reason||'No reason provided.'}</div>{support?<button className="gate-button" onClick={()=>window.Telegram?.WebApp?.openTelegramLink(`https://t.me/${support}`)}><MessageCircle/>Contact Support</button>:null}</div></div></>;
  }
  if(on(settings.maintenance_mode)&&!isAdmin)return <><style>{CSS}</style><div className="app-maintenance"><div className="app-center"><Wrench className="gate-icon maintenance-icon"/><div className="gate-title maintenance-title">🛠 AdsReward Maintenance</div><div className="gate-copy">We're currently improving AdsReward.<br/><br/>Your balance and progress remain saved. Please check again later.</div></div></div></>;
+ if(!isAdmin&&access&&!access.allJoined)return <MandatoryJoinGate channels={access.channels} checking={accessChecking} onOpen={channel=>{const tg=window.Telegram?.WebApp;if(channel.joinUrl.includes('t.me')&&tg?.openTelegramLink)tg.openTelegramLink(channel.joinUrl);else if(tg?.openLink)tg.openLink(channel.joinUrl);else window.open(channel.joinUrl,'_blank');window.setTimeout(()=>void verifyAccess(),1500);}}/>;
  const render=()=>{switch(currentPage){case'home':return <HomePage/>;case'tasks':return <TasksPage/>;case'spin':return <SpinPage/>;case'referral':return <ReferralPage/>;case'leaderboard':return <LeaderboardPage/>;case'wallet':return <WalletPage/>;case'notifications':return <NotificationsPage/>;case'admin':return isAdmin?<AdminPanel/>:<HomePage/>;default:return <HomePage/>}};
  return <><style>{CSS}</style><div className="app-shell"><Header/><main className="app-page" key={currentPage}>{render()}</main><BottomNav currentPage={currentPage} onNavigate={setCurrentPage}/></div></>;
 }
