@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AppUser, UserBalance, TelegramUser, Notification } from '@/types/telegram';
 import { initUser, getUserBalance, getSettings, getUnreadNotifCount, getNotifications, markNotificationRead } from '@/lib/api';
-import { showInterstitialAd } from '@/hooks/useAdsgram';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AppContextType {
@@ -30,7 +29,6 @@ const ADMIN_ID = 2139807311;
 function withTimeout<T>(promise:Promise<T>, ms:number, fallback:T):Promise<T> {
   return Promise.race([promise,new Promise<T>((resolve)=>setTimeout(()=>resolve(fallback),ms))]);
 }
-function enabled(value:unknown){return !['false','0','off','no',''].includes(String(value??'').trim().toLowerCase());}
 
 export function AppProvider({ children }:{ children:React.ReactNode }) {
   const [telegramUser,setTelegramUser]=useState<TelegramUser|null>(null);
@@ -85,8 +83,6 @@ export function AppProvider({ children }:{ children:React.ReactNode }) {
         withTimeout(getUnreadNotifCount(appUser.id),5000,0),
       ]);
       setBalance(bal); setSettings(s); setNotifications(notifs as Notification[]); setUnreadCount(unread);
-      const maintenance=enabled(s.maintenance_mode);
-      if(!maintenance||tgUser.id===ADMIN_ID) showInterstitialAd().catch(()=>{});
     } catch(err) {
       console.error('App init error:',err);
       setUser(null); setBalance(null);
